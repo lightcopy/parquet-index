@@ -20,10 +20,9 @@ import scala.collection.mutable.HashMap
 
 import org.apache.spark.sql.{Column, DataFrame, SaveMode, SQLContext}
 
-
 /**
  * Interface to prepare indexed `DataFrame`, and access index functionality, e.g. create, drop,
- * alter existing index.
+ * alter or query existing index.
  * @param sqlContext SQLContext for the session
  */
 private[lightcopy] class DataFrameIndexBuilder(@transient val sqlContext: SQLContext) {
