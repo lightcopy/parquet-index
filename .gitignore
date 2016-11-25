@@ -15,3 +15,7 @@ project/plugins/project/
 # Scala-IDE specific
 .scala_dependencies
 .worksheet
+
+metastore_db/
+spark-warehouse/
+temp/
