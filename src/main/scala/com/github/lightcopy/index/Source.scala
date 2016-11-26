@@ -35,14 +35,15 @@ private[lightcopy] object Source {
   val PARQUET = "parquet"
   implicit val formats = JsonDefaultFormats
 
-  private def resolveSource(source: String): IndexSource = source match {
+  /** Resolve source, fail if source is unsupported */
+  def resolveSource(source: String): IndexSource = source match {
     case PARQUET => new ParquetSource()
     case other => throw new UnsupportedOperationException(
       s"Source $other is not supported, accepted sources are '$PARQUET'")
   }
 
   /** Read index metadata */
-  private def readMetadata(fs: FileSystem, root: Path): Metadata = {
+  def readMetadata(fs: FileSystem, root: Path): Metadata = {
     val metadataPath = root.suffix(s"${Path.SEPARATOR}$METADATA_FILE")
     Json.parse(Util.readContent(fs, metadataPath)).extract[Metadata]
   }

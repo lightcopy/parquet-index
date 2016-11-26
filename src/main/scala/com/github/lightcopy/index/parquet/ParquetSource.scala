@@ -27,10 +27,13 @@ class ParquetSource extends IndexSource {
       name: String,
       root: String,
       metadata: Option[Metadata]): Index = {
-    null
+    throw new UnsupportedOperationException()
   }
 
-  override def createIndex(catalog: Catalog, indexSpec: IndexSpec, columns: Seq[Column]): Index = {
-    null
+  override def createIndex(
+      catalog: Catalog,
+      indexSpec: IndexSpec,
+      columns: Seq[Column]): Index = {
+    throw new UnsupportedOperationException()
   }
 }
