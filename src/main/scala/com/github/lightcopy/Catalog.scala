@@ -213,7 +213,7 @@ class InternalCatalog(
 
   /** Convert columns into column names */
   private def resolveColumnNames(columns: Seq[Column]): Seq[String] = {
-    Seq.empty
+    columns.map(_.toString)
   }
 
   override def dropIndex(indexSpec: IndexSpec): Unit = {
