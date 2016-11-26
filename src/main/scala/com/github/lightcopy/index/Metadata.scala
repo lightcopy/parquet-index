@@ -14,27 +14,7 @@
  * limitations under the License.
  */
 
-package com.github.lightcopy
+package com.github.lightcopy.index
 
-import java.io.{InputStream, OutputStream}
-
-abstract class IndexStatus {
-  def getRootPath(): String
-
-  def equalsSpec(spec: IndexSpec): Boolean
-}
-
-object IndexStatus {
-  def apply(name: String, rootPath: String, stream: InputStream): IndexStatus = {
-    throw new UnsupportedOperationException()
-  }
-
-  def create(
-      name: String,
-      rootPath: String,
-      indexSpec: IndexSpec,
-      columns: Seq[String],
-      outputStream: OutputStream): Unit = {
-    // create index in root directory
-  }
-}
+/** Index metadata, maps directly to JSON */
+case class Metadata(source: String)

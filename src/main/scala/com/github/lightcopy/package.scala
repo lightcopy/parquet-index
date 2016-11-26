@@ -16,24 +16,14 @@
 
 package com.github.lightcopy
 
-import scala.collection.Map
+import org.apache.spark.sql.SQLContext
 
-import org.apache.spark.sql.SaveMode
-
-/**
- * Partial index specification to access index in metastore.
- * @param source format of the index
- * @param path optional path for datasource table
- * @param mode save mode (only applicable for creating index)
- * @param options specific index options
- */
-case class IndexSpec(
-    source: String,
-    path: Option[String],
-    mode: SaveMode,
-    options: Map[String, String]) {
-
-  override def toString(): String = {
-    s"${getClass.getSimpleName}(source=$source, path=$path, mode=$mode, options=$options)"
+/** Implicit methods for index */
+package object implicits {
+  /** [[QueryContext]] to access index functionality using SQLContext */
+  implicit class QueryContext(sqlContext: SQLContext) {
+    def index: DataFrameIndexBuilder = {
+      new DataFrameIndexBuilder(sqlContext)
+    }
   }
 }

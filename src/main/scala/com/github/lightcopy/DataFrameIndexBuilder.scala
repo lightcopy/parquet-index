@@ -35,6 +35,8 @@ private[lightcopy] class DataFrameIndexBuilder(@transient val sqlContext: SQLCon
   // extra configuration per index
   private val extraOptions = new HashMap[String, String]()
 
+  private val catalog = new InternalCatalog(sqlContext)
+
   /**
    * Format to read provided index from metastore.
    * @param source string identifier for format, e.g. "parquet"
@@ -111,6 +113,11 @@ private[lightcopy] class DataFrameIndexBuilder(@transient val sqlContext: SQLCon
   // == Catalog functionality ==
   //////////////////////////////////////////////////////////////
 
+  /** Create index spec based on current state of properties */
+  private def makeIndexSpec(): IndexSpec = {
+    IndexSpec(source, path, mode, extraOptions)
+  }
+
   /**
    * Create index for provided columns, at least one column required. Column must be resolved, e.g.
    * cannot be "*", or nested column, e.g. "map.*". See `mode()` method for different create
@@ -118,12 +125,12 @@ private[lightcopy] class DataFrameIndexBuilder(@transient val sqlContext: SQLCon
    * @param cols columns to build index, subsequent query will be applied on those columns
    */
   def create(cols: Column*): Unit = {
-    throw new UnsupportedOperationException()
+    catalog.createIndex(makeIndexSpec(), cols.toSeq)
   }
 
   /** Drop provided index. If index does not exist, no-op */
   def drop(): Unit = {
-    throw new UnsupportedOperationException()
+    catalog.dropIndex(makeIndexSpec())
   }
 
   /**
@@ -135,6 +142,6 @@ private[lightcopy] class DataFrameIndexBuilder(@transient val sqlContext: SQLCon
    * @param condition filtering expression similar to `DataFrame.filter(...)`
    */
   def query(condition: Column): DataFrame = {
-    throw new UnsupportedOperationException()
+    catalog.queryIndex(makeIndexSpec(), condition)
   }
 }

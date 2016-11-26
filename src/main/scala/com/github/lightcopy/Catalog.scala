@@ -16,8 +16,6 @@
 
 package com.github.lightcopy
 
-import java.util.UUID
-
 import scala.util.Try
 import scala.util.control.NonFatal
 
@@ -25,14 +23,20 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path, PathFilter}
 import org.apache.hadoop.fs.permission.{FsAction, FsPermission}
 
-import org.apache.spark.sql.{Column, DataFrame, SQLContext}
+import org.apache.spark.sql.{Column, DataFrame, SaveMode, SQLContext}
 
 import org.slf4j.LoggerFactory
 
+import com.github.lightcopy.index.{Index, Source}
+
 /**
- * [[Catalog]] provides access to internal index metastore.
+ * [[Catalog]] manages internal index metastore. It assumes that index metadata is stored on disk
+ * despite actual data being stored either on disk or database.
  */
 abstract class Catalog {
+
+  /** File system for catalog */
+  def fs: FileSystem
 
   /**
    * Get fully-qualified path to the backed metastore. Can be local file system or HDFS.
@@ -40,10 +44,17 @@ abstract class Catalog {
   def metastorePath: String
 
   /**
-   * List index directories available in metastore. Returns sequence of [[IndexStatus]],
+   * List index directories available in metastore. Returns sequence of [[Index]],
    * which might have different underlying implementation, e.g. Parquet or ORC.
    */
-  def listIndexes(): Seq[IndexStatus]
+  def listIndexes(): Seq[Index]
+
+  /**
+   * Find index based on provided [[IndexSpec]]. Should return None, if index does not exist, and
+   * should fail if index is corrupt.
+   * @param indexSpec partial index specification
+   */
+  def getIndex(indexSpec: IndexSpec): Option[Index]
 
   /**
    * Create index based on partial information as [[IndexSpec]] and set of columns. Should check if
@@ -60,8 +71,9 @@ abstract class Catalog {
   def dropIndex(indexSpec: IndexSpec): Unit
 
   /**
-   * Query index based on [[IndexSpec]] and condition. Internal behaviour should depend on condition
-   * and supported predicates as well as amount of data returned.
+   * Query index based on [[IndexSpec]] and condition. Internal behaviour should depend on
+   * condition and supported predicates as well as amount of data returned. Note that fallback
+   * strategy may not be supported by underlying index implementation.
    * @param indexSpec partial index specification
    * @param condition filter expression to use
    */
@@ -75,7 +87,7 @@ abstract class Catalog {
   def refreshIndex(indexSpec: IndexSpec): Unit = { }
 }
 
-/** Internal implementation of [[Catalog]] with support for in-memory index */
+/** Internal file system implementation of [[Catalog]] with support for caching */
 class InternalCatalog(
     @transient val sqlContext: SQLContext)
   extends Catalog {
@@ -84,7 +96,9 @@ class InternalCatalog(
 
   private val hadoopConf = sqlContext.sparkContext.hadoopConfiguration
   private val metastore = resolveMetastore(getMetastorePath(sqlContext), hadoopConf)
+  override val fs = metastore.getFileSystem(hadoopConf)
   logger.info(s"Resolved metastore directory to $metastore")
+  logger.info(s"Registered file system $fs")
 
   /** Resolve metastore path as raw string */
   private[lightcopy] def getMetastorePath(sqlContext: SQLContext): Option[String] = {
@@ -92,11 +106,10 @@ class InternalCatalog(
   }
 
   /** Return fully-qualified path for metastore */
-  private[lightcopy] def resolveMetastore(rawPath: Option[String], conf: Configuration): String = {
+  private[lightcopy] def resolveMetastore(rawPath: Option[String], conf: Configuration): Path = {
     val hadoopConf = if (rawPath.isEmpty) new Configuration(false) else conf
     val path = new Path(rawPath.getOrElse(InternalCatalog.DEFAULT_METASTORE_DIR))
     val fs = path.getFileSystem(hadoopConf)
-
     // create directory with read/write permissions, if does not exist
     if (!fs.exists(path)) {
       val permission = InternalCatalog.METASTORE_PERMISSION
@@ -106,7 +119,7 @@ class InternalCatalog(
 
     val status = fs.getFileStatus(path)
     validateMetastoreStatus(status)
-    status.getPath.toString
+    status.getPath
   }
 
   /** Validate metastore status, throw exception if parameters do not match */
@@ -129,112 +142,92 @@ class InternalCatalog(
     }
   }
 
-  /** Path filter for index metadata files */
-  private[lightcopy] def metadataPathFilter: PathFilter = {
-    new PathFilter() {
-      override def accept(path: Path): Boolean = {
-        path.getName == InternalCatalog.METASTORE_INDEX_METADATA_FILE
-      }
-    }
-  }
+  //////////////////////////////////////////////////////////////
+  // == Catalog implementation ==
+  //////////////////////////////////////////////////////////////
 
-  /** Convert file status into index status */
-  private[lightcopy] def fsToIndexStatus(
-      fs: FileSystem,
-      status: FileStatus): Option[IndexStatus] = {
-    if (status.isDirectory) {
-      val metadata = fs.listStatus(status.getPath, metadataPathFilter).headOption
-      if (metadata.isDefined) {
-        var inputStream = fs.open(metadata.get.getPath)
-        try {
-          Some(IndexStatus(status.getPath.getName, status.getPath.toString, inputStream))
-        } finally {
-          if (inputStream != null) {
-            inputStream.close()
+  override def metastorePath: String = metastore.toString
+
+  override def listIndexes(): Seq[Index] = {
+    Option(fs.listStatus(metastore)) match {
+      case Some(statuses) if statuses.nonEmpty =>
+        statuses.filter { _.isDirectory }.flatMap { status =>
+          // index might fail to load, we wrap it into try-catch and log error
+          try {
+            Some(Source.loadIndex(this, status.getPath.getName, status.getPath.toString))
+          } catch {
+            case NonFatal(err) =>
+              logger.debug(s"Failed to load index for status $status, reason=$err")
+              None
           }
-        }
-      } else {
-        None
-      }
-    } else {
-      None
+        }.toSeq
+      case other => Seq.empty
     }
   }
 
-  override def metastorePath: String = metastore
-
-  override def listIndexes(): Seq[IndexStatus] = {
-    val path = new Path(metastorePath)
-    val fs = path.getFileSystem(hadoopConf)
-    val statuses = Option(fs.listStatus(path))
-    if (statuses.isDefined) {
-      statuses.get.filter { _.isDirectory }.flatMap { status =>
-        fsToIndexStatus(fs, status) }.toSeq
-    } else {
-      Seq.empty
-    }
+  override def getIndex(indexSpec: IndexSpec): Option[Index] = {
+    val found = listIndexes().filter { index => index.containsSpec(indexSpec) }
+    found.headOption
   }
 
   override def createIndex(indexSpec: IndexSpec, columns: Seq[Column]): Unit = {
-    createIndex(UUID.randomUUID.toString, indexSpec, columns)
-  }
-
-  private[lightcopy] def createIndex(
-      indexName: String,
-      indexSpec: IndexSpec,
-      columns: Seq[Column]): Unit = {
-    require(columns.nonEmpty, "Expected non-empty list of columns to create index")
-    val indexPath = new Path(metastorePath).suffix(s"${Path.SEPARATOR}/$indexName")
-    logger.info(s"Creating index $indexName in $indexPath")
-    val fs = indexPath.getFileSystem(hadoopConf)
-    if (fs.exists(indexPath)) {
-      throw new IllegalStateException(s"Index path $indexPath already exists")
+    // make decision on how to load index based on provided save mode
+    val maybeIndex = getIndex(indexSpec)
+    indexSpec.mode match {
+      case SaveMode.ErrorIfExists =>
+        if (maybeIndex.isDefined) {
+          throw new IllegalStateException(s"Index already exists for spec $indexSpec")
+        } else {
+          Source.createIndex(this, indexSpec, columns)
+        }
+      case SaveMode.Overwrite =>
+        if (maybeIndex.isDefined) {
+          logger.info(s"Delete index for spec $indexSpec")
+          // prepare index for deletion and drop what is left including metadata
+          dropIndex(indexSpec)
+        }
+        Source.createIndex(this, indexSpec, columns)
+      case SaveMode.Append =>
+        // this really depends on index implementation support for append
+        if (maybeIndex.isDefined) {
+          logger.info(s"Append to existing index for spec $indexSpec")
+          maybeIndex.get.append(indexSpec, columns)
+        } else {
+          Source.createIndex(this, indexSpec, columns)
+        }
+      case SaveMode.Ignore =>
+        // no-op if index exists, log the action
+        if (maybeIndex.isDefined) {
+          logger.info(s"Index exists for spec $indexSpec, ignore 'createIndex'")
+        } else {
+          Source.createIndex(this, indexSpec, columns)
+        }
     }
-    if (!fs.mkdirs(indexPath)) {
-      throw new IllegalStateException(s"Failed to create directory $indexPath")
-    }
-
-    val resolvedColumns = resolveColumnNames(columns)
-    val metadataPath = indexPath.suffix(
-      s"${Path.SEPARATOR}/${InternalCatalog.METASTORE_INDEX_METADATA_FILE}")
-    var outputStream = fs.create(metadataPath)
-    try {
-      IndexStatus.create(indexName, indexPath.toString, indexSpec, resolvedColumns, outputStream)
-    } catch {
-      case NonFatal(err) =>
-        fs.delete(indexPath, true)
-        throw err
-    } finally {
-      if (outputStream != null) {
-        outputStream.close()
-      }
-    }
-  }
-
-  /** Convert columns into column names */
-  private def resolveColumnNames(columns: Seq[Column]): Seq[String] = {
-    columns.map(_.toString)
   }
 
   override def dropIndex(indexSpec: IndexSpec): Unit = {
-    val indexes = listIndexes()
-    for (index <- indexes) {
-      if (index.equalsSpec(indexSpec)) {
-        val path = new Path(index.getRootPath)
+    getIndex(indexSpec) match {
+      case Some(index) =>
+        val path = new Path(index.getRoot)
         logger.info(s"Delete index $index at root $path")
-        val fs = path.getFileSystem(hadoopConf)
+        index.delete()
         if (!fs.delete(path, true)) {
-          logger.warn(s"Failed to delete index $index")
+          logger.warn(s"Failed to delete index $index for path $path, may require manual cleanup")
         }
-      }
+      case None => // do nothing
     }
   }
 
   override def queryIndex(indexSpec: IndexSpec, condition: Column): DataFrame = {
-    null
+    getIndex(indexSpec) match {
+      case Some(index) =>
+        logger.info(s"Search index $index for $condition")
+        index.search(condition)
+      case None =>
+        logger.warn(s"Index for spec $indexSpec is not found, using fallback strategy")
+        Source.fallback(this, indexSpec, condition)
+    }
   }
-
-  override def refreshIndex(indexSpec: IndexSpec): Unit = { }
 }
 
 private[lightcopy] object InternalCatalog {
@@ -245,6 +238,4 @@ private[lightcopy] object InternalCatalog {
   // permission mode "rw-rw-rw-"
   val METASTORE_PERMISSION =
     new FsPermission(FsAction.READ_WRITE, FsAction.READ_WRITE, FsAction.READ_WRITE)
-  // name for metadata file for each index
-  val METASTORE_INDEX_METADATA_FILE = "_index_metadata"
 }
