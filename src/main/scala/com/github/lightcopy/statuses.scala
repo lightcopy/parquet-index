@@ -16,4 +16,16 @@
 
 package com.github.lightcopy
 
-abstract class IndexStatus
+import java.io.InputStream
+
+abstract class IndexStatus {
+  def getRootPath(): String
+
+  def equalsSpec(spec: IndexSpec): Boolean
+}
+
+object IndexStatus {
+  def apply(root: String, stream: InputStream): IndexStatus = {
+    throw new UnsupportedOperationException()
+  }
+}

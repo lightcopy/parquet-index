@@ -16,7 +16,15 @@
 
 package com.github.lightcopy
 
-import org.apache.spark.sql.{Column, DataFrame}
+import scala.util.Try
+
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileStatus, FileSystem, Path, PathFilter}
+import org.apache.hadoop.fs.permission.{FsAction, FsPermission}
+
+import org.apache.spark.sql.{Column, DataFrame, SQLContext}
+
+import org.slf4j.LoggerFactory
 
 /**
  * [[Catalog]] provides access to internal index metastore.
@@ -26,7 +34,7 @@ abstract class Catalog {
   /**
    * Get fully-qualified path to the backed metastore. Can be local file system or HDFS.
    */
-  def metastore: String
+  def metastorePath: String
 
   /**
    * List index directories available in metastore. Returns sequence of [[IndexStatus]],
@@ -62,4 +70,140 @@ abstract class Catalog {
    * @param indexSpec partial index specification
    */
   def refreshIndex(indexSpec: IndexSpec): Unit = { }
+}
+
+/** Internal implementation of [[Catalog]] with support for in-memory index */
+class InternalCatalog(
+    @transient val sqlContext: SQLContext)
+  extends Catalog {
+
+  private val logger = LoggerFactory.getLogger(getClass)
+
+  private val hadoopConf = sqlContext.sparkContext.hadoopConfiguration
+  private val metastore = resolveMetastore(getMetastorePath(sqlContext), hadoopConf)
+  logger.info(s"Resolved metastore directory to $metastore")
+
+  /** Resolve metastore path as raw string */
+  private[lightcopy] def getMetastorePath(sqlContext: SQLContext): Option[String] = {
+    Try(sqlContext.getConf(InternalCatalog.METASTORE_OPTION)).toOption
+  }
+
+  /** Return fully-qualified path for metastore */
+  private[lightcopy] def resolveMetastore(rawPath: Option[String], conf: Configuration): String = {
+    val hadoopConf = if (rawPath.isEmpty) new Configuration(false) else conf
+    val path = new Path(rawPath.getOrElse(InternalCatalog.DEFAULT_METASTORE_DIR))
+    val fs = path.getFileSystem(hadoopConf)
+
+    // create directory with read/write permissions, if does not exist
+    if (!fs.exists(path)) {
+      val permission = InternalCatalog.METASTORE_PERMISSION
+      logger.info(s"Creating metastore directory($permission) for $path")
+      fs.mkdirs(path, permission)
+    }
+
+    val status = fs.getFileStatus(path)
+    validateMetastoreStatus(status)
+    status.getPath.toString
+  }
+
+  /** Validate metastore status, throw exception if parameters do not match */
+  private[lightcopy] def validateMetastoreStatus(status: FileStatus): Unit = {
+    // status is a directory with read/write access
+    if (!status.isDirectory) {
+      throw new IllegalStateException(s"Expected directory for metastore, found ${status.getPath}")
+    }
+
+    val permission = status.getPermission
+    val expected = InternalCatalog.METASTORE_PERMISSION
+    val readWriteAccess =
+      permission.getUserAction.implies(expected.getUserAction) &&
+      permission.getGroupAction.implies(expected.getGroupAction) &&
+      permission.getOtherAction.implies(expected.getOtherAction)
+
+    if (!readWriteAccess) {
+      throw new IllegalStateException(
+        s"Expected directory with $expected, found ${status.getPath}($permission)")
+    }
+  }
+
+  /** Path filter for index metadata files */
+  private[lightcopy] def metadataPathFilter: PathFilter = {
+    new PathFilter() {
+      override def accept(path: Path): Boolean = {
+        path.getName == InternalCatalog.METASTORE_INDEX_METADATA_FILE
+      }
+    }
+  }
+
+  /** Convert file status into index status */
+  private[lightcopy] def fsToIndexStatus(
+      fs: FileSystem,
+      status: FileStatus): Option[IndexStatus] = {
+    if (status.isDirectory) {
+      val metadata = fs.listStatus(status.getPath, metadataPathFilter).headOption
+      if (metadata.isDefined) {
+        var inputStream = fs.open(metadata.get.getPath)
+        try {
+          Some(IndexStatus(metadata.get.getPath.toString, inputStream))
+        } finally {
+          if (inputStream != null) {
+            inputStream.close()
+          }
+        }
+      } else {
+        None
+      }
+    } else {
+      None
+    }
+  }
+
+  override def metastorePath: String = metastore
+
+  override def listIndexes(): Seq[IndexStatus] = {
+    val path = new Path(metastorePath)
+    val fs = path.getFileSystem(hadoopConf)
+    val statuses = Option(fs.listStatus(path))
+    if (statuses.isDefined) {
+      statuses.get.filter { _.isDirectory }.flatMap { status =>
+        fsToIndexStatus(fs, status) }.toSeq
+    } else {
+      Seq.empty
+    }
+  }
+
+  override def createIndex(indexSpec: IndexSpec, columns: Seq[Column]): Unit = { }
+
+  override def dropIndex(indexSpec: IndexSpec): Unit = {
+    val indexes = listIndexes()
+    for (index <- indexes) {
+      if (index.equalsSpec(indexSpec)) {
+        val path = new Path(index.getRootPath)
+        logger.info(s"Delete index $index at root $path")
+        val fs = path.getFileSystem(hadoopConf)
+        val isOk = fs.delete(path, true)
+        if (!isOk) {
+          logger.warn(s"Failed to delete index $index")
+        }
+      }
+    }
+  }
+
+  override def queryIndex(indexSpec: IndexSpec, condition: Column): DataFrame = {
+    null
+  }
+
+  override def refreshIndex(indexSpec: IndexSpec): Unit = { }
+}
+
+private[lightcopy] object InternalCatalog {
+  // reserved Spark configuration option for metastore
+  val METASTORE_OPTION = "spark.sql.index.metastore"
+  // default metastore directory name
+  val DEFAULT_METASTORE_DIR = "index_metastore"
+  // permission mode "rw-rw-rw-"
+  val METASTORE_PERMISSION =
+    new FsPermission(FsAction.READ_WRITE, FsAction.READ_WRITE, FsAction.READ_WRITE)
+  // name for metadata file for each index
+  val METASTORE_INDEX_METADATA_FILE = "_index_metadata"
 }
