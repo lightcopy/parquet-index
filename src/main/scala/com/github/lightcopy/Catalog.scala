@@ -16,7 +16,10 @@
 
 package com.github.lightcopy
 
+import java.util.UUID
+
 import scala.util.Try
+import scala.util.control.NonFatal
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path, PathFilter}
@@ -144,7 +147,7 @@ class InternalCatalog(
       if (metadata.isDefined) {
         var inputStream = fs.open(metadata.get.getPath)
         try {
-          Some(IndexStatus(metadata.get.getPath.toString, inputStream))
+          Some(IndexStatus(status.getPath.getName, status.getPath.toString, inputStream))
         } finally {
           if (inputStream != null) {
             inputStream.close()
@@ -172,7 +175,46 @@ class InternalCatalog(
     }
   }
 
-  override def createIndex(indexSpec: IndexSpec, columns: Seq[Column]): Unit = { }
+  override def createIndex(indexSpec: IndexSpec, columns: Seq[Column]): Unit = {
+    createIndex(UUID.randomUUID.toString, indexSpec, columns)
+  }
+
+  private[lightcopy] def createIndex(
+      indexName: String,
+      indexSpec: IndexSpec,
+      columns: Seq[Column]): Unit = {
+    require(columns.nonEmpty, "Expected non-empty list of columns to create index")
+    val indexPath = new Path(metastorePath).suffix(s"${Path.SEPARATOR}/$indexName")
+    logger.info(s"Creating index $indexName in $indexPath")
+    val fs = indexPath.getFileSystem(hadoopConf)
+    if (fs.exists(indexPath)) {
+      throw new IllegalStateException(s"Index path $indexPath already exists")
+    }
+    if (!fs.mkdirs(indexPath)) {
+      throw new IllegalStateException(s"Failed to create directory $indexPath")
+    }
+
+    val resolvedColumns = resolveColumnNames(columns)
+    val metadataPath = indexPath.suffix(
+      s"${Path.SEPARATOR}/${InternalCatalog.METASTORE_INDEX_METADATA_FILE}")
+    var outputStream = fs.create(metadataPath)
+    try {
+      IndexStatus.create(indexName, indexPath.toString, indexSpec, resolvedColumns, outputStream)
+    } catch {
+      case NonFatal(err) =>
+        fs.delete(indexPath, true)
+        throw err
+    } finally {
+      if (outputStream != null) {
+        outputStream.close()
+      }
+    }
+  }
+
+  /** Convert columns into column names */
+  private def resolveColumnNames(columns: Seq[Column]): Seq[String] = {
+    Seq.empty
+  }
 
   override def dropIndex(indexSpec: IndexSpec): Unit = {
     val indexes = listIndexes()
@@ -181,8 +223,7 @@ class InternalCatalog(
         val path = new Path(index.getRootPath)
         logger.info(s"Delete index $index at root $path")
         val fs = path.getFileSystem(hadoopConf)
-        val isOk = fs.delete(path, true)
-        if (!isOk) {
+        if (!fs.delete(path, true)) {
           logger.warn(s"Failed to delete index $index")
         }
       }

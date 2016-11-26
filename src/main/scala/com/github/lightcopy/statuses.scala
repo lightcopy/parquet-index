@@ -16,7 +16,7 @@
 
 package com.github.lightcopy
 
-import java.io.InputStream
+import java.io.{InputStream, OutputStream}
 
 abstract class IndexStatus {
   def getRootPath(): String
@@ -25,7 +25,16 @@ abstract class IndexStatus {
 }
 
 object IndexStatus {
-  def apply(root: String, stream: InputStream): IndexStatus = {
+  def apply(name: String, rootPath: String, stream: InputStream): IndexStatus = {
     throw new UnsupportedOperationException()
+  }
+
+  def create(
+      name: String,
+      rootPath: String,
+      indexSpec: IndexSpec,
+      columns: Seq[String],
+      outputStream: OutputStream): Unit = {
+    // create index in root directory
   }
 }
