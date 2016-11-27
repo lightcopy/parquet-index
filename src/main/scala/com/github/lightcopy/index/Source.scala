@@ -27,6 +27,7 @@ import org.json4s.jackson.{Serialization => SerDe}
 import org.slf4j.LoggerFactory
 
 import com.github.lightcopy.{Catalog, IndexSpec, Util}
+import com.github.lightcopy.index.simple.SimpleSource
 import com.github.lightcopy.index.parquet.ParquetSource
 
 /**
@@ -39,13 +40,17 @@ private[lightcopy] object Source {
   private val logger = LoggerFactory.getLogger(getClass)
   implicit val formats = SerDe.formats(NoTypeHints)
   val METADATA_FILE = "_index_metadata"
+  // Parquet source
   val PARQUET = "parquet"
+  // simple source for testing
+  val SIMPLE = "simple"
 
   /** Resolve source, fail if source is unsupported */
   def resolveSource(source: String): IndexSource = source match {
+    case SIMPLE => new SimpleSource()
     case PARQUET => new ParquetSource()
     case other => throw new UnsupportedOperationException(
-      s"Source $other is not supported, accepted sources are '$PARQUET'")
+      s"Source $other is not supported, accepted sources are '$SIMPLE', '$PARQUET'")
   }
 
   def metadataPath(root: Path): Path = {

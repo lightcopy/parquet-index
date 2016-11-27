@@ -16,13 +16,25 @@
 
 package com.github.lightcopy
 
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.permission.FsPermission
+
 import org.apache.spark.sql.SaveMode
 
-import com.github.lightcopy.testutil.UnitTestSuite
+import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
 import com.github.lightcopy.testutil.implicits._
 
 /** Test suite for [[Catalog]], [[InternalCatalog]] and [[IndexSpec]] */
-class CatalogSuite extends UnitTestSuite {
+class CatalogSuite extends UnitTestSuite with SparkLocal {
+  override def beforeAll {
+    startSparkSession()
+  }
+
+  override def afterAll {
+    stopSparkSession()
+  }
+
   test("index spec - toString 1") {
     val spec = IndexSpec("test-source", Some("path"), SaveMode.Append, Map.empty)
     spec.toString should be (
@@ -39,5 +51,143 @@ class CatalogSuite extends UnitTestSuite {
     val spec = IndexSpec("test-source", None, SaveMode.Ignore, Map("1" -> "2", "3" -> "4"))
     spec.toString should be (
       "IndexSpec(source=test-source, path=None, mode=Ignore, options=Map(1 -> 2, 3 -> 4))")
+  }
+
+  test("internal catalog metastore option") {
+    InternalCatalog.METASTORE_OPTION should be ("spark.sql.index.metastore")
+  }
+
+  test("internal catalog metastore directory name") {
+    InternalCatalog.DEFAULT_METASTORE_DIR should be ("index_metastore")
+  }
+
+  test("internal catalog metastore default permission") {
+    InternalCatalog.METASTORE_PERMISSION.toString should be ("rw-rw-rw-")
+  }
+
+  test("get metastore path without setting") {
+    val catalog = new InternalCatalog(spark.sqlContext)
+    val res = catalog.getMetastorePath(catalog.sqlContext)
+    res should be (None)
+  }
+
+  test("get metastore path with setting") {
+    withTempDir { dir =>
+      val fs = dir.getFileSystem(new Configuration(false))
+      fs.setPermission(dir, InternalCatalog.METASTORE_PERMISSION)
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+      val catalog = new InternalCatalog(spark.sqlContext)
+      val res = catalog.getMetastorePath(catalog.sqlContext)
+      res should be (Some(dir.toString))
+    }
+  }
+
+  test("resolve metastore for non-existent directory") {
+    withTempDir { dir =>
+      val fs = dir.getFileSystem(new Configuration(false))
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION,
+        dir.suffix(Path.SEPARATOR + "test_metastore").toString)
+      // metastore is resolved when catalog is initialized
+      val catalog = new InternalCatalog(spark.sqlContext)
+      catalog.metastorePath.endsWith("test_metastore") should be (true)
+      val status = fs.getFileStatus(new Path(catalog.metastorePath))
+      status.isDirectory should be (true)
+      status.getPermission should be (InternalCatalog.METASTORE_PERMISSION)
+    }
+  }
+
+  test("use existing directory") {
+    withTempDir { dir =>
+      val fs = dir.getFileSystem(new Configuration(false))
+      fs.setPermission(dir, InternalCatalog.METASTORE_PERMISSION)
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+      // metastore is resolved when catalog is initialized
+      val catalog = new InternalCatalog(spark.sqlContext)
+      catalog.metastorePath should be ("file:" + dir.toString)
+      val status = fs.getFileStatus(new Path(catalog.metastorePath))
+      status.isDirectory should be (true)
+      status.getPermission should be (InternalCatalog.METASTORE_PERMISSION)
+    }
+  }
+
+  test("fail if metastore is not a directory ") {
+    withTempDir { dir =>
+      val fs = dir.getFileSystem(new Configuration(false))
+      val path = dir.suffix(Path.SEPARATOR + "file")
+      fs.createNewFile(path)
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, path.toString)
+      // metastore is resolved when catalog is initialized
+      val err = intercept[IllegalStateException] {
+        new InternalCatalog(spark.sqlContext)
+      }
+      err.getMessage.contains("Expected directory for metastore") should be (true)
+    }
+  }
+
+  test("fail if metastore has insufficient permissions") {
+    withTempDir { dir =>
+      val fs = dir.getFileSystem(new Configuration(false))
+      fs.setPermission(dir, new FsPermission("444"))
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+      // metastore is resolved when catalog is initialized
+      val err = intercept[IllegalStateException] {
+        new InternalCatalog(spark.sqlContext)
+      }
+      err.getMessage.contains("Expected directory with rw-rw-rw-") should be (true)
+      err.getMessage.contains("r--r--r--") should be (true)
+    }
+  }
+
+  test("use directory with richer permissions") {
+    withTempDir { dir =>
+      val fs = dir.getFileSystem(new Configuration(false))
+      fs.setPermission(dir, new FsPermission("777"))
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+      // metastore is resolved when catalog is initialized
+      val catalog = new InternalCatalog(spark.sqlContext)
+      catalog.metastorePath should be ("file:" + dir.toString)
+    }
+  }
+
+  test("get fresh index directory") {
+    withTempDir { dir =>
+      val fs = dir.getFileSystem(new Configuration(false))
+      fs.setPermission(dir, new FsPermission("777"))
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+      // metastore is resolved when catalog is initialized
+      val catalog = new InternalCatalog(spark.sqlContext)
+      val path = catalog.getFreshIndexDirectory
+      path.getParent.toString should be (catalog.metastorePath)
+    }
+  }
+
+  test("fail on directory collision") {
+    withTempDir { dir =>
+      val fs = dir.getFileSystem(new Configuration(false))
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION,
+        dir.suffix(Path.SEPARATOR + "test_metastore").toString)
+      // metastore is resolved when catalog is initialized
+      val catalog = new InternalCatalog(spark.sqlContext) {
+        override def getRandomName(): String = ""
+      }
+      val err = intercept[IllegalStateException] {
+        catalog.getFreshIndexDirectory
+      }
+      err.getMessage.contains("Fresh directory collision") should be (true)
+    }
+  }
+
+  test("fail if fresh directory cannot be created") {
+    withTempDir { dir =>
+      val fs = dir.getFileSystem(new Configuration(false))
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION,
+        dir.suffix(Path.SEPARATOR + "test_metastore").toString)
+      // metastore is resolved when catalog is initialized
+      val catalog = new InternalCatalog(spark.sqlContext)
+      val err = intercept[IllegalStateException] {
+        catalog.getFreshIndexDirectory
+      }
+      err.getMessage.contains("Failed to create new directory") should be (true)
+    }
   }
 }

@@ -16,12 +16,16 @@
 
 package com.github.lightcopy.index
 
+import java.io.FileNotFoundException
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 
-import org.apache.spark.sql.Column
+import org.apache.spark.sql.{Column, SaveMode}
+import org.apache.spark.sql.functions.lit
 
 import com.github.lightcopy.{Catalog, IndexSpec, SimpleCatalog}
+import com.github.lightcopy.index.simple.{SimpleIndex, SimpleSource}
 import com.github.lightcopy.index.parquet.ParquetSource
 import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
@@ -50,15 +54,24 @@ class SourceSuite extends UnitTestSuite {
     Source.PARQUET should be ("parquet")
   }
 
+  test("check Simple index source name") {
+    Source.SIMPLE should be ("simple")
+  }
+
   test("resolve parquet source") {
     Source.resolveSource(Source.PARQUET).isInstanceOf[ParquetSource] should be (true)
+  }
+
+  test("resolve simple source") {
+    Source.resolveSource(Source.SIMPLE).isInstanceOf[SimpleSource] should be (true)
   }
 
   test("fail to resolve unknown source") {
     val err = intercept[UnsupportedOperationException] {
       Source.resolveSource("invalid")
     }
-    err.getMessage should be ("Source invalid is not supported, accepted sources are 'parquet'")
+    err.getMessage should be (
+      "Source invalid is not supported, accepted sources are 'simple', 'parquet'")
   }
 
   test("generate metadata path") {
@@ -148,5 +161,48 @@ class SourceSuite extends UnitTestSuite {
       val fs = dir.getFileSystem(new Configuration(false))
       fs.exists(dir) should be (true)
     }
+  }
+
+  test("load index") {
+    withTempDir { dir =>
+      val catalog = new SimpleCatalog()
+      val status = catalog.fs.getFileStatus(dir)
+      val index = new SimpleIndex(catalog)
+      Source.writeMetadata(catalog.fs, dir, index.getMetadata)
+
+      val res = Source.loadIndex(catalog, status)
+      res.getMetadata should be (index.getMetadata)
+      res.getName should be (index.getName)
+      res.getRoot should be (index.getRoot)
+    }
+  }
+
+  test("fail to load index (no metadata)") {
+    withTempDir { dir =>
+      val catalog = new SimpleCatalog()
+      val status = catalog.fs.getFileStatus(dir)
+      intercept[FileNotFoundException] {
+        Source.loadIndex(catalog, status)
+      }
+    }
+  }
+
+  test("create index") {
+    withTempDir { dir =>
+      val catalog = new SimpleCatalog() {
+        override def getFreshIndexDirectory(): Path = dir
+      }
+      val spec = IndexSpec("simple", None, SaveMode.Append, Map.empty)
+      val index = Source.createIndex(catalog, spec, Seq.empty)
+      val metadata = Source.readMetadata(catalog.fs, dir)
+      metadata should be (index.getMetadata)
+    }
+  }
+
+  test("source fallback") {
+    val catalog = new SimpleCatalog()
+    val spec = IndexSpec("simple", None, SaveMode.Append, Map.empty)
+    val df = Source.fallback(catalog, spec, lit(1) === lit(1))
+    df should be (null)
   }
 }

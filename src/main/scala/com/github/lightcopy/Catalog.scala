@@ -120,8 +120,10 @@ class InternalCatalog(
     // create directory with read/write permissions, if does not exist
     if (!fs.exists(path)) {
       val permission = InternalCatalog.METASTORE_PERMISSION
-      logger.info(s"Creating metastore directory($permission) for $path")
-      fs.mkdirs(path, permission)
+      logger.info(s"Creating metastore directory ($permission) for $path")
+      if (!fs.mkdirs(path, permission)) {
+        logger.warn(s"Could not create metastore directory $path")
+      }
     }
 
     val status = fs.getFileStatus(path)
@@ -149,6 +151,9 @@ class InternalCatalog(
     }
   }
 
+  /** Return random UUID as index name */
+  def getRandomName(): String = UUID.randomUUID.toString
+
   //////////////////////////////////////////////////////////////
   // == Catalog implementation ==
   //////////////////////////////////////////////////////////////
@@ -157,12 +162,14 @@ class InternalCatalog(
 
   /** Create fresh index directory, should not collide with any existing paths */
   override def getFreshIndexDirectory(): Path = {
-    val uid = UUID.randomUUID.toString
+    val uid = getRandomName()
     val dir = metastore.suffix(s"${Path.SEPARATOR}$uid")
     if (fs.exists(dir)) {
       throw new IllegalStateException(s"Fresh directory collision, directory $dir already exists")
     }
-    fs.mkdirs(dir, InternalCatalog.METASTORE_PERMISSION)
+    if (!fs.mkdirs(dir, InternalCatalog.METASTORE_PERMISSION)) {
+      throw new IllegalStateException(s"Failed to create new directory $dir")
+    }
     fs.resolvePath(dir)
   }
 
