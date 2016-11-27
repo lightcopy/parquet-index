@@ -16,7 +16,7 @@
 
 package com.github.lightcopy.testutil
 
-import java.io.InputStream
+import java.io.{InputStream, OutputStream}
 import java.util.UUID
 
 import org.apache.hadoop.conf.{Configuration => HadoopConf}
@@ -86,6 +86,13 @@ trait TestBase {
     val p = new HadoopPath(path)
     val fs = p.getFileSystem(new HadoopConf(false))
     fs.open(p)
+  }
+
+  /** create file with a path and return output stream */
+  final protected def create(path: String): OutputStream = {
+    val p = new HadoopPath(path)
+    val fs = p.getFileSystem(new HadoopConf(false))
+    fs.create(p)
   }
 
   /** compare two DataFrame objects */

@@ -23,25 +23,21 @@ object Util {
 
   /** Read content as UTF-8 String from provided file */
   def readContent(fs: FileSystem, path: Path): String = {
-    var in = fs.open(path)
+    val in = fs.open(path)
     try {
       IOUtils.toString(in, "UTF-8")
     } finally {
-      if (in != null) {
-        in.close()
-      }
+      in.close()
     }
   }
 
   /** Write content as UTF-8 String into provided file path, file is ovewritten on next attempt */
   def writeContent(fs: FileSystem, path: Path, content: String): Unit = {
-    var out = fs.create(path, true)
+    val out = fs.create(path, true)
     try {
       IOUtils.write(content, out, "UTF-8")
     } finally {
-      if (out != null) {
-        out.close()
-      }
+      out.close()
     }
   }
 }

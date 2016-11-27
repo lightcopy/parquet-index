@@ -18,14 +18,15 @@ package com.github.lightcopy
 
 import scala.collection.mutable.HashMap
 
-import org.apache.spark.sql.{Column, DataFrame, SaveMode, SQLContext}
+import org.apache.spark.sql.{Column, DataFrame, SaveMode}
 
 /**
  * Interface to prepare indexed `DataFrame`, and access index functionality, e.g. create, drop,
  * alter or query existing index.
  * @param sqlContext SQLContext for the session
+ * @param catalog catalog to manage metastore
  */
-private[lightcopy] class DataFrameIndexBuilder(@transient val sqlContext: SQLContext) {
+private[lightcopy] class DataFrameIndexBuilder(@transient val catalog: Catalog) {
   // source to use when searching index
   private var source: String = null
   // path to the datasource
@@ -34,8 +35,6 @@ private[lightcopy] class DataFrameIndexBuilder(@transient val sqlContext: SQLCon
   private var mode: SaveMode = SaveMode.ErrorIfExists
   // extra configuration per index
   private val extraOptions = new HashMap[String, String]()
-
-  private val catalog = new InternalCatalog(sqlContext)
 
   /**
    * Format to read provided index from metastore.
@@ -114,7 +113,7 @@ private[lightcopy] class DataFrameIndexBuilder(@transient val sqlContext: SQLCon
   //////////////////////////////////////////////////////////////
 
   /** Create index spec based on current state of properties */
-  private def makeIndexSpec(): IndexSpec = {
+  private[lightcopy] def makeIndexSpec(): IndexSpec = {
     IndexSpec(source, path, mode, extraOptions)
   }
 
