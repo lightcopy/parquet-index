@@ -67,9 +67,14 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("get metastore path without setting") {
-    val catalog = new InternalCatalog(spark.sqlContext)
-    val res = catalog.getMetastorePath(catalog.sqlContext)
-    res should be (None)
+    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+      val catalog = new InternalCatalog(spark.sqlContext)
+      // unset catalog option to test try-option block
+      spark.conf.unset(InternalCatalog.METASTORE_OPTION)
+      val res = catalog.getMetastorePath(catalog.sqlContext)
+      res should be (None)
+    }
   }
 
   test("get metastore path with setting") {
