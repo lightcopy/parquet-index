@@ -23,25 +23,42 @@ import com.github.lightcopy.{Catalog, IndexSpec}
 /**
  * Base class representing index. [[Index]] always has a root directory and name which is a name of
  * folder that is allocated for index. Metadata should always be stored on disk, regardless of
- * underlying implementation for storing index data.
+ * underlying implementation for storing index data, and currently is always done by [[Source]] when
+ * using [[InternalCatalog]].
  *
  * Index should load and verify metadata (and potentially data) when creating an instance, but this
  * can be partially done when calling `search(...)` method.
  */
 abstract class Index {
-  /** Get name of the index, e.g. root folder name */
+  /**
+   * Get name of the index, e.g. root folder name.
+   * @return name as string, usually folder name
+   */
   def getName(): String
 
-  /** Get root path for the index */
+  /**
+   * Get root path for the index.
+   * @return fully-qualified path for index
+   */
   def getRoot(): String
 
-  /** Get metadata for the index */
+  /**
+   * Get metadata for the index.
+   * @return resolved index metadata
+   */
   def getMetadata(): Metadata
 
-  /** Reference to catalog used to create or load index */
+  /**
+   * Reference to catalog used to create or load index.
+   * @return catalog
+   */
   def catalog: Catalog
 
-  /** Whether or not index metadata matches provided spec */
+  /**
+   * Whether or not index metadata matches provided spec.
+   * @param spec `IndexSpec` that was used to create index
+   * @return true if metadata confirms to index spec
+   */
   def containsSpec(spec: IndexSpec): Boolean
 
   /**
@@ -49,6 +66,9 @@ abstract class Index {
    * match existing set of columns, and spec might include some options that were not part of
    * index when it was created. This method should provide mechanism of updating existing metadata
    * and merging new data into existing index data.
+   * This method is used when index is created with save mode 'Append'.
+   * @param spec index spec to append
+   * @param columns set of columns to use
    */
   def append(spec: IndexSpec, columns: Seq[Column]): Unit
 
@@ -56,6 +76,8 @@ abstract class Index {
    * Search index using provided condition. If condition is not applicable, should throw exception,
    * since index cannot be utilized. If condition is partially supported then index should be
    * applied, and unsupported part of condition should be applied on returned DataFrame.
+   * @param condition searching condition
+   * @return resulting DataFrame
    */
   def search(condition: Column): DataFrame
 
@@ -69,22 +91,30 @@ abstract class Index {
 }
 
 /**
- * [[IndexSource]] is main entrypoint to either create or load [[Index]]. Each implementation should
- * provide at least those two methods, and optional fallback when index is not found but source is
- * supported.
+ * [[IndexSource]] is a main entrypoint to either create or load [[Index]]. Each implementation
+ * should provide at least those two methods, and optional fallback when index is not found but
+ * source is supported.
  */
 trait IndexSource {
   /**
-   * Load index based on provided catalog and extracted metadata.
+   * Load index based on provided catalog and extracted metadata. It is assumed that metadata is
+   * enough to reconstruct index.
+   * @param catalog catalog that is used to invoke source
+   * @param metadata extracted metadata
+   * @return index
    */
   def loadIndex(catalog: Catalog, metadata: Metadata): Index
 
   /**
    * Create index based on provided spec and set of columns. Columns are not resolved, and may be
    * empty. `IndexSpec` is guaranteed to be provided for non-existent index, since save mode is
-   * resolved by catalog. Should provide validation similar to `loadIndex(...)`. Passed directory is
-   * guaranteed to exist.
-   * Should return created index.
+   * resolved by catalog. Passed directory is guaranteed to exist. It is not required to save
+   * metadata in this method, because it will be saved explicitly after creation
+   * @param catalog catalog that is used to create index
+   * @param spec unresolved index spec
+   * @param dir root directory for index
+   * @param columns set of columns to use
+   * @return created index
    */
   def createIndex(catalog: Catalog, spec: IndexSpec, dir: String, columns: Seq[Column]): Index
 
@@ -92,6 +122,10 @@ trait IndexSource {
    * Fallback strategy to use when index is not found, but spec source is resolved. For example,
    * Parquet implementation might just load DataFrame using indexSpec provided path. Optional,
    * depends on implementation and, by default, throws unsupported exception.
+   * @param catalog catalog that is used to create index
+   * @param spec index spec that points to current index source
+   * @param condition unresolved condition to filter
+   * @return resulting DataFrame
    */
   def fallback(catalog: Catalog, spec: IndexSpec, condition: Column): DataFrame = {
     throw new UnsupportedOperationException()
