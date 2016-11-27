@@ -16,5 +16,12 @@
 
 package com.github.lightcopy.index
 
+/** Internal column info */
+case class ColumnSpec(identifier: String, datatype: String)
+
 /** Index metadata, maps directly to JSON */
-case class Metadata(source: String)
+case class Metadata(
+  source: String,
+  path: Option[String],
+  columns: Seq[ColumnSpec],
+  indexOptions: Map[String, String])

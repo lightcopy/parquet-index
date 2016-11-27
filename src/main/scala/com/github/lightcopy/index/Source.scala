@@ -36,8 +36,8 @@ import com.github.lightcopy.index.parquet.ParquetSource
  * in implementation.
  */
 private[lightcopy] object Source {
-  implicit val formats = SerDe.formats(NoTypeHints)
   private val logger = LoggerFactory.getLogger(getClass)
+  implicit val formats = SerDe.formats(NoTypeHints)
   val METADATA_FILE = "_index_metadata"
   val PARQUET = "parquet"
 
@@ -87,6 +87,7 @@ private[lightcopy] object Source {
   def loadIndex(catalog: Catalog, status: FileStatus): Index = {
     val root = status.getPath
     val metadata = readMetadata(catalog.fs, root)
+    logger.info(s"Found metadata $metadata for index in $root")
     resolveSource(metadata.source).loadIndex(catalog, metadata)
   }
 
@@ -96,7 +97,9 @@ private[lightcopy] object Source {
     withRootDirectoryForIndex(catalog) { dir =>
       val index = resolveSource(indexSpec.source).
         createIndex(catalog, indexSpec, dir.toString, columns)
+      logger.info(s"Created index $index in $dir")
       writeMetadata(catalog.fs, dir, index.getMetadata)
+      logger.info(s"Create metadata for index $index")
       index
     }
   }
