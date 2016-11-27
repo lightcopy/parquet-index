@@ -84,7 +84,6 @@ class SourceSuite extends UnitTestSuite {
 
   test("read/write metadata 1") {
     withTempDir { dir =>
-      val fs = dir.getFileSystem(new Configuration(false))
       val metadata = Metadata(
         "source",
         Some("path"),
@@ -98,7 +97,6 @@ class SourceSuite extends UnitTestSuite {
 
   test("read/write metadata 2") {
     withTempDir { dir =>
-      val fs = dir.getFileSystem(new Configuration(false))
       val metadata = Metadata("source", None, Seq.empty, Map.empty)
       Source.writeMetadata(fs, dir, metadata)
       val res = Source.readMetadata(fs, dir)
@@ -118,7 +116,6 @@ class SourceSuite extends UnitTestSuite {
         null
       }
 
-      val fs = dir.getFileSystem(new Configuration(false))
       fs.exists(dir) should be (true)
       fs.exists(dir.suffix(s"${Path.SEPARATOR}${Source.METADATA_FILE}")) should be (true)
     }
@@ -138,7 +135,6 @@ class SourceSuite extends UnitTestSuite {
       }
 
       err.getMessage should be ("Test")
-      val fs = dir.getFileSystem(new Configuration(false))
       fs.exists(dir) should be (false)
     }
   }
@@ -158,7 +154,6 @@ class SourceSuite extends UnitTestSuite {
       }
 
       err.getMessage should be ("Test")
-      val fs = dir.getFileSystem(new Configuration(false))
       fs.exists(dir) should be (true)
     }
   }

@@ -20,7 +20,8 @@ import java.io.{InputStream, OutputStream}
 import java.util.UUID
 
 import org.apache.hadoop.conf.{Configuration => HadoopConf}
-import org.apache.hadoop.fs.{Path => HadoopPath}
+import org.apache.hadoop.fs.{FileSystem, Path => HadoopPath}
+import org.apache.hadoop.fs.permission.FsPermission
 
 import org.apache.spark.sql.{DataFrame, Row}
 
@@ -30,6 +31,9 @@ trait TestBase {
   val RESOLVER = "path-resolver"
 
   var path: String = ""
+
+  // local file system for tests
+  val fs = FileSystem.get(new HadoopConf(false))
 
   /** returns raw path of the folder where it finds resolver */
   private def getRawPath(): String = {
@@ -70,28 +74,24 @@ trait TestBase {
 
   final protected def mkdirs(path: String): Boolean = {
     val p = new HadoopPath(path)
-    val fs = p.getFileSystem(new HadoopConf(false))
     fs.mkdirs(p)
   }
 
   /** delete directory / file with path. Recursive must be true for directory */
   final protected def rm(path: String, recursive: Boolean): Boolean = {
     val p = new HadoopPath(path)
-    val fs = p.getFileSystem(new HadoopConf(false))
     fs.delete(p, recursive)
   }
 
   /** open file for a path */
   final protected def open(path: String): InputStream = {
     val p = new HadoopPath(path)
-    val fs = p.getFileSystem(new HadoopConf(false))
     fs.open(p)
   }
 
   /** create file with a path and return output stream */
   final protected def create(path: String): OutputStream = {
     val p = new HadoopPath(path)
-    val fs = p.getFileSystem(new HadoopConf(false))
     fs.create(p)
   }
 
@@ -113,23 +113,31 @@ trait TestBase {
       root: String = System.getProperty("java.io.tmpdir"),
       namePrefix: String = "lightcopy"): HadoopPath = {
     val dir = new HadoopPath(root / namePrefix / UUID.randomUUID().toString)
-    val fs = dir.getFileSystem(new HadoopConf(false))
     fs.mkdirs(dir)
     dir
   }
 
-  /** Execute block of code with temporary hadoop path */
-  private def withTempHadoopPath(path: HadoopPath)(func: HadoopPath => Unit): Unit = {
+  /** Execute block of code with temporary hadoop path and path permission */
+  private def withTempHadoopPath(
+      path: HadoopPath, permission: Option[FsPermission])(func: HadoopPath => Unit): Unit = {
     try {
+      if (permission.isDefined) {
+        fs.setPermission(path, permission.get)
+      }
       func(path)
     } finally {
-      val fs = path.getFileSystem(new HadoopConf(false))
       fs.delete(path, true)
     }
   }
 
+
+  /** Execute code block with created temporary directory with provided permission */
+  def withTempDir(permission: FsPermission)(func: HadoopPath => Unit): Unit = {
+    withTempHadoopPath(createTempDir(), Some(permission))(func)
+  }
+
   /** Execute code block with created temporary directory */
   def withTempDir(func: HadoopPath => Unit): Unit = {
-    withTempHadoopPath(createTempDir())(func)
+    withTempHadoopPath(createTempDir(), None)(func)
   }
 }

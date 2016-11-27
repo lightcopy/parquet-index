@@ -26,9 +26,7 @@ class UtilSuite extends UnitTestSuite {
   test("read content from empty file") {
     withTempDir { dir =>
       val path = dir.suffix(HadoopPath.SEPARATOR + "test")
-      val fs = path.getFileSystem(new Configuration(false))
-      val out = create(path.toString)
-      out.close()
+      fs.createNewFile(path)
       val content = Util.readContent(fs, path)
       content.isEmpty should be (true)
     }
@@ -37,7 +35,6 @@ class UtilSuite extends UnitTestSuite {
   test("read content from non-empty file") {
     withTempDir { dir =>
       val path = dir.suffix(HadoopPath.SEPARATOR + "test")
-      val fs = path.getFileSystem(new Configuration(false))
       val out = create(path.toString)
       out.write("test-content#".getBytes)
       out.close()
@@ -48,7 +45,6 @@ class UtilSuite extends UnitTestSuite {
   test("write content into file") {
     withTempDir { dir =>
       val path = dir.suffix(HadoopPath.SEPARATOR + "test")
-      val fs = path.getFileSystem(new Configuration(false))
       Util.writeContent(fs, path, "test-content")
       Util.readContent(fs, path) should be ("test-content")
     }
