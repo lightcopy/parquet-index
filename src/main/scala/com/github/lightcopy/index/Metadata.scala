@@ -16,10 +16,20 @@
 
 package com.github.lightcopy.index
 
-/** Internal column info */
+/**
+ * Internal column info.
+ * @param identifier column identifier/name
+ * @param datatype column data type, e.g. "string", "long"
+ */
 case class ColumnSpec(identifier: String, datatype: String)
 
-/** Index metadata, maps directly to JSON */
+/**
+ * Index metadata, maps directly to JSON.
+ * @param source source to use when loading index, e.g. "parquet"
+ * @param path optional path to the datasource table that is used for index
+ * @param columns set of column specs that are supported by index
+ * @param indexOptions specific index options, depends on implementation
+ */
 case class Metadata(
   source: String,
   path: Option[String],

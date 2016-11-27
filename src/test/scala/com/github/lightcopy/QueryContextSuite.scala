@@ -26,19 +26,6 @@ import com.github.lightcopy.index.Index
 import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
 import com.github.lightcopy.testutil.implicits._
 
-/** Simple catalog with dummy method implementations for testing */
-class SimpleCatalog extends Catalog {
-  override def fs: FileSystem = FileSystem.get(new Configuration(false))
-  override def metastorePath: String = "file:/tmp/metastore"
-  override def getFreshIndexDirectory(): Path = new Path("file:/tmp/metastore/test-index")
-  override def listIndexes(): Seq[Index] = Seq.empty
-  override def getIndex(indexSpec: IndexSpec): Option[Index] = None
-  override def createIndex(indexSpec: IndexSpec, columns: Seq[Column]): Unit = { }
-  override def dropIndex(indexSpec: IndexSpec): Unit = { }
-  override def queryIndex(indexSpec: IndexSpec, condition: Column): DataFrame = null
-  override def refreshIndex(indexSpec: IndexSpec): Unit = { }
-}
-
 /** Test suite for [[QueryContext]] and [[DataFrameIndexBuilder]] */
 class QueryContextSuite extends UnitTestSuite with SparkLocal {
   override def beforeAll {
