@@ -26,7 +26,7 @@ class SimpleSourceSuite extends UnitTestSuite {
   test("verify simple index") {
     val index = new SimpleIndex(null)
     index.getName should be ("simple")
-    index.getRoot should be ("file:/root/simple")
+    index.getRoot should be ("file:/tmp/index/simple")
     index.getMetadata should be (Metadata("simple", None, Seq.empty, Map.empty))
     // we pass null catalog
     index.catalog should be (null)

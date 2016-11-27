@@ -173,13 +173,14 @@ class InternalCatalog(
     fs.resolvePath(dir)
   }
 
-  override def listIndexes(): Seq[Index] = {
+  /** Return tuple of file status and index */
+  private def listIndexWithStatus(): Seq[(Index, FileStatus)] = {
     Option(fs.listStatus(metastore)) match {
       case Some(statuses) if statuses.nonEmpty =>
         statuses.filter { _.isDirectory }.flatMap { status =>
           // index might fail to load, we wrap it into try-catch and log error
           try {
-            Some(Source.loadIndex(this, status))
+            Some((Source.loadIndex(this, status), status))
           } catch {
             case NonFatal(err) =>
               logger.debug(s"Failed to load index for status $status, reason=$err")
@@ -190,9 +191,22 @@ class InternalCatalog(
     }
   }
 
-  override def getIndex(indexSpec: IndexSpec): Option[Index] = {
-    val found = listIndexes().filter { index => index.containsSpec(indexSpec) }
+  /** Get first match of index with corresponding file status */
+  private def getIndexWithStatus(indexSpec: IndexSpec): Option[(Index, FileStatus)] = {
+    val found = listIndexWithStatus().filter { case (index, status) =>
+      index.containsSpec(indexSpec) }
     found.headOption
+  }
+
+  override def listIndexes(): Seq[Index] = {
+    listIndexWithStatus().map { case (index, status) => index }
+  }
+
+  override def getIndex(indexSpec: IndexSpec): Option[Index] = {
+    getIndexWithStatus(indexSpec) match {
+      case Some((index, status)) => Some(index)
+      case other => None
+    }
   }
 
   override def createIndex(indexSpec: IndexSpec, columns: Seq[Column]): Unit = {
@@ -231,13 +245,17 @@ class InternalCatalog(
   }
 
   override def dropIndex(indexSpec: IndexSpec): Unit = {
-    getIndex(indexSpec) match {
-      case Some(index) =>
+    getIndexWithStatus(indexSpec) match {
+      case Some((index, status)) =>
         val path = new Path(index.getRoot)
         logger.info(s"Delete index $index at root $path")
         index.delete()
         if (!fs.delete(path, true)) {
           logger.warn(s"Failed to delete index $index for path $path, may require manual cleanup")
+        }
+        // delete actual location of index found when traversing
+        if (fs.exists(status.getPath) && !fs.delete(status.getPath, true)) {
+          logger.warn(s"Failed to delete index location ${status.getPath}")
         }
       case None => // do nothing
     }
@@ -260,7 +278,7 @@ private[lightcopy] object InternalCatalog {
   val METASTORE_OPTION = "spark.sql.index.metastore"
   // default metastore directory name
   val DEFAULT_METASTORE_DIR = "index_metastore"
-  // permission mode "rw-rw-rw-"
+  // permission mode "rwxrw-rw-"
   val METASTORE_PERMISSION =
-    new FsPermission(FsAction.READ_WRITE, FsAction.READ_WRITE, FsAction.READ_WRITE)
+    new FsPermission(FsAction.ALL, FsAction.READ_WRITE, FsAction.READ_WRITE)
 }

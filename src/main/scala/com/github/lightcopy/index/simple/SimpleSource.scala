@@ -24,7 +24,7 @@ import com.github.lightcopy.index.{Index, IndexSource, Metadata}
 /** Simple index for testing */
 class SimpleIndex(withCatalog: Catalog) extends Index {
   override def getName(): String = "simple"
-  override def getRoot(): String = "file:/root/simple"
+  override def getRoot(): String = "file:/tmp/index/simple"
   override def getMetadata(): Metadata = Metadata("simple", None, Seq.empty, Map.empty)
   override def catalog: Catalog = withCatalog
   override def containsSpec(spec: IndexSpec): Boolean = true
