@@ -22,17 +22,14 @@ import com.github.lightcopy.{Catalog, IndexSpec}
 import com.github.lightcopy.index.{Index, IndexSource, Metadata}
 
 class ParquetSource extends IndexSource {
-  override def loadIndex(
-      catalog: Catalog,
-      name: String,
-      root: String,
-      metadata: Option[Metadata]): Index = {
+  override def loadIndex(catalog: Catalog, metadata: Metadata): Index = {
     throw new UnsupportedOperationException()
   }
 
   override def createIndex(
       catalog: Catalog,
-      indexSpec: IndexSpec,
+      spec: IndexSpec,
+      dir: String,
       columns: Seq[Column]): Index = {
     throw new UnsupportedOperationException()
   }

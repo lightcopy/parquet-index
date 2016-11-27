@@ -35,6 +35,9 @@ abstract class Index {
   /** Get root path for the index */
   def getRoot(): String
 
+  /** Get metadata for the index */
+  def getMetadata(): Metadata
+
   /** Reference to catalog used to create or load index */
   def catalog: Catalog
 
@@ -72,25 +75,25 @@ abstract class Index {
  */
 trait IndexSource {
   /**
-   * Load index for name and root directory, name is usually index directory name. If validation of
-   * input parameters fails, should throw an exception. If metadata is not provided, source should
-   * read from disk using root/METADATA_FILE path.
+   * Load index based on provided catalog and extracted metadata.
    */
-  def loadIndex(catalog: Catalog, name: String, root: String, metadata: Option[Metadata]): Index
+  def loadIndex(catalog: Catalog, metadata: Metadata): Index
 
   /**
    * Create index based on provided spec and set of columns. Columns are not resolved, and may be
    * empty. `IndexSpec` is guaranteed to be provided for non-existent index, since save mode is
-   * resolved by catalog. Should provide validation similar to `loadIndex(...)`.
+   * resolved by catalog. Should provide validation similar to `loadIndex(...)`. Passed directory is
+   * guaranteed to exist.
    * Should return created index.
    */
-  def createIndex(catalog: Catalog, indexSpec: IndexSpec, columns: Seq[Column]): Index
+  def createIndex(catalog: Catalog, spec: IndexSpec, dir: String, columns: Seq[Column]): Index
 
   /**
-   * Fallback strategy to use when index is not found. Optional, depends on implementation and,
-   * by default, throws unsupported exception.
+   * Fallback strategy to use when index is not found, but spec source is resolved. For example,
+   * Parquet implementation might just load DataFrame using indexSpec provided path. Optional,
+   * depends on implementation and, by default, throws unsupported exception.
    */
-  def fallback(catalog: Catalog, indexSpec: IndexSpec, condition: Column): DataFrame = {
+  def fallback(catalog: Catalog, spec: IndexSpec, condition: Column): DataFrame = {
     throw new UnsupportedOperationException()
   }
 }

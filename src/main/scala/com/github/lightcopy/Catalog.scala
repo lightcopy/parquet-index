@@ -16,6 +16,8 @@
 
 package com.github.lightcopy
 
+import java.util.UUID
+
 import scala.util.Try
 import scala.util.control.NonFatal
 
@@ -42,6 +44,11 @@ abstract class Catalog {
    * Get fully-qualified path to the backed metastore. Can be local file system or HDFS.
    */
   def metastorePath: String
+
+  /**
+   * Get new index root directory, should fail on collisions, e.g. directory already exists.
+   */
+  def getFreshIndexDirectory(): Path
 
   /**
    * List index directories available in metastore. Returns sequence of [[Index]],
@@ -148,13 +155,24 @@ class InternalCatalog(
 
   override def metastorePath: String = metastore.toString
 
+  /** Create fresh index directory, should not collide with any existing paths */
+  override def getFreshIndexDirectory(): Path = {
+    val uid = UUID.randomUUID.toString
+    val dir = metastore.suffix(s"${Path.SEPARATOR}$uid")
+    if (fs.exists(dir)) {
+      throw new IllegalStateException(s"Fresh directory collision, directory $dir already exists")
+    }
+    fs.mkdirs(dir, InternalCatalog.METASTORE_PERMISSION)
+    fs.resolvePath(dir)
+  }
+
   override def listIndexes(): Seq[Index] = {
     Option(fs.listStatus(metastore)) match {
       case Some(statuses) if statuses.nonEmpty =>
         statuses.filter { _.isDirectory }.flatMap { status =>
           // index might fail to load, we wrap it into try-catch and log error
           try {
-            Some(Source.loadIndex(this, status.getPath.getName, status.getPath.toString))
+            Some(Source.loadIndex(this, status))
           } catch {
             case NonFatal(err) =>
               logger.debug(s"Failed to load index for status $status, reason=$err")
