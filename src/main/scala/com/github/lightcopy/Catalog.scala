@@ -37,16 +37,21 @@ import com.github.lightcopy.index.{Index, Source}
  */
 abstract class Catalog {
 
-  /** File system for catalog */
+  /**
+   * File system for catalog.
+   * TODO: Make it usable for non file-system catalogs.
+   */
   def fs: FileSystem
 
   /**
    * Get fully-qualified path to the backed metastore. Can be local file system or HDFS.
+   * TODO: Make it usable for non file-system catalogs.
    */
   def metastorePath: String
 
   /**
    * Get new index root directory, should fail on collisions, e.g. directory already exists.
+   * TODO: Make it usable for non file-system catalogs.
    */
   def getFreshIndexDirectory(): Path
 
@@ -152,7 +157,7 @@ class InternalCatalog(
   }
 
   /** Return random UUID as index name */
-  def getRandomName(): String = UUID.randomUUID.toString
+  private[lightcopy] def getRandomName(): String = UUID.randomUUID.toString
 
   //////////////////////////////////////////////////////////////
   // == Catalog implementation ==
@@ -266,6 +271,10 @@ class InternalCatalog(
         logger.warn(s"Index for spec $indexSpec is not found, using fallback strategy")
         Source.fallback(this, indexSpec, condition)
     }
+  }
+
+  override def toString(): String = {
+    s"${getClass.getSimpleName}[metastore=$metastorePath]"
   }
 }
 

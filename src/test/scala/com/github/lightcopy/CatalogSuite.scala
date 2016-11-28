@@ -335,4 +335,12 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
       df should be (null)
     }
   }
+
+  test("internal catalog - toString") {
+    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+      val catalog = new InternalCatalog(spark.sqlContext)
+      catalog.toString should be (s"InternalCatalog[metastore=file:$dir]")
+    }
+  }
 }
