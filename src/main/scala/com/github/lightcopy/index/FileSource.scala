@@ -1,0 +1,106 @@
+/*
+ * Copyright 2016 Lightcopy
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.github.lightcopy.index
+
+import java.io.FileNotFoundException
+
+import org.apache.hadoop.fs.{FileStatus, Path}
+
+import org.apache.spark.sql.Column
+
+import com.github.lightcopy.{Catalog, IndexSpec}
+
+/**
+ * [[FileSource]] is a file-system based partial implementation of abstract [[IndexSource]],
+ * specifically tailored to work with HDFS.
+ */
+abstract class FileSource extends IndexSource {
+
+  /**
+   * Load file index.
+   * @param catalog current catalog
+   * @param metadata preloaded index metadata
+   */
+  def loadFileIndex(catalog: Catalog, metadata: Metadata): Index
+
+  /**
+   * Create file index based on resolved root index directory and resolved paths for datasource,
+   * each path points to a file under datasource directory/path. Column names are already resolved
+   * be checked against files' schema.
+   * @param catalog current catalog
+   * @param indexDir root index directory
+   * @param paths list of datasource files to process
+   * @param colNames non-empty list of column string names
+   * @return file index
+   */
+  def createFileIndex(
+      catalog: Catalog,
+      indexDir: FileStatus,
+      paths: Array[FileStatus],
+      colNames: Seq[String]): Index
+
+  override def loadIndex(catalog: Catalog, metadata: Metadata): Index = {
+    loadFileIndex(catalog, metadata)
+  }
+
+  override def createIndex(catalog: Catalog, spec: IndexSpec, columns: Seq[Column]): Index = {
+    // since it is file system based index, we need to make sure that path is provided to store
+    // index information including metadata, this path should be available as part of spec options
+    val indexDir = discoverPath(catalog, spec.getConf(IndexSpec.INDEX_DIR))
+    // parse column names
+    val colNames = columns.map(withColumnName)
+    require(colNames.nonEmpty, s"Expected at least one column, found $columns")
+    // parse index spec and resolve provided path
+    val datasourcePath = spec.path.getOrElse(
+      sys.error(s"$spec does not contain path that is required for file-system based index"))
+    val statuses = discover(catalog, datasourcePath)
+    require(statuses.nonEmpty, s"Expected at least one datasource file in $datasourcePath")
+    createFileIndex(catalog, indexDir, statuses, colNames)
+  }
+
+  /** Convert Spark SQL column expressions into column names */
+  private[lightcopy] def withColumnName(col: Column): String = col.toString
+
+  /**
+   * Discover files using datasource path, returns list of file statuses. Path must be a valid path
+   * resolving to a single entry, e.g. should not contain "*" if there is paths' ambiguity,
+   * desirably pointing to logical table on disk, e.g. Parquet table stored using Spark SQL.
+   * Directory partitioning is not supported for now, e.g. search one level down from root.
+   */
+  private[lightcopy] def discover(catalog: Catalog, path: String): Array[FileStatus] = {
+    // resolve current path
+    val status = try {
+      discoverPath(catalog, path)
+    } catch {
+      case exc: FileNotFoundException =>
+        throw new FileNotFoundException(s"Datasource path $path cannot be resolved, " +
+          "make sure that path points to either single file or directory without " +
+          "regular expressions or globstars")
+    }
+
+    if (status.isDirectory) {
+      catalog.fs.listStatus(status.getPath).filter { _.isFile }
+    } else {
+      Array(status)
+    }
+  }
+
+  /** Wrapper for resolving index directory */
+  private[lightcopy] def discoverPath(catalog: Catalog, path: String): FileStatus = {
+    catalog.fs.getFileStatus(new Path(path))
+  }
+}
