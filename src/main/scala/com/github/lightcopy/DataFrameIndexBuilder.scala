@@ -140,7 +140,7 @@ private[lightcopy] class DataFrameIndexBuilder(@transient val catalog: Catalog) 
    * read, standard datasource scan is used to read table, instead of using index.
    * @param condition filtering expression similar to `DataFrame.filter(...)`
    */
-  def query(condition: Column): DataFrame = {
+  def filter(condition: Column): DataFrame = {
     catalog.queryIndex(makeIndexSpec(), condition)
   }
 }

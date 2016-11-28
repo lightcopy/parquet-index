@@ -100,11 +100,12 @@ private[lightcopy] object Source {
   def createIndex(catalog: Catalog, indexSpec: IndexSpec, columns: Seq[Column]): Index = {
     // create folder for index, always store metadata after index creation to ensure consistency
     withRootDirectoryForIndex(catalog) { dir =>
-      val index = resolveSource(indexSpec.source).
-        createIndex(catalog, indexSpec, dir.toString, columns)
-      logger.info(s"Created index $index in $dir")
+      // modify index spec to include index directory
+      indexSpec.setConf(IndexSpec.INDEX_DIR, dir.toString)
+      val index = resolveSource(indexSpec.source).createIndex(catalog, indexSpec, columns)
+      logger.info(s"Created index $index")
       writeMetadata(catalog.fs, dir, index.getMetadata)
-      logger.info(s"Create metadata for index $index")
+      logger.info(s"Created metadata for index $index")
       index
     }
   }

@@ -32,7 +32,7 @@ class ParquetSourceSuite extends UnitTestSuite {
   test("fail when creating index") {
     val source = new ParquetSource()
     intercept[UnsupportedOperationException] {
-      source.createIndex(null, null, null, null)
+      source.createIndex(null, null, null)
     }
   }
 

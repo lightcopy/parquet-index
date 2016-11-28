@@ -247,15 +247,11 @@ class InternalCatalog(
   override def dropIndex(indexSpec: IndexSpec): Unit = {
     getIndexWithStatus(indexSpec) match {
       case Some((index, status)) =>
-        val path = new Path(index.getRoot)
-        logger.info(s"Delete index $index at root $path")
+        logger.info(s"Delete index $index")
         index.delete()
-        if (!fs.delete(path, true)) {
-          logger.warn(s"Failed to delete index $index for path $path, may require manual cleanup")
-        }
         // delete actual location of index found when traversing
         if (fs.exists(status.getPath) && !fs.delete(status.getPath, true)) {
-          logger.warn(s"Failed to delete index location ${status.getPath}")
+          logger.error(s"Failed to delete index $index location ${status.getPath}")
         }
       case None => // do nothing
     }

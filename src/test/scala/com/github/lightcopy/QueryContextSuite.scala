@@ -192,7 +192,7 @@ class QueryContextSuite extends UnitTestSuite with SparkLocal {
         null
       }
     })
-    val df = builder.parquet("path").query(filter)
+    val df = builder.parquet("path").filter(filter)
     called should be (true)
     df should be (null)
   }

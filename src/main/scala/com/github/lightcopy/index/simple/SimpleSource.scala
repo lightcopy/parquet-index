@@ -23,8 +23,7 @@ import com.github.lightcopy.index.{Index, IndexSource, Metadata}
 
 /** Simple index for testing */
 class SimpleIndex(withCatalog: Catalog) extends Index {
-  override def getName(): String = "simple"
-  override def getRoot(): String = "file:/tmp/index/simple"
+  override def getIndexIdentifier(): String = "simple"
   override def getMetadata(): Metadata = Metadata("simple", None, Seq.empty, Map.empty)
   override def catalog: Catalog = withCatalog
   override def containsSpec(spec: IndexSpec): Boolean = true
@@ -40,11 +39,7 @@ class SimpleSource extends IndexSource {
     new SimpleIndex(catalog)
   }
 
-  override def createIndex(
-      catalog: Catalog,
-      spec: IndexSpec,
-      dir: String,
-      columns: Seq[Column]): Index = {
+  override def createIndex(catalog: Catalog, spec: IndexSpec, columns: Seq[Column]): Index = {
     new SimpleIndex(catalog)
   }
 

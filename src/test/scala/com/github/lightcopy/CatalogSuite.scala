@@ -54,6 +54,35 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
       "IndexSpec(source=test-source, path=None, mode=Ignore, options=Map(1 -> 2, 3 -> 4))")
   }
 
+  test("index spec - setConf") {
+    val spec = IndexSpec("test-source", None, SaveMode.Ignore, Map("key" -> "value"))
+    // set new key and overwrite existing key
+    spec.setConf("key", "value1")
+    spec.setConf("key2", "value2")
+    // check that options are unchanged
+    spec.options should be (Map("key" -> "value"))
+    spec.getConf("key") should be ("value1")
+    spec.getConf("key2") should be ("value2")
+  }
+
+  test("index spec - getConf for existing key") {
+    val spec = IndexSpec("test-source", None, SaveMode.Ignore, Map.empty)
+    spec.setConf("key", "value")
+    spec.getConf("key") should be ("value")
+  }
+
+  test("index spec - getConf for non-existing key") {
+    val spec = IndexSpec("test-source", None, SaveMode.Ignore, Map.empty)
+    intercept[RuntimeException] {
+      spec.getConf("key")
+    }
+  }
+
+  test("index spec - getConf for non-existing key and existing default") {
+    val spec = IndexSpec("test-source", None, SaveMode.Ignore, Map.empty)
+    spec.getConf("key", "default") should be ("default")
+  }
+
   test("internal catalog metastore option") {
     InternalCatalog.METASTORE_OPTION should be ("spark.sql.index.metastore")
   }
@@ -204,7 +233,7 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
       catalog.listIndexes.length should be (1)
       val index = catalog.getIndex(spec)
       index.isDefined should be (true)
-      index.get.getName should be ("simple")
+      index.get.getIndexIdentifier should be ("simple")
     }
   }
 

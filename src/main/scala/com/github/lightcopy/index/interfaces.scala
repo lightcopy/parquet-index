@@ -30,17 +30,13 @@ import com.github.lightcopy.{Catalog, IndexSpec}
  * can be partially done when calling `search(...)` method.
  */
 abstract class Index {
-  /**
-   * Get name of the index, e.g. root folder name.
-   * @return name as string, usually folder name
-   */
-  def getName(): String
 
   /**
-   * Get root path for the index.
+   * Get unique identifier for index, e.g. fully-qualified directory name, or table name for
+   * database-based index.
    * @return fully-qualified path for index
    */
-  def getRoot(): String
+  def getIndexIdentifier(): String
 
   /**
    * Get metadata for the index.
@@ -108,15 +104,13 @@ trait IndexSource {
   /**
    * Create index based on provided spec and set of columns. Columns are not resolved, and may be
    * empty. `IndexSpec` is guaranteed to be provided for non-existent index, since save mode is
-   * resolved by catalog. Passed directory is guaranteed to exist. It is not required to save
-   * metadata in this method, because it will be saved explicitly after creation
+   * resolved by catalog. For file system based index, root directory is part of spec options.
    * @param catalog catalog that is used to create index
    * @param spec unresolved index spec
-   * @param dir root directory for index
    * @param columns set of columns to use
    * @return created index
    */
-  def createIndex(catalog: Catalog, spec: IndexSpec, dir: String, columns: Seq[Column]): Index
+  def createIndex(catalog: Catalog, spec: IndexSpec, columns: Seq[Column]): Index
 
   /**
    * Fallback strategy to use when index is not found, but spec source is resolved. For example,

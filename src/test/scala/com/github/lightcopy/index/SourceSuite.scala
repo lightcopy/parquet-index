@@ -36,8 +36,7 @@ class SourceSuite extends UnitTestSuite {
     // should throw an unsupported exception
     val source = new IndexSource() {
       override def loadIndex(catalog: Catalog, metadata: Metadata): Index = ???
-      override def createIndex(
-        catalog: Catalog, spec: IndexSpec, dir: String, columns: Seq[Column]): Index = ???
+      override def createIndex(catalog: Catalog, spec: IndexSpec, cols: Seq[Column]): Index = ???
     }
 
     intercept[UnsupportedOperationException] {
@@ -167,8 +166,7 @@ class SourceSuite extends UnitTestSuite {
 
       val res = Source.loadIndex(catalog, status)
       res.getMetadata should be (index.getMetadata)
-      res.getName should be (index.getName)
-      res.getRoot should be (index.getRoot)
+      res.getIndexIdentifier should be (index.getIndexIdentifier)
     }
   }
 
@@ -191,6 +189,8 @@ class SourceSuite extends UnitTestSuite {
       val index = Source.createIndex(catalog, spec, Seq.empty)
       val metadata = Source.readMetadata(catalog.fs, dir)
       metadata should be (index.getMetadata)
+      // verify that spec has set path
+      spec.getConf(IndexSpec.INDEX_DIR) should be (dir.toString)
     }
   }
 

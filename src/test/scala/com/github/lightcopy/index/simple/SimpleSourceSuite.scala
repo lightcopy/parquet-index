@@ -25,8 +25,7 @@ class SimpleSourceSuite extends UnitTestSuite {
 
   test("verify simple index") {
     val index = new SimpleIndex(null)
-    index.getName should be ("simple")
-    index.getRoot should be ("file:/tmp/index/simple")
+    index.getIndexIdentifier should be ("simple")
     index.getMetadata should be (Metadata("simple", None, Seq.empty, Map.empty))
     // we pass null catalog
     index.catalog should be (null)
@@ -44,7 +43,7 @@ class SimpleSourceSuite extends UnitTestSuite {
 
   test("create simple index") {
     val source = new SimpleSource()
-    val index = source.createIndex(null, null, null, Seq.empty)
+    val index = source.createIndex(null, null, Seq.empty)
     index.isInstanceOf[SimpleIndex] should be (true)
   }
 

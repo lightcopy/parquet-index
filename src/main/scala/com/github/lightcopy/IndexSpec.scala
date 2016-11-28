@@ -17,6 +17,7 @@
 package com.github.lightcopy
 
 import scala.collection.Map
+import scala.collection.mutable.HashMap
 
 import org.apache.spark.sql.SaveMode
 
@@ -25,15 +26,39 @@ import org.apache.spark.sql.SaveMode
  * @param source format of the index
  * @param path optional path for datasource table
  * @param mode save mode (only applicable for creating index)
- * @param options specific index options
+ * @param options specific index options, e.g. index directory
  */
 case class IndexSpec(
     source: String,
     path: Option[String],
     mode: SaveMode,
     options: Map[String, String]) {
+  // set of changeable internal options, do not use `options` set in constructor
+  private val internalOptions = new HashMap[String, String]()
+  internalOptions ++= options
+
+  /** Set configuration for index spec */
+  def setConf(key: String, value: String): Unit = {
+    internalOptions.put(key, value)
+  }
+
+  /** Get configuration for index spec */
+  def getConf(key: String): String = {
+    internalOptions.getOrElse(key, sys.error(s"Failed to look up value for key $key in spec"))
+  }
+
+  /** Get configuration for index spec, and use default if not found */
+  def getConf(key: String, default: String): String = {
+    internalOptions.getOrElse(key, default)
+  }
 
   override def toString(): String = {
-    s"${getClass.getSimpleName}(source=$source, path=$path, mode=$mode, options=$options)"
+    s"${getClass.getSimpleName}(source=$source, path=$path, mode=$mode, " +
+      s"options=$internalOptions)"
   }
+}
+
+/** Container for spec related configuration */
+object IndexSpec {
+  val INDEX_DIR = "indexDir"
 }

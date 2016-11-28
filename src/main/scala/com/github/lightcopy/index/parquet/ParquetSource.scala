@@ -26,11 +26,7 @@ class ParquetSource extends IndexSource {
     throw new UnsupportedOperationException()
   }
 
-  override def createIndex(
-      catalog: Catalog,
-      spec: IndexSpec,
-      dir: String,
-      columns: Seq[Column]): Index = {
+  override def createIndex(catalog: Catalog, spec: IndexSpec, columns: Seq[Column]): Index = {
     throw new UnsupportedOperationException()
   }
 }
