@@ -31,10 +31,10 @@ import com.github.lightcopy.index.simple.SimpleSource
 import com.github.lightcopy.index.parquet.ParquetSource
 
 /**
- * Internal loader for [[IndexSource]], every available implementation should be registered here.
- * Source is file-system based, therefore root folder for index is always created but conditional
- * on successful index creation. Metadata is stored using internal methods and should not be stored
- * in implementation.
+ * Internal loader for [[IndexSource]], and is used by [[InternalCatalog]]. Every available
+ * implementation should be registered here. Source is file-system based, therefore root folder for
+ * index is always created but conditional on successful index creation. Metadata is stored using
+ * internal methods and should not be stored in implementation.
  */
 private[lightcopy] object Source {
   private val logger = LoggerFactory.getLogger(getClass)
