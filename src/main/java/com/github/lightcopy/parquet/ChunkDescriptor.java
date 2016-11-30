@@ -19,28 +19,40 @@ package com.github.lightcopy.parquet;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 
+/** Container for column chunk metadata */
 public class ChunkDescriptor {
   private final ColumnDescriptor col;
   private final ColumnChunkMetaData metadata;
+  // offset in the file where chunk starts
   private final long chunkOffset;
-  private final int size;
 
-  ChunkDescriptor(ColumnDescriptor col, ColumnChunkMetaData metadata, long chunkOffset, int size) {
+  ChunkDescriptor(ColumnDescriptor col, ColumnChunkMetaData metadata, long chunkOffset) {
     super();
     this.col = col;
     this.metadata = metadata;
     this.chunkOffset = chunkOffset;
-    this.size = size;
   }
 
-  public ColumnDescriptor columnDescriptor() {
+  /**
+   * Return current column descriptor.
+   * @return column descriptor
+   */
+  public ColumnDescriptor column() {
     return this.col;
   }
 
+  /**
+   * Get column chunk metadata.
+   * @return metadata
+   */
   public ColumnChunkMetaData getMetadata() {
     return this.metadata;
   }
 
+  /**
+   * Get chunk offset in a file.
+   * @return byte offset
+   */
   public long getChunkOffset() {
     return this.chunkOffset;
   }

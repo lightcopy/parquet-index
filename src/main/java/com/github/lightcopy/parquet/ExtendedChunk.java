@@ -24,6 +24,7 @@ import java.util.List;
 import java.nio.ByteBuffer;
 
 import org.apache.parquet.bytes.BytesInput;
+import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.format.DataPageHeader;
 import org.apache.parquet.format.DataPageHeaderV2;
 import org.apache.parquet.format.DictionaryPageHeader;
@@ -31,6 +32,11 @@ import org.apache.parquet.format.PageHeader;
 import org.apache.parquet.format.Util;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 
+/**
+ * Extended chunk is a copy of Parquet column chunk with additional functionality of indexing
+ * data pages. Unfortunately class is private in parquet, so most of the methods are duplicated
+ * here.
+ */
 public class ExtendedChunk extends ByteArrayInputStream {
   private final ChunkDescriptor descriptor;
   private final ParquetMetadataConverter converter;
@@ -38,24 +44,21 @@ public class ExtendedChunk extends ByteArrayInputStream {
   public ExtendedChunk(
       ChunkDescriptor descriptor,
       byte[] data,
-      int offset,
-      ParquetMetadataConverter converter) {
+      int offset) {
     super(data);
     this.descriptor = descriptor;
-    this.converter = converter;
+    this.converter = new ParquetMetadataConverter();
     this.pos = offset;
   }
 
+  /** Read page header, copied from Parquet */
   protected PageHeader readPageHeader() throws IOException {
     return Util.readPageHeader(this);
   }
 
+  /** Get current position in a stream */
   protected int pos() {
     return this.pos;
-  }
-
-  protected void incrementPos(int offset) {
-    this.pos += offset;
   }
 
   /** Read DataPage from current offset up to size */
@@ -71,67 +74,52 @@ public class ExtendedChunk extends ByteArrayInputStream {
     return r;
   }
 
-  public List<DataPageHeaderInfo> readAllPageInfos() throws IOException {
+  /** Read all pages' headers and return statistics information only without reading data */
+  public ExtendedChunkInfo readAllPageInfos() throws IOException {
     List<DataPageHeaderInfo> pagesInChunk = new ArrayList<DataPageHeaderInfo>();
     long valuesCountReadSoFar = 0;
     long metadataValues = descriptor.getMetadata().getValueCount();
-    boolean foundDictionaryPage = false;
+    DictionaryPage dictionaryPage = null;
     while (valuesCountReadSoFar < metadataValues) {
       PageHeader pageHeader = readPageHeader();
       int uncompressedPageSize = pageHeader.getUncompressed_page_size();
       int compressedPageSize = pageHeader.getCompressed_page_size();
+      DataPageHeaderInfo info = null;
       switch (pageHeader.type) {
         case DICTIONARY_PAGE:
           // there is only one dictionary page per column chunk
-          if (foundDictionaryPage) {
+          // in this case we actually read page and return it
+          if (dictionaryPage != null) {
             throw new IllegalStateException("More than one dictionary page in column " +
-              descriptor.columnDescriptor());
+              descriptor.column());
           }
           DictionaryPageHeader dicHeader = pageHeader.getDictionary_page_header();
-          pagesInChunk.add(new DataPageHeaderInfo(
-            this.pos(),
-            "DICTIONARY_PAGE",
+          dictionaryPage = new DictionaryPage(
+            readAsBytesInput(compressedPageSize),
+            uncompressedPageSize,
             dicHeader.getNum_values(),
-            null,
-            null,
-            converter.getEncoding(dicHeader.getEncoding()).name(),
-            null
-          ));
-          this.skip(compressedPageSize);
+            converter.getEncoding(dicHeader.getEncoding()));
           break;
         case DATA_PAGE:
           DataPageHeader dataHeaderV1 = pageHeader.getData_page_header();
-          pagesInChunk.add(new DataPageHeaderInfo(
-            this.pos(),
-            "DATA_PAGE_V1",
-            dataHeaderV1.getNum_values(),
-            converter.getEncoding(dataHeaderV1.getRepetition_level_encoding()).name(),
-            converter.getEncoding(dataHeaderV1.getDefinition_level_encoding()).name(),
-            converter.getEncoding(dataHeaderV1.getEncoding()).name(),
-            ParquetMetadataConverter.fromParquetStatistics(
-              dataHeaderV1.getStatistics(), descriptor.columnDescriptor().getType())
-          ));
+          info = new DataPageHeaderInfo(this.pos(), PageType.DATA_PAGE_V1).
+            setNumValues(dataHeaderV1.getNum_values()).
+            setStatistics(dataHeaderV1.getStatistics(), descriptor.column().getType());
+          pagesInChunk.add(info);
           valuesCountReadSoFar += dataHeaderV1.getNum_values();
           this.skip(compressedPageSize);
           break;
         case DATA_PAGE_V2:
           DataPageHeaderV2 dataHeaderV2 = pageHeader.getData_page_header_v2();
-          int dataSize = compressedPageSize - dataHeaderV2.getRepetition_levels_byte_length() -
-            dataHeaderV2.getDefinition_levels_byte_length();
-          pagesInChunk.add(new DataPageHeaderInfo(
-            this.pos(),
-            "DATA_PAGE_V2",
-            dataHeaderV2.getNum_values(),
-            null,
-            null,
-            converter.getEncoding(dataHeaderV2.getEncoding()).name(),
-            ParquetMetadataConverter.fromParquetStatistics(
-              dataHeaderV2.getStatistics(), descriptor.columnDescriptor().getType())
-          ));
+          info = new DataPageHeaderInfo(this.pos(), PageType.DATA_PAGE_V2).
+            setNumValues(dataHeaderV2.getNum_values()).
+            setStatistics(dataHeaderV2.getStatistics(), descriptor.column().getType());
+          pagesInChunk.add(info);
           valuesCountReadSoFar += dataHeaderV2.getNum_values();
           this.skip(compressedPageSize);
           break;
         default:
+          info = null;
           this.skip(compressedPageSize);
           break;
       }
@@ -145,6 +133,6 @@ public class ExtendedChunk extends ByteArrayInputStream {
         " pages ending at file offset " + (descriptor.getChunkOffset() + pos()));
     }
 
-    return pagesInChunk;
+    return new ExtendedChunkInfo(dictionaryPage, pagesInChunk);
   }
 }
