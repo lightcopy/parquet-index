@@ -44,6 +44,7 @@ public class ParquetPageReader {
   private final List<BlockMetaData> blocks;
   private final Map<ColumnPath, ColumnDescriptor> columns;
   private int currentBlock = 0;
+  private Map<ColumnDescriptor, ExtendedChunkInfo> currentBlockMap;
 
   public ParquetPageReader(
       Configuration configuration,
@@ -52,6 +53,7 @@ public class ParquetPageReader {
       List<ColumnDescriptor> columns) throws IOException {
     this.filePath = filePath;
     this.blocks = blocks;
+    this.currentBlockMap = null;
     this.columns = new HashMap<ColumnPath, ColumnDescriptor>();
     for (ColumnDescriptor col : columns) {
       this.columns.put(ColumnPath.get(col.getPath()), col);
@@ -70,7 +72,7 @@ public class ParquetPageReader {
   }
 
   /** Read next row group if available, and collect information about data pages */
-  public Map<ColumnDescriptor, ExtendedChunkInfo> readNextRowGroup() throws IOException {
+  public Map<ColumnDescriptor, ExtendedChunkInfo> readNextBlock() throws IOException {
     if (currentBlock == blocks.size()) {
       return null;
     }
@@ -79,8 +81,12 @@ public class ParquetPageReader {
       throw new RuntimeException("Illegal row group of 0 rows");
     }
 
-    Map<ColumnDescriptor, ExtendedChunkInfo> rowGroup =
-      new HashMap<ColumnDescriptor, ExtendedChunkInfo>();
-    return rowGroup;
+    currentBlockMap = new HashMap<ColumnDescriptor, ExtendedChunkInfo>();
+
+    return currentBlockMap;
+  }
+
+  public Map<ColumnDescriptor, ExtendedChunkInfo> getCurrentBlock() {
+    return currentBlockMap;
   }
 }
