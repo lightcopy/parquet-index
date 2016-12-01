@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-package com.github.lightcopy
+package com.github.lightcopy.util
 
-import org.apache.commons.io.IOUtils
+import org.apache.commons.io.{IOUtils => CommonIOUtils}
 import org.apache.hadoop.fs.{FileSystem, Path}
 
-object Util {
-
+/** IO related utility methods */
+object IOUtils {
   /** Read content as UTF-8 String from provided file */
   def readContent(fs: FileSystem, path: Path): String = {
     val in = fs.open(path)
     try {
-      IOUtils.toString(in, "UTF-8")
+      CommonIOUtils.toString(in, "UTF-8")
     } finally {
       in.close()
     }
@@ -35,7 +35,7 @@ object Util {
   def writeContent(fs: FileSystem, path: Path, content: String): Unit = {
     val out = fs.create(path, true)
     try {
-      IOUtils.write(content, out, "UTF-8")
+      CommonIOUtils.write(content, out, "UTF-8")
     } finally {
       out.close()
     }

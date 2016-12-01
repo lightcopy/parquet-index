@@ -23,9 +23,10 @@ import org.apache.spark.sql.{Column, DataFrame}
 
 import org.slf4j.LoggerFactory
 
-import com.github.lightcopy.{Catalog, IndexSpec, Util}
+import com.github.lightcopy.{Catalog, IndexSpec}
 import com.github.lightcopy.index.simple.SimpleSource
 import com.github.lightcopy.index.parquet.ParquetSource
+import com.github.lightcopy.util.IOUtils
 
 /**
  * Internal loader for [[IndexSource]], and is used by [[InternalCatalog]]. Every available
@@ -55,12 +56,12 @@ private[lightcopy] object Source {
 
   /** Read index metadata */
   def readMetadata(fs: FileSystem, root: Path): Metadata = {
-    SerDe.deserialize(Util.readContent(fs, metadataPath(root)))
+    SerDe.deserialize(IOUtils.readContent(fs, metadataPath(root)))
   }
 
   /** Write index metadata */
   def writeMetadata(fs: FileSystem, root: Path, metadata: Metadata): Unit = {
-    Util.writeContent(fs, metadataPath(root), SerDe.serialize(metadata))
+    IOUtils.writeContent(fs, metadataPath(root), SerDe.serialize(metadata))
   }
 
   /**

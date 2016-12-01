@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.github.lightcopy
+package com.github.lightcopy.util
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path => HadoopPath}
@@ -27,7 +27,7 @@ class UtilSuite extends UnitTestSuite {
     withTempDir { dir =>
       val path = dir.suffix(HadoopPath.SEPARATOR + "test")
       fs.createNewFile(path)
-      val content = Util.readContent(fs, path)
+      val content = IOUtils.readContent(fs, path)
       content.isEmpty should be (true)
     }
   }
@@ -38,15 +38,15 @@ class UtilSuite extends UnitTestSuite {
       val out = create(path.toString)
       out.write("test-content#".getBytes)
       out.close()
-      Util.readContent(fs, path) should be ("test-content#")
+      IOUtils.readContent(fs, path) should be ("test-content#")
     }
   }
 
   test("write content into file") {
     withTempDir { dir =>
       val path = dir.suffix(HadoopPath.SEPARATOR + "test")
-      Util.writeContent(fs, path, "test-content")
-      Util.readContent(fs, path) should be ("test-content")
+      IOUtils.writeContent(fs, path, "test-content")
+      IOUtils.readContent(fs, path) should be ("test-content")
     }
   }
 }
