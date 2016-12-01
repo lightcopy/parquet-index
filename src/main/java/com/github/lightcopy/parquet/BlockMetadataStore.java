@@ -16,6 +16,11 @@
 
 package com.github.lightcopy.parquet;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.parquet.column.ColumnDescriptor;
+
 /**
  * Container to keep different sets of metadata:
  * - BlockMetadata:
@@ -27,5 +32,21 @@ package com.github.lightcopy.parquet;
  * including type, column chunk statistics, and information about data pages in chunk.
  */
 public class BlockMetadataStore {
+  private final Map<ColumnDescriptor, ColumnChunkStore> columns;
+  // number of rows in this block
+  private final long rowCount;
+  // starting position of the first column in block
+  private final long startingPos;
 
+  BlockMetadataStore(long rowCount, long startingPos) {
+    this.rowCount = rowCount;
+    this.startingPos = startingPos;
+    this.columns = new HashMap<ColumnDescriptor, ColumnChunkStore>();
+  }
+
+  public void addColumn(ColumnDescriptor path, ColumnChunkStore columnInfo) {
+    if (this.columns.put(path, columnInfo) != null) {
+      throw new RuntimeException("Path " + path + "was added twice");
+    }
+  }
 }

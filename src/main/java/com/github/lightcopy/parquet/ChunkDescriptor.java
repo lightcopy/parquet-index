@@ -27,7 +27,6 @@ public class ChunkDescriptor {
   private final long chunkOffset;
 
   ChunkDescriptor(ColumnDescriptor col, ColumnChunkMetaData metadata, long chunkOffset) {
-    super();
     this.col = col;
     this.metadata = metadata;
     this.chunkOffset = chunkOffset;

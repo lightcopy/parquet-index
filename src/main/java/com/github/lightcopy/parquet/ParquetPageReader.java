@@ -38,13 +38,12 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
  * in Parquet repository, but this is simplified version.
  */
 public class ParquetPageReader {
-
   private final Path filePath;
   private final FSDataInputStream stream;
   private final List<BlockMetaData> blocks;
   private final Map<ColumnPath, ColumnDescriptor> columns;
   private int currentBlock = 0;
-  private Map<ColumnDescriptor, ExtendedChunkInfo> currentBlockMap;
+  private BlockMetadataStore currentBlockStore;
 
   public ParquetPageReader(
       Configuration configuration,
@@ -53,11 +52,13 @@ public class ParquetPageReader {
       List<ColumnDescriptor> columns) throws IOException {
     this.filePath = filePath;
     this.blocks = blocks;
-    this.currentBlockMap = null;
+    this.currentBlockStore = null;
+
     this.columns = new HashMap<ColumnPath, ColumnDescriptor>();
     for (ColumnDescriptor col : columns) {
       this.columns.put(ColumnPath.get(col.getPath()), col);
     }
+
     FileSystem fs = filePath.getFileSystem(configuration);
     this.stream = fs.open(filePath);
   }
@@ -72,21 +73,22 @@ public class ParquetPageReader {
   }
 
   /** Read next row group if available, and collect information about data pages */
-  public Map<ColumnDescriptor, ExtendedChunkInfo> readNextBlock() throws IOException {
+  public BlockMetadataStore readNextBlock() throws IOException {
     if (currentBlock == blocks.size()) {
       return null;
     }
+
     BlockMetaData block = blocks.get(currentBlock);
     if (block.getRowCount() == 0) {
       throw new RuntimeException("Illegal row group of 0 rows");
     }
 
-    currentBlockMap = new HashMap<ColumnDescriptor, ExtendedChunkInfo>();
+    currentBlockStore = new BlockMetadataStore(block.getRowCount(), block.getStartingPos());
 
-    return currentBlockMap;
+    return currentBlockStore;
   }
 
-  public Map<ColumnDescriptor, ExtendedChunkInfo> getCurrentBlock() {
-    return currentBlockMap;
+  public BlockMetadataStore getCurrentBlock() {
+    return currentBlockStore;
   }
 }

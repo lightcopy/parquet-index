@@ -16,9 +16,6 @@
 
 package com.github.lightcopy.parquet;
 
-import org.apache.parquet.column.statistics.BinaryStatistics;
-import org.apache.parquet.column.statistics.IntStatistics;
-import org.apache.parquet.column.statistics.LongStatistics;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 
@@ -33,11 +30,8 @@ public class DataPageHeaderInfo {
   private PageType pageType;
   // number of values including NULLs
   private int numValues;
-  // statistics, if available, only one of them will be set,
-  // will have null value if not set.
-  private LongStatistics longStats;
-  private IntStatistics intStats;
-  private BinaryStatistics binaryStats;
+  // statistics, if available, will have null value if not set
+  private Statistics stats;
 
   DataPageHeaderInfo(long offset, PageType pageType) {
     this.offset = offset;
@@ -46,9 +40,7 @@ public class DataPageHeaderInfo {
     // from row group property to have positive number of records
     this.numValues = 0;
     // "null" statistics means that no statistics provided, e.g. for dictionary page
-    this.longStats = null;
-    this.intStats = null;
-    this.binaryStats = null;
+    this.stats = null;
   }
 
   /**
@@ -92,10 +84,7 @@ public class DataPageHeaderInfo {
    * @return Statistics instance
    */
   public Statistics getStatistics() {
-    if (this.longStats != null) return this.longStats;
-    if (this.intStats != null) return this.intStats;
-    if (this.binaryStats != null) return this.binaryStats;
-    return null;
+    return this.stats;
   }
 
   /**
@@ -103,7 +92,7 @@ public class DataPageHeaderInfo {
    * @return boolean flag
    */
   public boolean hasStatistics() {
-    return this.longStats != null || this.intStats != null || this.binaryStats != null;
+    return this.stats != null;
   }
 
   /**
@@ -115,22 +104,12 @@ public class DataPageHeaderInfo {
   public DataPageHeaderInfo setStatistics(
       org.apache.parquet.format.Statistics statistics,
       PrimitiveTypeName type) {
-    Statistics stats = Statistics.getStatsBasedOnType(type);
-    if (stats != null) {
+    this.stats = Statistics.getStatsBasedOnType(type);
+    if (this.stats != null) {
       if (statistics.isSetMax() && statistics.isSetMin()) {
-        stats.setMinMaxFromBytes(statistics.min.array(), statistics.max.array());
+        this.stats.setMinMaxFromBytes(statistics.min.array(), statistics.max.array());
       }
-      stats.setNumNulls(statistics.null_count);
-      // resolve statistics type
-      if (stats instanceof LongStatistics) {
-        this.longStats = (LongStatistics) stats;
-      } else if (stats instanceof IntStatistics) {
-        this.intStats = (IntStatistics) stats;
-      } else if (stats instanceof BinaryStatistics) {
-        this.binaryStats = (BinaryStatistics) stats;
-      } else {
-        throw new UnsupportedOperationException("Unsupported statistics " + stats.getClass());
-      }
+      this.stats.setNumNulls(statistics.null_count);
     }
     return this;
   }

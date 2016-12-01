@@ -33,21 +33,39 @@ import org.apache.parquet.format.Util;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 
 /**
- * Extended chunk is a copy of Parquet column chunk with additional functionality of indexing
- * data pages. Unfortunately class is private in parquet, so most of the methods are duplicated
- * here.
+ * Column chunk reader is a copy of Parquet Chunk (part of ParquetFileReader ) with additional
+ * functionality of indexing data pages. Unfortunately class is private in parquet, so most of the
+ * methods are duplicated here.
  */
-public class ExtendedChunk extends ByteArrayInputStream {
+public class ColumnChunkReader extends ByteArrayInputStream {
+  // column chunk descriptor
   private final ChunkDescriptor descriptor;
+  // Parquet metadata converter
   private final ParquetMetadataConverter converter;
 
-  public ExtendedChunk(
+  public ColumnChunkReader(
       ChunkDescriptor descriptor,
       byte[] data,
       int offset) {
+    this(descriptor, data, offset, new ParquetMetadataConverter());
+  }
+
+  /**
+   * Initialize column chunk reader.
+   * @param descriptor descriptor for the chunk
+   * @param data contains the chunk data at offset
+   * @param offset where the chunk starts in offset
+   * @param metadata converter
+   */
+  public ColumnChunkReader(
+      ChunkDescriptor descriptor,
+      byte[] data,
+      int offset,
+      ParquetMetadataConverter converter) {
     super(data);
+    assert offset >= 0;
     this.descriptor = descriptor;
-    this.converter = new ParquetMetadataConverter();
+    this.converter = converter;
     this.pos = offset;
   }
 
@@ -74,8 +92,12 @@ public class ExtendedChunk extends ByteArrayInputStream {
     return r;
   }
 
-  /** Read all pages' headers and return statistics information only without reading data */
-  public ExtendedChunkInfo readAllPageInfos() throws IOException {
+  /**
+   * Read all pages' headers and return statistics information only without reading data, the only
+   * exception is dictionary page, where we read entire page to use later for indexing, if possible.
+   * @return column metadata with pages information
+   */
+  public ColumnChunkStore readAllPageInfos() throws IOException {
     List<DataPageHeaderInfo> pagesInChunk = new ArrayList<DataPageHeaderInfo>();
     long valuesCountReadSoFar = 0;
     long metadataValues = descriptor.getMetadata().getValueCount();
@@ -133,6 +155,6 @@ public class ExtendedChunk extends ByteArrayInputStream {
         " pages ending at file offset " + (descriptor.getChunkOffset() + pos()));
     }
 
-    return new ExtendedChunkInfo(dictionaryPage, pagesInChunk);
+    return ColumnChunkStore.get(descriptor.getMetadata(), dictionaryPage, pagesInChunk);
   }
 }
