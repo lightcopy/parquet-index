@@ -149,4 +149,13 @@ class FileSourceSuite extends UnitTestSuite with SparkLocal {
       index should be (null)
     }
   }
+
+  test("check default path filter") {
+    // default path filter should always return true, even for invalid paths
+    val filter = source.pathFilter()
+    filter.accept(null) should be (true)
+    filter.accept(new Path("./")) should be (true)
+    filter.accept(new Path("hdfs:/tmp/dir")) should be (true)
+    filter.accept(new Path("hdfs:/tmp/dir/_SUCCESS")) should be (true)
+  }
 }

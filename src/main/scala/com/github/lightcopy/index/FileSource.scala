@@ -18,7 +18,7 @@ package com.github.lightcopy.index
 
 import java.io.FileNotFoundException
 
-import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.hadoop.fs.{FileStatus, Path, PathFilter}
 
 import org.apache.spark.sql.Column
 
@@ -43,7 +43,7 @@ abstract class FileSource extends IndexSource {
    * be checked against files' schema.
    * @param catalog current catalog
    * @param indexDir root index directory
-   * @param paths list of datasource files to process
+   * @param paths non-empty list of datasource files to process (after applied filtering)
    * @param colNames non-empty list of column string names
    * @return file index
    */
@@ -52,6 +52,19 @@ abstract class FileSource extends IndexSource {
       indexDir: FileStatus,
       paths: Array[FileStatus],
       colNames: Seq[String]): Index
+
+  /**
+   * Provide custom filter to keep paths that relevant to the index source, e.g. removing commit
+   * files or fetch compressed files only. By default returns all files found.
+   * @return hadoop path filter
+   */
+  def pathFilter(): PathFilter = new PathFilter() {
+    override def accept(path: Path): Boolean = true
+  }
+
+  //////////////////////////////////////////////////////////////
+  // == Internal implementation ==
+  //////////////////////////////////////////////////////////////
 
   override def loadIndex(catalog: Catalog, metadata: Metadata): Index = {
     loadFileIndex(catalog, metadata)
@@ -93,7 +106,7 @@ abstract class FileSource extends IndexSource {
     }
 
     if (status.isDirectory) {
-      catalog.fs.listStatus(status.getPath).filter { _.isFile }
+      catalog.fs.listStatus(status.getPath, pathFilter()).filter { _.isFile }
     } else {
       Array(status)
     }
