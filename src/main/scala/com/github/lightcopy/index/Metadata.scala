@@ -16,22 +16,56 @@
 
 package com.github.lightcopy.index
 
-/**
- * Internal column info.
- * @param identifier column identifier/name
- * @param datatype column data type, e.g. "string", "long"
- */
-case class ColumnSpec(identifier: String, datatype: String)
+import org.json4s._
+import org.json4s.jackson.{JsonMethods => JSON, Serialization}
+import org.apache.spark.sql.types.{DataType, StructType}
 
 /**
  * Index metadata, maps directly to JSON.
  * @param source source to use when loading index, e.g. "parquet"
  * @param path optional path to the datasource table that is used for index
- * @param columns set of column specs that are supported by index
- * @param indexOptions specific index options, depends on implementation
+ * @param columns set of columns that are supported by index
+ * @param options specific index options, depends on implementation
  */
 case class Metadata(
-  source: String,
-  path: Option[String],
-  columns: Seq[ColumnSpec],
-  indexOptions: Map[String, String])
+    source: String,
+    path: Option[String],
+    columns: StructType,
+    options: Map[String, String]) {
+
+  override def toString(): String = {
+    s"${getClass.getSimpleName} ${SerDe.serialize(this)}"
+  }
+}
+
+/** Custom StructType serializer to use for case class extraction */
+private class StructTypeSerializer extends Serializer[StructType] {
+  val StructTypeClass = classOf[StructType]
+
+  def deserialize(implicit format: Formats): PartialFunction[(TypeInfo, JValue), StructType] = {
+    case (TypeInfo(StructTypeClass, _), json) => json match {
+      case struct @ JObject(JField("type", JString("struct")) :: fields) =>
+        DataType.fromJson(JSON.compact(struct)).asInstanceOf[StructType]
+      case other => throw new MappingException(s"Can't convert $other to $StructTypeClass")
+    }
+  }
+
+  def serialize(implicit formats: Formats): PartialFunction[Any, JValue] = {
+    case struct: StructType => JSON.parse(struct.json)
+  }
+}
+
+/** SerDe for [[Metadata]], provides some basic serialization/deserialization of case class */
+private[index] object SerDe {
+  implicit val formats = Serialization.formats(NoTypeHints) + new StructTypeSerializer()
+
+  /** Convert metadata into JSON string */
+  def serialize(metadata: Metadata): String = {
+    Serialization.write[Metadata](metadata)
+  }
+
+  /** Convert JSON string into Metadata */
+  def deserialize(json: String): Metadata = {
+    Serialization.read[Metadata](json)
+  }
+}

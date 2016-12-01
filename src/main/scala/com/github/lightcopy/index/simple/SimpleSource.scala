@@ -17,6 +17,7 @@
 package com.github.lightcopy.index.simple
 
 import org.apache.spark.sql.{Column, DataFrame}
+import org.apache.spark.sql.types.{LongType, StructField, StructType}
 
 import com.github.lightcopy.{Catalog, IndexSpec}
 import com.github.lightcopy.index.{Index, IndexSource, Metadata}
@@ -24,7 +25,8 @@ import com.github.lightcopy.index.{Index, IndexSource, Metadata}
 /** Simple index for testing */
 class SimpleIndex(withCatalog: Catalog) extends Index {
   override def getIndexIdentifier(): String = "simple"
-  override def getMetadata(): Metadata = Metadata("simple", None, Seq.empty, Map.empty)
+  override def getMetadata(): Metadata = Metadata("simple", None,
+    StructType(StructField("a", LongType) :: Nil), Map.empty)
   override def catalog: Catalog = withCatalog
   override def containsSpec(spec: IndexSpec): Boolean = true
   override def append(spec: IndexSpec, columns: Seq[Column]): Unit = { }

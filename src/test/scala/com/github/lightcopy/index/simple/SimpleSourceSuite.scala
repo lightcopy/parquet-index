@@ -16,6 +16,8 @@
 
 package com.github.lightcopy.index.simple
 
+import org.apache.spark.sql.types.{LongType, StructField, StructType}
+
 import com.github.lightcopy.index.Metadata
 import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
@@ -26,7 +28,8 @@ class SimpleSourceSuite extends UnitTestSuite {
   test("verify simple index") {
     val index = new SimpleIndex(null)
     index.getIndexIdentifier should be ("simple")
-    index.getMetadata should be (Metadata("simple", None, Seq.empty, Map.empty))
+    index.getMetadata should be (
+      Metadata("simple", None, StructType(StructField("a", LongType) :: Nil), Map.empty))
     // we pass null catalog
     index.catalog should be (null)
     // always returns true

@@ -23,6 +23,7 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 
 import org.apache.spark.sql.{Column, SaveMode}
 import org.apache.spark.sql.functions.lit
+import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
 
 import com.github.lightcopy.{Catalog, IndexSpec, SimpleCatalog}
 import com.github.lightcopy.index.simple.{SimpleIndex, SimpleSource}
@@ -86,7 +87,7 @@ class SourceSuite extends UnitTestSuite {
       val metadata = Metadata(
         "source",
         Some("path"),
-        Seq(ColumnSpec("id", "long"), ColumnSpec("str", "string")),
+        StructType(StructField("id", LongType) :: StructField("str", StringType) :: Nil),
         Map("key" -> "value"))
       Source.writeMetadata(fs, dir, metadata)
       val res = Source.readMetadata(fs, dir)
@@ -96,7 +97,8 @@ class SourceSuite extends UnitTestSuite {
 
   test("read/write metadata 2") {
     withTempDir { dir =>
-      val metadata = Metadata("source", None, Seq.empty, Map.empty)
+      val metadata = Metadata("source", None,
+        StructType(StructField("a", LongType) :: Nil), Map.empty)
       Source.writeMetadata(fs, dir, metadata)
       val res = Source.readMetadata(fs, dir)
       res should be (metadata)
@@ -110,7 +112,8 @@ class SourceSuite extends UnitTestSuite {
       }
 
       Source.withRootDirectoryForIndex(catalog) { root =>
-        val metadata = Metadata("source", None, Seq.empty, Map.empty)
+        val metadata = Metadata("source", None,
+          StructType(StructField("a", LongType) :: Nil), Map.empty)
         Source.writeMetadata(catalog.fs, root, metadata)
         null
       }

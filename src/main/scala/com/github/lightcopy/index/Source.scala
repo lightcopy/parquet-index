@@ -21,9 +21,6 @@ import scala.util.control.NonFatal
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 import org.apache.spark.sql.{Column, DataFrame}
 
-import org.json4s.NoTypeHints
-import org.json4s.jackson.{Serialization => SerDe}
-
 import org.slf4j.LoggerFactory
 
 import com.github.lightcopy.{Catalog, IndexSpec, Util}
@@ -38,7 +35,6 @@ import com.github.lightcopy.index.parquet.ParquetSource
  */
 private[lightcopy] object Source {
   private val logger = LoggerFactory.getLogger(getClass)
-  implicit val formats = SerDe.formats(NoTypeHints)
   val METADATA_FILE = "_index_metadata"
   // Parquet source
   val PARQUET = "parquet"
@@ -59,12 +55,12 @@ private[lightcopy] object Source {
 
   /** Read index metadata */
   def readMetadata(fs: FileSystem, root: Path): Metadata = {
-    SerDe.read[Metadata](Util.readContent(fs, metadataPath(root)))
+    SerDe.deserialize(Util.readContent(fs, metadataPath(root)))
   }
 
   /** Write index metadata */
   def writeMetadata(fs: FileSystem, root: Path, metadata: Metadata): Unit = {
-    Util.writeContent(fs, metadataPath(root), SerDe.write(metadata))
+    Util.writeContent(fs, metadataPath(root), SerDe.serialize(metadata))
   }
 
   /**
