@@ -51,7 +51,10 @@ abstract class Index {
   def catalog: Catalog
 
   /**
-   * Whether or not index metadata matches provided spec.
+   * Whether or not index metadata matches provided spec. Used to select index for a table.
+   * File-system based index should check that path is provided and matches metadata path, in
+   * addition to options map, that might contain information on how to load table or read index,
+   * e.g. provide table name to access for non file-system indexes.
    * @param spec `IndexSpec` that was used to create index
    * @return true if metadata confirms to index spec
    */

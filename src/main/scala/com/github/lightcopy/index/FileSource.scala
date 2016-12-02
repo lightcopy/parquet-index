@@ -43,6 +43,7 @@ abstract class FileSource extends IndexSource {
    * be checked against files' schema.
    * @param catalog current catalog
    * @param indexDir root index directory
+   * @param tablePath fully-resolved path to the table (global parent directory for paths)
    * @param paths non-empty list of datasource files to process (after applied filtering)
    * @param colNames non-empty list of column string names
    * @return file index
@@ -50,6 +51,7 @@ abstract class FileSource extends IndexSource {
   def createFileIndex(
       catalog: Catalog,
       indexDir: FileStatus,
+      tablePath: FileStatus,
       paths: Array[FileStatus],
       colNames: Seq[String]): Index
 
@@ -80,40 +82,41 @@ abstract class FileSource extends IndexSource {
     // parse index spec and resolve provided path
     val datasourcePath = spec.path.getOrElse(
       sys.error(s"$spec does not contain path that is required for file-system based index"))
-    val statuses = discover(catalog, datasourcePath)
+    val datasourceStatus = discoverPath(catalog, datasourcePath)
+    val statuses = listStatuses(catalog, datasourceStatus)
     require(statuses.nonEmpty, s"Expected at least one datasource file in $datasourcePath")
-    createFileIndex(catalog, indexDir, statuses, colNames)
+    createFileIndex(catalog, indexDir, datasourceStatus, statuses, colNames)
   }
 
   /** Convert Spark SQL column expressions into column names */
   private[lightcopy] def withColumnName(col: Column): String = col.toString
 
   /**
-   * Discover files using datasource path, returns list of file statuses. Path must be a valid path
-   * resolving to a single entry, e.g. should not contain "*" if there is paths' ambiguity,
-   * desirably pointing to logical table on disk, e.g. Parquet table stored using Spark SQL.
+   * List files using datasource status. See `discoverPath(...)` method to check path requirements.
+   * FileStatus should point to logical table on disk, e.g. Parquet table stored using Spark SQL.
    * Directory partitioning is not supported for now, e.g. search one level down from root.
    */
-  private[lightcopy] def discover(catalog: Catalog, path: String): Array[FileStatus] = {
-    // resolve current path
-    val status = try {
-      discoverPath(catalog, path)
+  private[lightcopy] def listStatuses(catalog: Catalog, root: FileStatus): Array[FileStatus] = {
+    if (root.isDirectory) {
+      catalog.fs.listStatus(root.getPath, pathFilter()).filter { _.isFile }
+    } else {
+      Array(root)
+    }
+  }
+
+  /**
+   * Resolve root file path for table. Path must be a valid path resolving to a single entry, e.g.
+   * should not contain "*" if there is paths' ambiguity. Also it is not recommended to have it as
+   * symlink.
+   */
+  private[lightcopy] def discoverPath(catalog: Catalog, path: String): FileStatus = {
+    try {
+      catalog.fs.getFileStatus(new Path(path))
     } catch {
       case exc: FileNotFoundException =>
         throw new FileNotFoundException(s"Datasource path $path cannot be resolved, " +
           "make sure that path points to either single file or directory without " +
           "regular expressions or globstars")
     }
-
-    if (status.isDirectory) {
-      catalog.fs.listStatus(status.getPath, pathFilter()).filter { _.isFile }
-    } else {
-      Array(status)
-    }
-  }
-
-  /** Wrapper for resolving index directory */
-  private[lightcopy] def discoverPath(catalog: Catalog, path: String): FileStatus = {
-    catalog.fs.getFileStatus(new Path(path))
   }
 }

@@ -30,13 +30,14 @@ import com.github.lightcopy.testutil.implicits._
 class FileSourceSuite extends UnitTestSuite with SparkLocal {
   private val catalog = new SimpleCatalog()
   private val source = new FileSource() {
-    def createFileIndex(
+    override def createFileIndex(
         catalog: Catalog,
         indexDir: FileStatus,
+        root: FileStatus,
         paths: Array[FileStatus],
         colNames: Seq[String]): Index = null
 
-    def loadFileIndex(
+    override def loadFileIndex(
         catalog: Catalog,
         metadata: Metadata): Index = null
   }
@@ -65,19 +66,11 @@ class FileSourceSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
-  test("fail to discover path") {
-    withTempDir { dir =>
-      intercept[FileNotFoundException] {
-        source.discoverPath(catalog, dir.suffix("*").toString)
-      }
-    }
-  }
-
   test("fail with meaningful exception when discovering path") {
     withTempDir { dir =>
       val path = dir.suffix("*").toString
       val err = intercept[FileNotFoundException] {
-        source.discover(catalog, path)
+        source.discoverPath(catalog, path)
       }
       err.getMessage.contains(s"Datasource path $path cannot be resolved") should be (true)
     }
@@ -89,7 +82,8 @@ class FileSourceSuite extends UnitTestSuite with SparkLocal {
       mkdirs(dir.suffix(s"${Path.SEPARATOR}subdir2").toString)
       create(dir.suffix(s"${Path.SEPARATOR}file1").toString).close()
       create(dir.suffix(s"${Path.SEPARATOR}file2").toString).close()
-      val statuses = source.discover(catalog, dir.toString)
+      val root = source.discoverPath(catalog, dir.toString)
+      val statuses = source.listStatuses(catalog, root)
       statuses.length should be (2) // found file1 and file2
       statuses.foreach { status =>
         status.isFile should be (true)
@@ -102,7 +96,8 @@ class FileSourceSuite extends UnitTestSuite with SparkLocal {
     withTempDir { dir =>
       val path = dir.suffix(s"${Path.SEPARATOR}file").toString
       create(path).close()
-      val statuses = source.discover(catalog, path)
+      val root = source.discoverPath(catalog, path)
+      val statuses = source.listStatuses(catalog, root)
       statuses.length should be (1)
       statuses.head.getPath.toString should be (s"file:$path")
     }
@@ -137,6 +132,18 @@ class FileSourceSuite extends UnitTestSuite with SparkLocal {
         source.createIndex(catalog, spec, Seq(lit(1)))
       }
       err.getMessage.contains("Expected at least one datasource file") should be (true)
+    }
+  }
+
+  test("fail if datasource path is not provided in spec") {
+    withTempDir { dir =>
+      create(dir.suffix(s"${Path.SEPARATOR}file").toString).close()
+      val spec = IndexSpec("source", None, SaveMode.Ignore,
+        Map(IndexSpec.INDEX_DIR -> dir.toString))
+      val err = intercept[RuntimeException] {
+        source.createIndex(catalog, spec, Seq(lit(1)))
+      }
+      err.getMessage.contains("does not contain path that is required") should be (true)
     }
   }
 
