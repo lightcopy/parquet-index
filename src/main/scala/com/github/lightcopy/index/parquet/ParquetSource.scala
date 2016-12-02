@@ -21,9 +21,9 @@ import java.util.Arrays
 import scala.collection.JavaConverters._
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.FileStatus
+import org.apache.hadoop.fs.{FileStatus, Path, PathFilter}
 
-import org.apache.parquet.hadoop.ParquetFileReader
+import org.apache.parquet.hadoop.{ParquetFileReader, ParquetFileWriter}
 import org.apache.parquet.hadoop.metadata.ParquetMetadata
 
 import org.apache.parquet.schema.{GroupType, MessageType, OriginalType, PrimitiveType, Type}
@@ -35,15 +35,45 @@ import org.apache.spark.sql.Column
 import org.apache.spark.sql.types._
 
 import com.github.lightcopy.{Catalog, IndexSpec}
-import com.github.lightcopy.index.{Index, IndexSource, Metadata}
+import com.github.lightcopy.index.{Index, FileSource, Metadata}
 
-class ParquetSource extends IndexSource {
-  override def loadIndex(catalog: Catalog, metadata: Metadata): Index = {
+/**
+ * [[ParquetSource]] provides mechanism to create and load index for Parquet table, which can reside
+ * on HDFS or local file-system. Index is file-system based, meaning metadata and index information
+ * are stored on disk, catalog might provide ability to cache index in memory.
+ *
+ * Source supports only limited set of fields that can be indexed, e.g. numeric fields, and string
+ * columns. When resolving columns, only one footer is used extract schema and convert it into
+ * StructType, so it is not recommended to use index across files with different but mergeable
+ * schema.
+ */
+class ParquetSource extends FileSource {
+  override def loadFileIndex(catalog: Catalog, metadata: Metadata): Index = {
     throw new UnsupportedOperationException()
   }
 
-  override def createIndex(catalog: Catalog, spec: IndexSpec, columns: Seq[Column]): Index = {
+  override def createFileIndex(
+      catalog: Catalog,
+      indexDir: FileStatus,
+      tablePath: FileStatus,
+      paths: Array[FileStatus],
+      colNames: Seq[String]): Index = {
+    val status = paths.head
+    val parquetMetadata = footerMetadata(catalog.fs.getConf, status)
+    val parquetSchema = parquetMetadata.getFileMetaData.getSchema
+    val schema = ParquetSource.convert(parquetSchema, colNames)
+    val metadata = Metadata(ParquetSource.PARQUET_SOURCE_FORMAT, Some(tablePath.getPath.toString),
+      schema, Map.empty)
     throw new UnsupportedOperationException()
+  }
+
+  /** Parquet source discards global metadata files and commit files, e.g. _SUCCESS */
+  override def pathFilter(): PathFilter = new PathFilter() {
+    override def accept(path: Path): Boolean = {
+      path.getName != ParquetFileWriter.PARQUET_METADATA_FILE &&
+      path.getName != ParquetFileWriter.PARQUET_COMMON_METADATA_FILE &&
+      path.getName != ParquetSource.SUCCESS_FILE
+    }
   }
 
   /** Retrieve footer metadata from provided status, expected only one footer */
@@ -52,16 +82,21 @@ class ParquetSource extends IndexSource {
       Arrays.asList(status), false)
     footers.get(0).getParquetMetadata
   }
+}
 
-  /** Convert column into column name, should work for nested types */
-  private def withColumnName(column: Column): String = column.toString
+/** Contains constants and schema converter */
+private[lightcopy] object ParquetSource {
+  // Format to reference Parquet datasource
+  val PARQUET_SOURCE_FORMAT = "parquet"
+  // Commit file name to discard
+  val SUCCESS_FILE = "_SUCCESS"
 
   /**
    * Convert Parquet schema into StructType of columns supported by index, it does not convert
    * entire message type. Also note that only certain Parquet types are supported for index.
    * Do not check on MatchError
    */
-  private def convert(parquetSchema: MessageType, colNames: Seq[String]): StructType = {
+  def convert(parquetSchema: MessageType, colNames: Seq[String]): StructType = {
     val fieldsSet = colNames.toSet
     val fields = parquetSchema.getFields.asScala.flatMap { field =>
       if (fieldsSet.contains(field.getName)) {
@@ -87,13 +122,13 @@ class ParquetSource extends IndexSource {
   }
 
   /** Convert individual field into `StructField`, do not check on MatchError */
-  private def convertField(parquetType: Type): DataType = parquetType match {
+  def convertField(parquetType: Type): DataType = parquetType match {
     case primitive: PrimitiveType => convertPrimitiveField(primitive)
     case group: GroupType => convertGroupField(group)
   }
 
   /** Convert field into StructField of primitive type */
-  private def convertPrimitiveField(tpe: PrimitiveType): DataType = {
+  def convertPrimitiveField(tpe: PrimitiveType): DataType = {
     val originalType = tpe.getOriginalType
     val typeName = tpe.getPrimitiveTypeName
     typeName match {

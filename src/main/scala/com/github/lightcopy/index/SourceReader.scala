@@ -34,13 +34,13 @@ import com.github.lightcopy.util.IOUtils
  * index is always created but conditional on successful index creation. Metadata is stored using
  * internal methods and should not be stored in implementation.
  */
-private[lightcopy] object Source {
+private[lightcopy] object SourceReader {
   private val logger = LoggerFactory.getLogger(getClass)
   val METADATA_FILE = "_index_metadata"
   // Parquet source
-  val PARQUET = "parquet"
+  val PARQUET = ParquetSource.PARQUET_SOURCE_FORMAT
   // simple source for testing
-  val SIMPLE = "simple"
+  val SIMPLE = SimpleSource.SIMPLE_SOURCE_FORMAT
 
   /** Resolve source, fail if source is unsupported */
   def resolveSource(source: String): IndexSource = source match {

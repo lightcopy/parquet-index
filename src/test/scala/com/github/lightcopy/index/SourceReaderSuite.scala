@@ -31,8 +31,8 @@ import com.github.lightcopy.index.parquet.ParquetSource
 import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
 
-/** Test suite for [[Source]] and interfaces */
-class SourceSuite extends UnitTestSuite {
+/** Test suite for [[SourceReader]] and interfaces */
+class SourceReaderSuite extends UnitTestSuite {
   test("index source default fallback behaviour") {
     // should throw an unsupported exception
     val source = new IndexSource() {
@@ -47,28 +47,28 @@ class SourceSuite extends UnitTestSuite {
   }
 
   test("check metadata file const") {
-    Source.METADATA_FILE should be ("_index_metadata")
+    SourceReader.METADATA_FILE should be ("_index_metadata")
   }
 
   test("check Parquet index source name") {
-    Source.PARQUET should be ("parquet")
+    SourceReader.PARQUET should be (ParquetSource.PARQUET_SOURCE_FORMAT)
   }
 
   test("check Simple index source name") {
-    Source.SIMPLE should be ("simple")
+    SourceReader.SIMPLE should be (SimpleSource.SIMPLE_SOURCE_FORMAT)
   }
 
   test("resolve parquet source") {
-    Source.resolveSource(Source.PARQUET).isInstanceOf[ParquetSource] should be (true)
+    SourceReader.resolveSource(SourceReader.PARQUET).isInstanceOf[ParquetSource] should be (true)
   }
 
   test("resolve simple source") {
-    Source.resolveSource(Source.SIMPLE).isInstanceOf[SimpleSource] should be (true)
+    SourceReader.resolveSource(SourceReader.SIMPLE).isInstanceOf[SimpleSource] should be (true)
   }
 
   test("fail to resolve unknown source") {
     val err = intercept[UnsupportedOperationException] {
-      Source.resolveSource("invalid")
+      SourceReader.resolveSource("invalid")
     }
     err.getMessage should be (
       "Source invalid is not supported, accepted sources are 'simple', 'parquet'")
@@ -76,10 +76,10 @@ class SourceSuite extends UnitTestSuite {
 
   test("generate metadata path") {
     // always append separator with metadata name
-    Source.metadataPath(new Path("/tmp")).toString should be ("/tmp/_index_metadata")
-    Source.metadataPath(new Path("/tmp/")).toString should be ("/tmp/_index_metadata")
-    Source.metadataPath(new Path("~")).toString should be ("~/_index_metadata")
-    Source.metadataPath(new Path("path")).toString should be ("path/_index_metadata")
+    SourceReader.metadataPath(new Path("/tmp")).toString should be ("/tmp/_index_metadata")
+    SourceReader.metadataPath(new Path("/tmp/")).toString should be ("/tmp/_index_metadata")
+    SourceReader.metadataPath(new Path("~")).toString should be ("~/_index_metadata")
+    SourceReader.metadataPath(new Path("path")).toString should be ("path/_index_metadata")
   }
 
   test("read/write metadata 1") {
@@ -89,8 +89,8 @@ class SourceSuite extends UnitTestSuite {
         Some("path"),
         StructType(StructField("id", LongType) :: StructField("str", StringType) :: Nil),
         Map("key" -> "value"))
-      Source.writeMetadata(fs, dir, metadata)
-      val res = Source.readMetadata(fs, dir)
+      SourceReader.writeMetadata(fs, dir, metadata)
+      val res = SourceReader.readMetadata(fs, dir)
       res should be (metadata)
     }
   }
@@ -99,8 +99,8 @@ class SourceSuite extends UnitTestSuite {
     withTempDir { dir =>
       val metadata = Metadata("source", None,
         StructType(StructField("a", LongType) :: Nil), Map.empty)
-      Source.writeMetadata(fs, dir, metadata)
-      val res = Source.readMetadata(fs, dir)
+      SourceReader.writeMetadata(fs, dir, metadata)
+      val res = SourceReader.readMetadata(fs, dir)
       res should be (metadata)
     }
   }
@@ -111,15 +111,15 @@ class SourceSuite extends UnitTestSuite {
         override def getFreshIndexDirectory(): Path = dir
       }
 
-      Source.withRootDirectoryForIndex(catalog) { root =>
+      SourceReader.withRootDirectoryForIndex(catalog) { root =>
         val metadata = Metadata("source", None,
           StructType(StructField("a", LongType) :: Nil), Map.empty)
-        Source.writeMetadata(catalog.fs, root, metadata)
+        SourceReader.writeMetadata(catalog.fs, root, metadata)
         null
       }
 
       fs.exists(dir) should be (true)
-      fs.exists(dir.suffix(s"${Path.SEPARATOR}${Source.METADATA_FILE}")) should be (true)
+      fs.exists(dir.suffix(s"${Path.SEPARATOR}${SourceReader.METADATA_FILE}")) should be (true)
     }
   }
 
@@ -131,7 +131,7 @@ class SourceSuite extends UnitTestSuite {
       }
 
       val err = intercept[RuntimeException] {
-        Source.withRootDirectoryForIndex(catalog) { root =>
+        SourceReader.withRootDirectoryForIndex(catalog) { root =>
           sys.error("Test")
         }
       }
@@ -150,7 +150,7 @@ class SourceSuite extends UnitTestSuite {
       }
 
       val err = intercept[RuntimeException] {
-        Source.withRootDirectoryForIndex(catalog) { root =>
+        SourceReader.withRootDirectoryForIndex(catalog) { root =>
           sys.error("Test")
         }
       }
@@ -165,9 +165,9 @@ class SourceSuite extends UnitTestSuite {
       val catalog = new SimpleCatalog()
       val status = catalog.fs.getFileStatus(dir)
       val index = new SimpleIndex(catalog)
-      Source.writeMetadata(catalog.fs, dir, index.getMetadata)
+      SourceReader.writeMetadata(catalog.fs, dir, index.getMetadata)
 
-      val res = Source.loadIndex(catalog, status)
+      val res = SourceReader.loadIndex(catalog, status)
       res.getMetadata should be (index.getMetadata)
       res.getIndexIdentifier should be (index.getIndexIdentifier)
     }
@@ -178,7 +178,7 @@ class SourceSuite extends UnitTestSuite {
       val catalog = new SimpleCatalog()
       val status = catalog.fs.getFileStatus(dir)
       intercept[FileNotFoundException] {
-        Source.loadIndex(catalog, status)
+        SourceReader.loadIndex(catalog, status)
       }
     }
   }
@@ -189,8 +189,8 @@ class SourceSuite extends UnitTestSuite {
         override def getFreshIndexDirectory(): Path = dir
       }
       val spec = IndexSpec("simple", None, SaveMode.Append, Map.empty)
-      val index = Source.createIndex(catalog, spec, Seq.empty)
-      val metadata = Source.readMetadata(catalog.fs, dir)
+      val index = SourceReader.createIndex(catalog, spec, Seq.empty)
+      val metadata = SourceReader.readMetadata(catalog.fs, dir)
       metadata should be (index.getMetadata)
       // verify that spec has set path
       spec.getConf(IndexSpec.INDEX_DIR) should be (dir.toString)
@@ -200,7 +200,7 @@ class SourceSuite extends UnitTestSuite {
   test("source fallback") {
     val catalog = new SimpleCatalog()
     val spec = IndexSpec("simple", None, SaveMode.Append, Map.empty)
-    val df = Source.fallback(catalog, spec, lit(1) === lit(1))
+    val df = SourceReader.fallback(catalog, spec, lit(1) === lit(1))
     df should be (null)
   }
 }

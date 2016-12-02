@@ -29,7 +29,7 @@ import org.apache.spark.sql.{Column, DataFrame, SaveMode, SQLContext}
 
 import org.slf4j.LoggerFactory
 
-import com.github.lightcopy.index.{Index, Source}
+import com.github.lightcopy.index.{Index, SourceReader}
 
 /**
  * [[Catalog]] manages internal index metastore. It assumes that index metadata is stored on disk
@@ -185,7 +185,7 @@ class InternalCatalog(
         statuses.filter { _.isDirectory }.flatMap { status =>
           // index might fail to load, we wrap it into try-catch and log error
           try {
-            Some((Source.loadIndex(this, status), status))
+            Some((SourceReader.loadIndex(this, status), status))
           } catch {
             case NonFatal(err) =>
               logger.debug(s"Failed to load index for status $status, reason=$err")
@@ -222,7 +222,7 @@ class InternalCatalog(
         if (maybeIndex.isDefined) {
           throw new IllegalStateException(s"Index already exists for spec $indexSpec")
         } else {
-          Source.createIndex(this, indexSpec, columns)
+          SourceReader.createIndex(this, indexSpec, columns)
         }
       case SaveMode.Overwrite =>
         if (maybeIndex.isDefined) {
@@ -230,21 +230,21 @@ class InternalCatalog(
           // prepare index for deletion and drop what is left including metadata
           dropIndex(indexSpec)
         }
-        Source.createIndex(this, indexSpec, columns)
+        SourceReader.createIndex(this, indexSpec, columns)
       case SaveMode.Append =>
         // this really depends on index implementation support for append
         if (maybeIndex.isDefined) {
           logger.info(s"Append to existing index for spec $indexSpec")
           maybeIndex.get.append(indexSpec, columns)
         } else {
-          Source.createIndex(this, indexSpec, columns)
+          SourceReader.createIndex(this, indexSpec, columns)
         }
       case SaveMode.Ignore =>
         // no-op if index exists, log the action
         if (maybeIndex.isDefined) {
           logger.info(s"Index exists for spec $indexSpec, ignore 'createIndex'")
         } else {
-          Source.createIndex(this, indexSpec, columns)
+          SourceReader.createIndex(this, indexSpec, columns)
         }
     }
   }
@@ -269,7 +269,7 @@ class InternalCatalog(
         index.search(condition)
       case None =>
         logger.warn(s"Index for spec $indexSpec is not found, using fallback strategy")
-        Source.fallback(this, indexSpec, condition)
+        SourceReader.fallback(this, indexSpec, condition)
     }
   }
 

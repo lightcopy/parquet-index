@@ -50,3 +50,8 @@ class SimpleSource extends IndexSource {
     null
   }
 }
+
+object SimpleSource {
+  // Format to reference simple datasource
+  val SIMPLE_SOURCE_FORMAT = "simple"
+}

@@ -39,8 +39,9 @@ abstract class FileSource extends IndexSource {
 
   /**
    * Create file index based on resolved root index directory and resolved paths for datasource,
-   * each path points to a file under datasource directory/path. Column names are already resolved
-   * be checked against files' schema.
+   * each path points to a file under datasource directory/path. It is not recommended to rely on
+   * paths being direct children of 'tablePath', since it might include directory partitioning.
+   * Column names are converted be checked against files' schema.
    * @param catalog current catalog
    * @param indexDir root index directory
    * @param tablePath fully-resolved path to the table (global parent directory for paths)
