@@ -77,6 +77,13 @@ trait TestBase {
     fs.mkdirs(p)
   }
 
+  /** create empty file, similar to "touch" shell command, but creates intermediate directories */
+  final protected def touch(path: String): Boolean = {
+    val p = new HadoopPath(path)
+    fs.mkdirs(p.getParent)
+    fs.createNewFile(p)
+  }
+
   /** delete directory / file with path. Recursive must be true for directory */
   final protected def rm(path: String, recursive: Boolean): Boolean = {
     val p = new HadoopPath(path)

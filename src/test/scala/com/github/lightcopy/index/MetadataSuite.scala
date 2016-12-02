@@ -84,7 +84,6 @@ class MetadataSuite extends UnitTestSuite {
     val metadata = Metadata("source", Some("/path"), schema, Map("key" -> "value"))
 
     val json = SerDe.serialize(metadata)
-    println(json)
     val res = SerDe.deserialize(json)
     json.nonEmpty should be (true)
     res should be (metadata)

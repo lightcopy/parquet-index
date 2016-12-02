@@ -117,8 +117,7 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
 
   test("resolve metastore for non-existent directory") {
     withTempDir { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION,
-        dir.suffix(Path.SEPARATOR + "test_metastore").toString)
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString / "test_metastore")
       // metastore is resolved when catalog is initialized
       val catalog = new InternalCatalog(spark.sqlContext)
       catalog.metastorePath.endsWith("test_metastore") should be (true)
@@ -142,9 +141,9 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
 
   test("fail if metastore is not a directory ") {
     withTempDir { dir =>
-      val path = dir.suffix(Path.SEPARATOR + "file")
-      fs.createNewFile(path)
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, path.toString)
+      val path = dir.toString / "file"
+      touch(path)
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, path)
       // metastore is resolved when catalog is initialized
       val err = intercept[IllegalStateException] {
         new InternalCatalog(spark.sqlContext)
@@ -186,8 +185,7 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
 
   test("fail on directory collision") {
     withTempDir { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION,
-        dir.suffix(Path.SEPARATOR + "test_metastore").toString)
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString / "test_metastore")
       // metastore is resolved when catalog is initialized
       val catalog = new InternalCatalog(spark.sqlContext) {
         override def getRandomName(): String = ""
@@ -201,8 +199,7 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
 
   test("fail if fresh directory cannot be created") {
     withTempDir { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION,
-        dir.suffix(Path.SEPARATOR + "test_metastore").toString)
+      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString / "test_metastore")
       // metastore is resolved when catalog is initialized
       val catalog = new InternalCatalog(spark.sqlContext)
       val err = intercept[IllegalStateException] {

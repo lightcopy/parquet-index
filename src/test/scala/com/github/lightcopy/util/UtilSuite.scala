@@ -25,26 +25,26 @@ import com.github.lightcopy.testutil.implicits._
 class UtilSuite extends UnitTestSuite {
   test("read content from empty file") {
     withTempDir { dir =>
-      val path = dir.suffix(HadoopPath.SEPARATOR + "test")
-      fs.createNewFile(path)
-      val content = IOUtils.readContent(fs, path)
+      val path = dir.toString / "test"
+      touch(path)
+      val content = IOUtils.readContent(fs, new HadoopPath(path))
       content.isEmpty should be (true)
     }
   }
 
   test("read content from non-empty file") {
     withTempDir { dir =>
-      val path = dir.suffix(HadoopPath.SEPARATOR + "test")
-      val out = create(path.toString)
+      val path = dir.toString / "test"
+      val out = create(path)
       out.write("test-content#".getBytes)
       out.close()
-      IOUtils.readContent(fs, path) should be ("test-content#")
+      IOUtils.readContent(fs, new HadoopPath(path)) should be ("test-content#")
     }
   }
 
   test("write content into file") {
     withTempDir { dir =>
-      val path = dir.suffix(HadoopPath.SEPARATOR + "test")
+      val path = new HadoopPath(dir.toString / "test")
       IOUtils.writeContent(fs, path, "test-content")
       IOUtils.readContent(fs, path) should be ("test-content")
     }
