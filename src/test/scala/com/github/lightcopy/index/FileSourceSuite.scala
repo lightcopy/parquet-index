@@ -165,4 +165,33 @@ class FileSourceSuite extends UnitTestSuite with SparkLocal {
     filter.accept(new Path("hdfs:/tmp/dir")) should be (true)
     filter.accept(new Path("hdfs:/tmp/dir/_SUCCESS")) should be (true)
   }
+
+  test("return distinct column names for create index") {
+    val source = new FileSource() {
+      override def createFileIndex(
+          catalog: Catalog,
+          indexDir: FileStatus,
+          root: FileStatus,
+          paths: Array[FileStatus],
+          colNames: Seq[String]): Index = {
+        // check that column names are distinct
+        colNames should be (colNames.toSet.toSeq)
+        null
+      }
+
+      override def loadFileIndex(
+          catalog: Catalog,
+          metadata: Metadata): Index = null
+    }
+
+    withTempDir { dir =>
+      create(dir.suffix(s"${Path.SEPARATOR}file").toString).close()
+      val spec = IndexSpec("source", Some(dir.toString), SaveMode.Ignore,
+        Map(IndexSpec.INDEX_DIR -> dir.toString))
+
+      source.createIndex(catalog, spec, Seq(lit("abc"), lit("abc"), lit("bcd")))
+      source.createIndex(catalog, spec, Seq(lit("abc"), lit("bcd")))
+      source.createIndex(catalog, spec, Seq(lit("abc"), lit("ABC")))
+    }
+  }
 }

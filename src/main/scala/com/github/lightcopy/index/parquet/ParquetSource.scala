@@ -132,7 +132,6 @@ private[lightcopy] object ParquetSource {
     val originalType = tpe.getOriginalType
     val typeName = tpe.getPrimitiveTypeName
     typeName match {
-      case BOOLEAN => BooleanType
       case FLOAT => FloatType
       case DOUBLE => DoubleType
       case INT32 =>

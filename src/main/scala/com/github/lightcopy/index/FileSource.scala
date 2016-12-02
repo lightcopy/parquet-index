@@ -46,7 +46,7 @@ abstract class FileSource extends IndexSource {
    * @param indexDir root index directory
    * @param tablePath fully-resolved path to the table (global parent directory for paths)
    * @param paths non-empty list of datasource files to process (after applied filtering)
-   * @param colNames non-empty list of column string names
+   * @param colNames non-empty list of unique column string names
    * @return file index
    */
   def createFileIndex(
@@ -77,8 +77,8 @@ abstract class FileSource extends IndexSource {
     // since it is file system based index, we need to make sure that path is provided to store
     // index information including metadata, this path should be available as part of spec options
     val indexDir = discoverPath(catalog, spec.getConf(IndexSpec.INDEX_DIR))
-    // parse column names
-    val colNames = columns.map(withColumnName)
+    // parse column names, column names are always distinct
+    val colNames = columns.map(withColumnName).distinct
     require(colNames.nonEmpty, s"Expected at least one column, found $columns")
     // parse index spec and resolve provided path
     val datasourcePath = spec.path.getOrElse(
