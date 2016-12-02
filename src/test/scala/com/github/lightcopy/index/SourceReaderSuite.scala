@@ -108,7 +108,7 @@ class SourceReaderSuite extends UnitTestSuite {
   test("with root directory for index") {
     withTempDir { dir =>
       val catalog = new SimpleCatalog() {
-        override def getFreshIndexDirectory(): Path = dir
+        override def getFreshIndexLocation(): String = dir.toString
       }
 
       SourceReader.withRootDirectoryForIndex(catalog) { root =>
@@ -127,7 +127,7 @@ class SourceReaderSuite extends UnitTestSuite {
     // when failure occurs in closure directory should be removed and exception rethrown
     withTempDir { dir =>
       val catalog = new SimpleCatalog() {
-        override def getFreshIndexDirectory(): Path = dir
+        override def getFreshIndexLocation(): String = dir.toString
       }
 
       val err = intercept[RuntimeException] {
@@ -146,7 +146,7 @@ class SourceReaderSuite extends UnitTestSuite {
     withTempDir { dir =>
       val catalog = new SimpleCatalog() {
         override def fs: FileSystem = sys.error("No file system")
-        override def getFreshIndexDirectory(): Path = dir
+        override def getFreshIndexLocation(): String = dir.toString
       }
 
       val err = intercept[RuntimeException] {
@@ -186,7 +186,7 @@ class SourceReaderSuite extends UnitTestSuite {
   test("create index") {
     withTempDir { dir =>
       val catalog = new SimpleCatalog() {
-        override def getFreshIndexDirectory(): Path = dir
+        override def getFreshIndexLocation(): String = dir.toString
       }
       val spec = IndexSpec("simple", None, SaveMode.Append, Map.empty)
       val index = SourceReader.createIndex(catalog, spec, Seq.empty)

@@ -23,7 +23,7 @@ package object implicits {
   /** [[QueryContext]] to access index functionality using SQLContext */
   implicit class QueryContext(sqlContext: SQLContext) {
     def index: DataFrameIndexBuilder = {
-      val catalog = new InternalCatalog(sqlContext)
+      val catalog = new FileSystemCatalog(sqlContext)
       new DataFrameIndexBuilder(catalog)
     }
   }

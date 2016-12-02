@@ -26,7 +26,7 @@ import org.apache.spark.sql.functions.lit
 import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
 import com.github.lightcopy.testutil.implicits._
 
-/** Test suite for [[Catalog]], [[InternalCatalog]] and [[IndexSpec]] */
+/** Test suite for [[Catalog]], [[FileSystemCatalog]] and [[IndexSpec]] */
 class CatalogSuite extends UnitTestSuite with SparkLocal {
   override def beforeAll {
     startSparkSession()
@@ -84,32 +84,32 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("internal catalog metastore option") {
-    InternalCatalog.METASTORE_OPTION should be ("spark.sql.index.metastore")
+    FileSystemCatalog.METASTORE_OPTION should be ("spark.sql.index.metastore")
   }
 
   test("internal catalog metastore directory name") {
-    InternalCatalog.DEFAULT_METASTORE_DIR should be ("index_metastore")
+    FileSystemCatalog.DEFAULT_METASTORE_DIR should be ("index_metastore")
   }
 
   test("internal catalog metastore default permission") {
-    InternalCatalog.METASTORE_PERMISSION.toString should be ("rwxrw-rw-")
+    FileSystemCatalog.METASTORE_PERMISSION.toString should be ("rwxrw-rw-")
   }
 
   test("get metastore path without setting") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
-      val catalog = new InternalCatalog(spark.sqlContext)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       // unset catalog option to test try-option block
-      spark.conf.unset(InternalCatalog.METASTORE_OPTION)
+      spark.conf.unset(FileSystemCatalog.METASTORE_OPTION)
       val res = catalog.getMetastorePath(catalog.sqlContext)
       res should be (None)
     }
   }
 
   test("get metastore path with setting") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
-      val catalog = new InternalCatalog(spark.sqlContext)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       val res = catalog.getMetastorePath(catalog.sqlContext)
       res should be (Some(dir.toString))
     }
@@ -117,25 +117,25 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
 
   test("resolve metastore for non-existent directory") {
     withTempDir { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString / "test_metastore")
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString / "test_metastore")
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
-      catalog.metastorePath.endsWith("test_metastore") should be (true)
-      val status = fs.getFileStatus(new Path(catalog.metastorePath))
+      val catalog = new FileSystemCatalog(spark.sqlContext)
+      catalog.metastoreLocation.endsWith("test_metastore") should be (true)
+      val status = fs.getFileStatus(new Path(catalog.metastoreLocation))
       status.isDirectory should be (true)
-      status.getPermission should be (InternalCatalog.METASTORE_PERMISSION)
+      status.getPermission should be (FileSystemCatalog.METASTORE_PERMISSION)
     }
   }
 
   test("use existing directory") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
-      catalog.metastorePath should be ("file:" + dir.toString)
-      val status = fs.getFileStatus(new Path(catalog.metastorePath))
+      val catalog = new FileSystemCatalog(spark.sqlContext)
+      catalog.metastoreLocation should be ("file:" + dir.toString)
+      val status = fs.getFileStatus(new Path(catalog.metastoreLocation))
       status.isDirectory should be (true)
-      status.getPermission should be (InternalCatalog.METASTORE_PERMISSION)
+      status.getPermission should be (FileSystemCatalog.METASTORE_PERMISSION)
     }
   }
 
@@ -143,10 +143,10 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
     withTempDir { dir =>
       val path = dir.toString / "file"
       touch(path)
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, path)
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, path)
       // metastore is resolved when catalog is initialized
       val err = intercept[IllegalStateException] {
-        new InternalCatalog(spark.sqlContext)
+        new FileSystemCatalog(spark.sqlContext)
       }
       err.getMessage.contains("Expected directory for metastore") should be (true)
     }
@@ -154,10 +154,10 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
 
   test("fail if metastore has insufficient permissions") {
     withTempDir(new FsPermission("444")) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       // metastore is resolved when catalog is initialized
       val err = intercept[IllegalStateException] {
-        new InternalCatalog(spark.sqlContext)
+        new FileSystemCatalog(spark.sqlContext)
       }
       err.getMessage.contains("Expected directory with rwxrw-rw-") should be (true)
       err.getMessage.contains("r--r--r--") should be (true)
@@ -166,32 +166,32 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
 
   test("use directory with richer permissions") {
     withTempDir(new FsPermission("777")) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
-      catalog.metastorePath should be ("file:" + dir.toString)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
+      catalog.metastoreLocation should be ("file:" + dir.toString)
     }
   }
 
   test("get fresh index directory") {
     withTempDir(new FsPermission("777")) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
-      val path = catalog.getFreshIndexDirectory
-      path.getParent.toString should be (catalog.metastorePath)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
+      val path = catalog.getFreshIndexLocation
+      new Path(path).getParent.toString should be (catalog.metastoreLocation)
     }
   }
 
   test("fail on directory collision") {
     withTempDir { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString / "test_metastore")
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString / "test_metastore")
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext) {
+      val catalog = new FileSystemCatalog(spark.sqlContext) {
         override def getRandomName(): String = ""
       }
       val err = intercept[IllegalStateException] {
-        catalog.getFreshIndexDirectory
+        catalog.getFreshIndexLocation
       }
       err.getMessage.contains("Fresh directory collision") should be (true)
     }
@@ -199,32 +199,32 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
 
   test("fail if fresh directory cannot be created") {
     withTempDir { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString / "test_metastore")
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString / "test_metastore")
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       val err = intercept[IllegalStateException] {
         fs.setPermission(dir, new FsPermission("444"))
-        catalog.getFreshIndexDirectory
+        catalog.getFreshIndexLocation
       }
       err.getMessage.contains("Failed to create new directory") should be (true)
     }
   }
 
   test("list indexes for empty metastore") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       catalog.listIndexes should be (Seq.empty)
     }
   }
 
   test("create/list simple index in metastore") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       val spec = IndexSpec("simple", None, SaveMode.ErrorIfExists, Map.empty)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       catalog.createIndex(spec, Seq.empty)
 
       catalog.listIndexes.length should be (1)
@@ -235,11 +235,11 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("create index with error save mode") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       val spec = IndexSpec("simple", None, SaveMode.ErrorIfExists, Map.empty)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       catalog.createIndex(spec, Seq.empty)
       val err = intercept[IllegalStateException] {
         catalog.createIndex(spec, Seq.empty)
@@ -249,11 +249,11 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("create index with overwrite save mode") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       val spec = IndexSpec("simple", None, SaveMode.Overwrite, Map.empty)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       catalog.createIndex(spec, Seq.empty)
       catalog.createIndex(spec, Seq.empty)
       catalog.listIndexes.length should be (1)
@@ -261,11 +261,11 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("create index with append save mode") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       val spec = IndexSpec("simple", None, SaveMode.Append, Map.empty)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       catalog.createIndex(spec, Seq.empty)
       catalog.createIndex(spec, Seq.empty)
       catalog.listIndexes.length should be (1)
@@ -273,11 +273,11 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("create index with ignore save mode") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       val spec = IndexSpec("simple", None, SaveMode.Ignore, Map.empty)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       catalog.createIndex(spec, Seq.empty)
       catalog.createIndex(spec, Seq.empty)
       catalog.listIndexes.length should be (1)
@@ -285,22 +285,22 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("drop non-existing index") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       val spec = IndexSpec("simple", None, SaveMode.Ignore, Map.empty)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       // deletion should be no-op
       catalog.dropIndex(spec)
     }
   }
 
   test("drop existing index") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       val spec = IndexSpec("simple", None, SaveMode.Ignore, Map.empty)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       catalog.createIndex(spec, Seq.empty)
       catalog.listIndexes.length should be (1)
 
@@ -310,11 +310,11 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("query non-existing index, use source fallback") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       val spec = IndexSpec("simple", None, SaveMode.Ignore, Map.empty)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       val df = catalog.queryIndex(spec, lit(1) === lit(2))
       // SimpleSource returns null DataFrame for fallback
       df should be (null)
@@ -322,11 +322,11 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("query existing index") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
       val spec = IndexSpec("simple", None, SaveMode.Ignore, Map.empty)
       // metastore is resolved when catalog is initialized
-      val catalog = new InternalCatalog(spark.sqlContext)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
       catalog.createIndex(spec, Seq.empty)
       val df = catalog.queryIndex(spec, lit(1) === lit(2))
       df should be (null)
@@ -334,10 +334,10 @@ class CatalogSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("internal catalog - toString") {
-    withTempDir(InternalCatalog.METASTORE_PERMISSION) { dir =>
-      spark.sqlContext.setConf(InternalCatalog.METASTORE_OPTION, dir.toString)
-      val catalog = new InternalCatalog(spark.sqlContext)
-      catalog.toString should be (s"InternalCatalog[metastore=file:$dir]")
+    withTempDir(FileSystemCatalog.METASTORE_PERMISSION) { dir =>
+      spark.sqlContext.setConf(FileSystemCatalog.METASTORE_OPTION, dir.toString)
+      val catalog = new FileSystemCatalog(spark.sqlContext)
+      catalog.toString should be (s"FileSystemCatalog[metastore=file:$dir]")
     }
   }
 }

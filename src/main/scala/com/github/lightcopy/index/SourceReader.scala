@@ -29,7 +29,7 @@ import com.github.lightcopy.index.parquet.ParquetSource
 import com.github.lightcopy.util.IOUtils
 
 /**
- * Internal loader for [[IndexSource]], and is used by [[InternalCatalog]]. Every available
+ * Internal loader for [[IndexSource]], and is used by [[FileSystemCatalog]]. Every available
  * implementation should be registered here. Source is file-system based, therefore root folder for
  * index is always created but conditional on successful index creation. Metadata is stored using
  * internal methods and should not be stored in implementation.
@@ -69,7 +69,7 @@ private[lightcopy] object SourceReader {
    * If closure function throws exception directory is cleaned up automatically.
    */
   def withRootDirectoryForIndex(catalog: Catalog)(func: Path => Index): Index = {
-    val rootDir = catalog.getFreshIndexDirectory()
+    val rootDir = new Path(catalog.getFreshIndexLocation())
     try {
       func(rootDir)
     } catch {

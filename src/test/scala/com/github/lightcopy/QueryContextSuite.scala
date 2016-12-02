@@ -41,7 +41,7 @@ class QueryContextSuite extends UnitTestSuite with SparkLocal {
     val builder = spark.sqlContext.index
     builder.isInstanceOf[DataFrameIndexBuilder] should be (true)
     // internal catalog is hard-coded for now
-    builder.catalog.isInstanceOf[InternalCatalog] should be (true)
+    builder.catalog.isInstanceOf[FileSystemCatalog] should be (true)
   }
 
   test("init index builder") {

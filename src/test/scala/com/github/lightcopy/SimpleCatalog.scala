@@ -17,7 +17,7 @@
 package com.github.lightcopy
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.FileSystem
 
 import org.apache.spark.sql.{Column, DataFrame}
 
@@ -26,8 +26,8 @@ import com.github.lightcopy.index.Index
 /** Simple catalog for local file system with dummy method implementations for testing */
 class SimpleCatalog extends Catalog {
   override def fs: FileSystem = FileSystem.get(new Configuration(false))
-  override def metastorePath: String = "file:/tmp/metastore"
-  override def getFreshIndexDirectory(): Path = new Path("file:/tmp/metastore/test-index")
+  override def metastoreLocation: String = "file:/tmp/metastore"
+  override def getFreshIndexLocation(): String = "file:/tmp/metastore/test-index"
   override def listIndexes(): Seq[Index] = Seq.empty
   override def getIndex(indexSpec: IndexSpec): Option[Index] = None
   override def createIndex(indexSpec: IndexSpec, columns: Seq[Column]): Unit = { }
