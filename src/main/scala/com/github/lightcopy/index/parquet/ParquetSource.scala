@@ -19,6 +19,8 @@ package com.github.lightcopy.index.parquet
 import java.util.Arrays
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
+import scala.util.control.NonFatal
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path, PathFilter}
@@ -31,11 +33,77 @@ import org.apache.parquet.schema.OriginalType._
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName._
 import org.apache.parquet.schema.Type.Repetition.{OPTIONAL, REPEATED, REQUIRED}
 
-import org.apache.spark.sql.Column
+import org.apache.spark.sql.{Column, DataFrame}
 import org.apache.spark.sql.types._
 
-import com.github.lightcopy.{Catalog, IndexSpec}
+import org.json4s.NoTypeHints
+import org.json4s.jackson.Serialization
+
+import com.github.lightcopy.{Catalog, FileSystemCatalog, IndexSpec}
 import com.github.lightcopy.index.{Index, FileSource, Metadata}
+import com.github.lightcopy.util.IOUtils
+
+class ParquetIndex(
+    val ctg: Catalog,
+    val metadata: Metadata,
+    val indexDir: FileStatus,
+    val paths: Array[FileStatus])
+  extends Index {
+
+  require(metadata.path.isDefined, "Parquet index requires metadata path")
+  @transient private val sc = ctg.asInstanceOf[FileSystemCatalog].sqlContext.sparkContext
+  private val index = load()
+  IOUtils.writeContent(catalog.fs,
+    indexDir.getPath.suffix(s"${Path.SEPARATOR}data"), serialize(index))
+
+  override def getIndexIdentifier(): String = indexDir.getPath.toString
+
+  override def getMetadata(): Metadata = metadata
+
+  override def catalog: Catalog = ctg
+
+  override def containsSpec(spec: IndexSpec): Boolean = {
+    spec.path match {
+      case Some(file) =>
+        try {
+          val status = catalog.fs.getFileStatus(new Path(file))
+          status.getPath.toString == metadata.path.get
+        } catch {
+          case NonFatal(err) => false
+        }
+      case None => false
+    }
+  }
+
+  override def append(spec: IndexSpec, columns: Seq[Column]): Unit = {
+    throw new UnsupportedOperationException()
+  }
+
+  override def search(condition: Column): DataFrame = {
+    throw new UnsupportedOperationException()
+  }
+
+  override def delete(): Unit = {
+    throw new UnsupportedOperationException()
+  }
+
+  private def load(): Seq[ParquetFileStatistics] = {
+    val data = paths.map { status =>
+      ParquetFileStatus(status.getPath.toString, status.getLen) }.toSeq
+    val rdd = new StatisticsRDD(sc, catalog.fs.getConf, metadata.columns, data,
+      sc.defaultParallelism * 3)
+    rdd.collect.toSeq
+  }
+
+  private def serialize(index: Seq[ParquetFileStatistics]): String = {
+    implicit val formats = Serialization.formats(NoTypeHints)
+    val buffer = new ArrayBuffer[String]()
+    for (part <- index) {
+      buffer.append(Serialization.write[ParquetFileStatistics](part))
+    }
+    buffer.mkString("\n")
+  }
+}
 
 /**
  * [[ParquetSource]] provides mechanism to create and load index for Parquet table, which can reside
@@ -64,7 +132,7 @@ class ParquetSource extends FileSource {
     val schema = ParquetSource.convert(parquetSchema, colNames)
     val metadata = Metadata(ParquetSource.PARQUET_SOURCE_FORMAT, Some(tablePath.getPath.toString),
       schema, Map.empty)
-    throw new UnsupportedOperationException()
+    new ParquetIndex(catalog, metadata, indexDir, paths)
   }
 
   /** Parquet source discards global metadata files and commit files, e.g. _SUCCESS */

@@ -84,7 +84,7 @@ class StatisticsRDD(
   override def compute(split: Partition, context: TaskContext): Iterator[ParquetFileStatistics] = {
     val configuration = hadoopConf
     val buffer = new ArrayBuffer[ParquetFileStatistics]()
-    val partition = split.asInstanceOf[StatisticsPartition[ParquetFileStatistics]]
+    val partition = split.asInstanceOf[StatisticsPartition[ParquetFileStatus]]
 
     for (elem <- partition.iterator) {
       val path = new Path(elem.path)
