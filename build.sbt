@@ -57,8 +57,9 @@ coverageHighlighting := {
   if (scalaBinaryVersion.value == "2.10") false
   else true
 }
-coverageMinimum := 80
-coverageFailOnMinimum := true
+// Remove coverage report for now
+// coverageMinimum := 80
+// coverageFailOnMinimum := true
 
 EclipseKeys.eclipseOutput := Some("target/eclipse")
 
