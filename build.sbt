@@ -2,7 +2,7 @@ name := "parquet-index"
 
 organization := "com.github.lightcopy"
 
-scalaVersion := "2.10.5"
+scalaVersion := "2.11.7"
 
 crossScalaVersions := Seq("2.10.5", "2.11.7")
 
