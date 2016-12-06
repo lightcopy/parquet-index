@@ -16,6 +16,13 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import java.io.InputStream
+
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
+
+import org.apache.spark.util.sketch.BloomFilter
+
 ////////////////////////////////////////////////////////////////
 // == Parquet column statitics ==
 ////////////////////////////////////////////////////////////////
@@ -95,6 +102,73 @@ case class ParquetStringStatistics(min: String, max: String, numNulls: Long)
 }
 
 ////////////////////////////////////////////////////////////////
+// == Supported column filters for Parquet ==
+////////////////////////////////////////////////////////////////
+
+abstract class ParquetColumnFilter {
+  /** Unique name of the filter */
+  def identifier: String
+
+  /** Initialize filter, e.g. load from disk */
+  def init(conf: Configuration): Unit
+
+  /** Destroy filter, release memory and/or resources */
+  def destroy(): Unit
+
+  /** Whether or not value is in column */
+  def contains(value: Any): Boolean
+}
+
+/**
+ * Wrapper for `BloomFilter` for column values. Even if bloom filter is binary, e.g. not
+ * specifically typed, we still maintain bloom filter per column.
+ */
+case class ParquetBloomFilter(path: String) extends ParquetColumnFilter {
+  @transient private var bloomFilter: BloomFilter = null
+
+  def setBloomFilter(filter: BloomFilter): Unit = {
+    bloomFilter = filter
+  }
+
+  override def identifier: String = ParquetColumnFilter.BLOOM_FILTER
+
+  override def init(conf: Configuration): Unit = {
+    if (bloomFilter == null) {
+      val serde = new Path(path)
+      val fs = serde.getFileSystem(conf)
+      var in: InputStream = null
+      try {
+        in = fs.open(serde)
+        bloomFilter = BloomFilter.readFrom(in)
+      } finally {
+        if (in != null) {
+          in.close()
+        }
+      }
+    }
+  }
+
+  override def destroy(): Unit = {
+    bloomFilter = null
+  }
+
+  override def contains(value: Any): Boolean = {
+    if (bloomFilter == null) {
+      throw new IllegalStateException("Bloom filter is not initialized, call 'init()' first")
+    }
+    bloomFilter.mightContain(value)
+  }
+
+  override def toString(): String = {
+    s"{id=$identifier, path=$path}"
+  }
+}
+
+object ParquetColumnFilter {
+  val BLOOM_FILTER = "bloom-filter"
+}
+
+////////////////////////////////////////////////////////////////
 // == Parquet metadata for row group and column ==
 ////////////////////////////////////////////////////////////////
 
@@ -107,12 +181,17 @@ case class ParquetColumnMetadata(
     startingPos: Long,
     compressedSize: Long,
     size: Long,
-    stats: ParquetColumnStatistics) {
+    stats: ParquetColumnStatistics,
+    private var filter: Option[ParquetColumnFilter]) {
+
+  def setFilter(impl: ParquetColumnFilter): Unit = {
+    this.filter = Option(impl)
+  }
 
   override def toString(): String = {
     val columnType = s"$repetition $fieldType ($originalType)".toLowerCase
     s"${getClass.getSimpleName}[name=$fieldName, type=$columnType, values=$valueCount, " +
-    s"position=$startingPos, size=$size($compressedSize), stats=$stats]"
+    s"position=$startingPos, size=$size($compressedSize), stats=$stats, filter=$filter]"
   }
 }
 

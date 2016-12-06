@@ -214,7 +214,8 @@ private[parquet] object ParquetStatisticsRDD {
           column.getStartingPos,
           column.getTotalSize,
           column.getTotalUncompressedSize,
-          columnMinMaxStats))
+          columnMinMaxStats,
+          None))
       } else {
         None
       }
