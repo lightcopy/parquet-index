@@ -208,12 +208,21 @@ case class ParquetBlockMetadata(
   }
 }
 
+/**
+ * Global Parquet file statistics and metadata.
+ * @param path fully-qualified path to the file
+ * @param len length in bytes
+ * @param fileSchema message type of Parquet file as string
+ * @param blocks row groups statistics in file
+ */
 case class ParquetStatistics(
     path: String,
     len: Long,
+    fileSchema: String,
     blocks: Array[ParquetBlockMetadata]) {
 
   override def toString(): String = {
-    s"${getClass.getSimpleName}[path=$path, size=$len, blocks=${blocks.mkString("[", ", ", "]")}]"
+    s"${getClass.getSimpleName}[path=$path, size=$len, schema=$fileSchema " +
+    s"blocks=${blocks.mkString("[", ", ", "]")}]"
   }
 }

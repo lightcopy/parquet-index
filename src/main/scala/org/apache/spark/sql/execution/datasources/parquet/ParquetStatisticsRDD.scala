@@ -134,8 +134,11 @@ class ParquetStatisticsRDD(
           """.stripMargin)
 
         // convert current file metadata with requested columns into Parquet statistics
+        // currently global Parquet schema is merged and inferred on a driver, which is suboptimal
+        // since we can reduce schema during metadata collection.
+        // TODO: Partially merge schema during each task
         val blocks = ParquetStatisticsRDD.convert(metadata, requestedSchema)
-        ParquetStatistics(status.getPath.toString, status.getLen, blocks)
+        ParquetStatistics(status.getPath.toString, status.getLen, schema.toString, blocks)
       }
     }
   }
