@@ -32,6 +32,7 @@ abstract class Container {
   def setDouble(ordinal: Int, value: Double): Unit
   def setInt(ordinal: Int, value: Int): Unit
   def setLong(ordinal: Int, value: Long): Unit
+  def getByIndex(ordinal: Int): Any
   def init(): Unit
   def close(): Unit
 }
@@ -45,6 +46,7 @@ private[parquet] class MapContainer extends Container {
   override def setDouble(ordinal: Int, value: Double): Unit = buffer.put(ordinal, value)
   override def setInt(ordinal: Int, value: Int): Unit = buffer.put(ordinal, value)
   override def setLong(ordinal: Int, value: Long): Unit = buffer.put(ordinal, value)
+  override def getByIndex(ordinal: Int): Any = buffer.get(ordinal)
 
   override def init(): Unit = {
     if (buffer == null) {

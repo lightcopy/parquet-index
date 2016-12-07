@@ -188,6 +188,10 @@ case class ParquetColumnMetadata(
     this.filter = Option(impl)
   }
 
+  def getFilter(): Option[ParquetColumnFilter] = {
+    this.filter
+  }
+
   override def toString(): String = {
     val columnType = s"$repetition $fieldType ($originalType)".toLowerCase
     s"${getClass.getSimpleName}[name=$fieldName, type=$columnType, values=$valueCount, " +

@@ -16,6 +16,7 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import java.io.IOException
 import java.util.{Arrays, UUID}
 
 import scala.collection.JavaConverters._
@@ -157,17 +158,18 @@ class ParquetStatisticsRDD(
           logInfo("Create bloom filter for columns")
           try {
             val filterDir = configuration.get(ParquetIndexFileFormat.PARQUET_INDEX_BLOOM_FILTER_DIR)
-            require(filterDir != null, "Path is not specified in configuration")
+            require(filterDir != null,
+              "Bloom filter is enabled, but path is not specified in configuration")
             val filterPath = new Path(filterDir)
             val filterDirStatus = filterPath.getFileSystem(configuration).getFileStatus(filterPath)
-            if (!status.isDirectory) {
+            if (!filterDirStatus.isDirectory) {
               throw new IllegalArgumentException(s"Expected directory, found $filterDirStatus")
             }
             // create bloom filters for columns in requested schema and update file statistics
             withBloomFilters(fileStats, configuration, partitionIndex, status, filterDirStatus)
           } catch {
             case NonFatal(err) =>
-              throw new IllegalStateException("Failed to write bloom filter into directory, see " +
+              throw new IOException("Failed to write bloom filter into directory, see " +
                 "cause for more information", err)
           }
         } else {
@@ -199,6 +201,13 @@ class ParquetStatisticsRDD(
     // creating split for reading
     val taskName = UUID.randomUUID.toString
     val attemptId = new TaskAttemptID(new TaskID(new JobID(taskName, 0), TaskType.MAP, index), 0)
+    // create directory to store all bloom filters for this job id
+    val fs = filterDirStatus.getPath.getFileSystem(conf)
+    val targetDir = filterDirStatus.getPath.suffix(s"${Path.SEPARATOR}${attemptId.getTaskID}")
+    if (!fs.mkdirs(targetDir)) {
+      throw new IOException(s"Failed to create target directory $targetDir to store filters")
+    }
+
     val split = new FileSplit(status.getPath, 0, status.getLen, Array.empty)
     val parquetSplit = new ParquetInputSplit(split.getPath, split.getStart,
       split.getStart + split.getLength, split.getLength, split.getLocations, null)
@@ -212,6 +221,25 @@ class ParquetStatisticsRDD(
       // read container and update bloom filters for every column
       while (reader.nextKeyValue) {
         val container = reader.getCurrentValue()
+        map.foreach { case (index, (columnMetadata, bloomFilter)) =>
+          if (container.getByIndex(index) != null) {
+            bloomFilter.put(container.getByIndex(index))
+          }
+        }
+      }
+
+      // done collecting filter statistics, store them on disk and update stats
+      map.foreach { case (index, (columnMetadata, bloomFilter)) =>
+        val fileName = s"bloom.$index"
+        val filePath = targetDir.suffix(s"${Path.SEPARATOR}$fileName")
+        val out = fs.create(filePath, false)
+        try {
+          bloomFilter.writeTo(out)
+        } finally {
+          out.close()
+        }
+        // update stats
+        columnMetadata.setFilter(ParquetBloomFilter(filePath.toString))
       }
     } finally {
       reader.close()
