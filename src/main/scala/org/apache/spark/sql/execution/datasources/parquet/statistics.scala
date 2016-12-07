@@ -78,7 +78,8 @@ case class ParquetIntStatistics(min: Int, max: Int, numNulls: Long)
   override def getNumNulls(): Long  = numNulls
 
   override def toJsonObj(): JValue = {
-    ("statistics" -> "int") ~ ("min" -> min) ~ ("max" -> max) ~ ("nulls" -> numNulls)
+    ("statistics" -> ParquetColumnStatistics.INT_TYPE) ~
+      ("min" -> min) ~ ("max" -> max) ~ ("nulls" -> numNulls)
   }
 }
 
@@ -99,7 +100,8 @@ case class ParquetLongStatistics(min: Long, max: Long, numNulls: Long)
   override def getNumNulls(): Long  = numNulls
 
   override def toJsonObj(): JValue = {
-    ("statistics" -> "long") ~ ("min" -> min) ~ ("max" -> max) ~ ("nulls" -> numNulls)
+    ("statistics" -> ParquetColumnStatistics.LONG_TYPE) ~
+      ("min" -> min) ~ ("max" -> max) ~ ("nulls" -> numNulls)
   }
 }
 
@@ -120,7 +122,37 @@ case class ParquetStringStatistics(min: String, max: String, numNulls: Long)
   override def getNumNulls(): Long  = numNulls
 
   override def toJsonObj(): JValue = {
-    ("statistics" -> "string") ~ ("min" -> min) ~ ("max" -> max) ~ ("nulls" -> numNulls)
+    ("statistics" -> ParquetColumnStatistics.STRING_TYPE) ~
+      ("min" -> min) ~ ("max" -> max) ~ ("nulls" -> numNulls)
+  }
+}
+
+object ParquetColumnStatistics {
+  val INT_TYPE = "int"
+  val LONG_TYPE = "long"
+  val STRING_TYPE = "string"
+
+  def fromJsonObj(value: JValue): ParquetColumnStatistics = value match {
+    case JObject(
+      JField("statistics", JString(INT_TYPE)) ::
+      JField("min", JInt(min)) ::
+      JField("max", JInt(max)) ::
+      JField("nulls", JInt(numNulls)) :: Nil) =>
+        ParquetIntStatistics(min.toInt, max.toInt, numNulls.toLong)
+    case JObject(
+      JField("statistics", JString(LONG_TYPE)) ::
+      JField("min", JInt(min)) ::
+      JField("max", JInt(max)) ::
+      JField("nulls", JInt(numNulls)) :: Nil) =>
+        ParquetLongStatistics(min.toLong, max.toLong, numNulls.toLong)
+    case JObject(
+      JField("statistics", JString(STRING_TYPE)) ::
+      JField("min", JString(min)) ::
+      JField("max", JString(max)) ::
+      JField("nulls", JInt(numNulls)) :: Nil) =>
+        ParquetStringStatistics(min, max, numNulls.toLong)
+    case other => throw new UnsupportedOperationException(
+      s"Could not convert json $other to ParquetColumnStatistics")
   }
 }
 
@@ -190,7 +222,7 @@ case class ParquetBloomFilter(path: String) extends ParquetColumnFilter {
   }
 
   override def toJsonObj(): JValue = {
-    ("filter" -> "bloom") ~ ("path" -> path)
+    ("filter" -> identifier) ~ ("path" -> path)
   }
 
   override def toString(): String = {
@@ -200,6 +232,15 @@ case class ParquetBloomFilter(path: String) extends ParquetColumnFilter {
 
 object ParquetColumnFilter {
   val BLOOM_FILTER = "bloom-filter"
+
+  def fromJsonObj(value: JValue): ParquetColumnFilter = value match {
+    case JObject(
+        JField("filter", JString(BLOOM_FILTER)) ::
+        JField("path", JString(path)) :: Nil) =>
+      ParquetBloomFilter(path)
+    case other => throw new UnsupportedOperationException(
+      s"Could not convert json $other to ParquetColumnFilter")
+  }
 }
 
 ////////////////////////////////////////////////////////////////
@@ -251,6 +292,37 @@ case class ParquetColumnMetadata(
   }
 }
 
+object ParquetColumnMetadata {
+  def fromJsonObj(value: JValue) = value match {
+    case JObject(
+        JField("fieldName", JString(fieldName)) ::
+        JField("repetition", JString(repetition)) ::
+        JField("fieldType", JString(fieldType)) ::
+        JField("originalType", originalTypeValue) ::
+        JField("valueCount", JInt(valueCount)) ::
+        JField("startingPos", JInt(startingPos)) ::
+        JField("compressedSize", JInt(compressedSize)) ::
+        JField("size", JInt(size)) ::
+        JField("stats", stats: JObject) :: maybeFilter) =>
+      val resolvedStats = ParquetColumnStatistics.fromJsonObj(stats)
+      val resolvedFilter = maybeFilter match {
+        case JField("filter", filterData: JObject) :: Nil =>
+          Some(ParquetColumnFilter.fromJsonObj(filterData))
+        case Nil => None
+      }
+      val resolvedOrigType: String = originalTypeValue match {
+        case JString(actualValue) => actualValue
+        case JNull => null // for INT64
+        case other => throw new UnsupportedOperationException(s"Unknown original type $other")
+      }
+
+      ParquetColumnMetadata(fieldName, repetition, fieldType, resolvedOrigType, valueCount.toLong,
+        startingPos.toLong, compressedSize.toLong, size.toLong, resolvedStats, resolvedFilter)
+    case other => throw new UnsupportedOperationException(
+      s"Could not convert json $other to ParquetColumnMetadata")
+  }
+}
+
 case class ParquetBlockMetadata(
     rowCount: Long,
     startingPos: Long,
@@ -277,8 +349,21 @@ case class ParquetBlockMetadata(
 }
 
 object ParquetBlockMetadata {
-  def fromJsonObj(value: JValue): ParquetBlockMetadata = {
-    throw new UnsupportedOperationException()
+  def fromJsonObj(value: JValue): ParquetBlockMetadata = value match {
+    case JObject(
+        JField("rowCount", JInt(rowCount)) ::
+        JField("startingPos", JInt(startingPos)) ::
+        JField("compressedSize", JInt(compressedSize)) ::
+        JField("size", JInt(size)) ::
+        JField("columns", JObject(columns)) :: Nil) =>
+      val resolvedColumns = columns.map { case JField(fieldName, columnMetadata) =>
+        (fieldName, ParquetColumnMetadata.fromJsonObj(columnMetadata))
+      }.toMap
+
+      ParquetBlockMetadata(rowCount.toLong, startingPos.toLong, compressedSize.toLong,
+        size.toLong, resolvedColumns)
+    case other => throw new UnsupportedOperationException(
+      s"Could not convert json $other to ParquetBlockMetadata")
   }
 }
 
@@ -329,14 +414,14 @@ object ParquetStatistics {
 
   def fromJsonObj(value: JValue): ParquetStatistics = value match {
     case JObject(
-      JField("path", JString(path)) ::
-      JField("len", JInt(len)) ::
-      JField("indexSchema", JString(indexSchema)) ::
-      JField("fileSchema", JString(fileSchema)) ::
-      JField("blocks", JArray(blocks)) :: Nil) =>
-        val resolvedBlocks = blocks.map(ParquetBlockMetadata.fromJsonObj).toArray
-        ParquetStatistics(path, len.toLong, indexSchema, fileSchema, resolvedBlocks)
-    case other =>
-      throw new UnsupportedOperationException("Could not convert json to ParquetStatistics")
+        JField("path", JString(path)) ::
+        JField("len", JInt(len)) ::
+        JField("indexSchema", JString(indexSchema)) ::
+        JField("fileSchema", JString(fileSchema)) ::
+        JField("blocks", JArray(blocks)) :: Nil) =>
+      val resolvedBlocks = blocks.map(ParquetBlockMetadata.fromJsonObj).toArray
+      ParquetStatistics(path, len.toLong, indexSchema, fileSchema, resolvedBlocks)
+    case other => throw new UnsupportedOperationException(
+      s"Could not convert json $other to ParquetStatistics")
   }
 }
