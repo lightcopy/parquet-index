@@ -23,6 +23,10 @@ import org.apache.hadoop.fs.Path
 
 import org.apache.spark.util.sketch.BloomFilter
 
+import org.json4s._
+import org.json4s.JsonDSL._
+import org.json4s.jackson.{JsonMethods => JSON}
+
 ////////////////////////////////////////////////////////////////
 // == Parquet column statitics ==
 ////////////////////////////////////////////////////////////////
@@ -45,6 +49,13 @@ abstract class ParquetColumnStatistics {
     getNumNulls > 0
   }
 
+  /** Convert to JSON */
+  def toJsonObj(): JValue
+
+  def toJSON(): String = {
+    JSON.compact(JSON.render(toJsonObj()))
+  }
+
   override def toString(): String = {
     s"${getClass.getSimpleName}[min=${getMin()}, max=${getMax()}, nulls=${getNumNulls()}]"
   }
@@ -65,6 +76,10 @@ case class ParquetIntStatistics(min: Int, max: Int, numNulls: Long)
   override def getMax(): Any = max
 
   override def getNumNulls(): Long  = numNulls
+
+  override def toJsonObj(): JValue = {
+    ("statistics" -> "int") ~ ("min" -> min) ~ ("max" -> max) ~ ("nulls" -> numNulls)
+  }
 }
 
 case class ParquetLongStatistics(min: Long, max: Long, numNulls: Long)
@@ -82,6 +97,10 @@ case class ParquetLongStatistics(min: Long, max: Long, numNulls: Long)
   override def getMax(): Any = max
 
   override def getNumNulls(): Long  = numNulls
+
+  override def toJsonObj(): JValue = {
+    ("statistics" -> "long") ~ ("min" -> min) ~ ("max" -> max) ~ ("nulls" -> numNulls)
+  }
 }
 
 case class ParquetStringStatistics(min: String, max: String, numNulls: Long)
@@ -99,6 +118,10 @@ case class ParquetStringStatistics(min: String, max: String, numNulls: Long)
   override def getMax(): Any = max
 
   override def getNumNulls(): Long  = numNulls
+
+  override def toJsonObj(): JValue = {
+    ("statistics" -> "string") ~ ("min" -> min) ~ ("max" -> max) ~ ("nulls" -> numNulls)
+  }
 }
 
 ////////////////////////////////////////////////////////////////
@@ -117,6 +140,13 @@ abstract class ParquetColumnFilter {
 
   /** Whether or not value is in column */
   def contains(value: Any): Boolean
+
+  /** Convert into JSON */
+  def toJsonObj(): JValue
+
+  def toJSON(): String = {
+    JSON.compact(JSON.render(toJsonObj()))
+  }
 }
 
 /**
@@ -159,6 +189,10 @@ case class ParquetBloomFilter(path: String) extends ParquetColumnFilter {
     bloomFilter.mightContain(value)
   }
 
+  override def toJsonObj(): JValue = {
+    ("filter" -> "bloom") ~ ("path" -> path)
+  }
+
   override def toString(): String = {
     s"{id=$identifier, path=$path}"
   }
@@ -184,6 +218,24 @@ case class ParquetColumnMetadata(
     stats: ParquetColumnStatistics,
     private var filter: Option[ParquetColumnFilter]) {
 
+  private[parquet] def toJsonObj(): JValue = {
+    val filterJson = filter.map(_.toJsonObj)
+    ("fieldName" -> fieldName) ~
+      ("repetition" -> repetition) ~
+        ("fieldType" -> fieldType) ~
+          ("originalType" -> originalType) ~
+            ("valueCount" -> valueCount) ~
+              ("startingPos" -> startingPos) ~
+                ("compressedSize" -> compressedSize) ~
+                  ("size" -> size) ~
+                    ("stats" -> stats.toJsonObj) ~
+                      ("filter" -> filterJson)
+  }
+
+  def toJSON(): String = {
+    JSON.compact(JSON.render(toJsonObj()))
+  }
+
   def setFilter(impl: ParquetColumnFilter): Unit = {
     this.filter = Option(impl)
   }
@@ -206,9 +258,27 @@ case class ParquetBlockMetadata(
     size: Long,
     columns: Map[String, ParquetColumnMetadata]) {
 
+  private[parquet] def toJsonObj(): JValue = {
+    ("rowCount" -> rowCount) ~
+      ("startingPos" -> startingPos) ~
+        ("compressedSize" -> compressedSize) ~
+          ("size" -> size) ~
+            ("columns" -> columns.mapValues(_.toJsonObj))
+  }
+
+  def toJSON(): String = {
+    JSON.compact(JSON.render(toJsonObj()))
+  }
+
   override def toString(): String = {
     s"${getClass.getSimpleName}[rows=$rowCount, position=$startingPos, " +
     s"size=$size($compressedSize), columns=$columns]"
+  }
+}
+
+object ParquetBlockMetadata {
+  def fromJsonObj(value: JValue): ParquetBlockMetadata = {
+    throw new UnsupportedOperationException()
   }
 }
 
@@ -231,8 +301,42 @@ case class ParquetStatistics(
     if (blocks.isEmpty) 0 else blocks.map { _.rowCount }.sum
   }
 
+  private[parquet] def toJsonObj(): JValue = {
+    val blocksJson = blocks.map(_.toJsonObj).toList
+    ("path" -> path) ~
+      ("len" -> len) ~
+        ("indexSchema" -> indexSchema) ~
+          ("fileSchema" -> fileSchema) ~
+            ("blocks" -> blocksJson)
+  }
+
+  def toJSON(): String = {
+    JSON.compact(JSON.render(toJsonObj()))
+  }
+
   override def toString(): String = {
     s"${getClass.getSimpleName}[path=$path, size=$len, schema=$fileSchema " +
     s"blocks=${blocks.mkString("[", ", ", "]")}]"
+  }
+}
+
+object ParquetStatistics {
+  implicit private val formats = org.json4s.DefaultFormats
+
+  def fromJSON(json: String): ParquetStatistics = {
+    fromJsonObj(JSON.parse(json))
+  }
+
+  def fromJsonObj(value: JValue): ParquetStatistics = value match {
+    case JObject(
+      JField("path", JString(path)) ::
+      JField("len", JInt(len)) ::
+      JField("indexSchema", JString(indexSchema)) ::
+      JField("fileSchema", JString(fileSchema)) ::
+      JField("blocks", JArray(blocks)) :: Nil) =>
+        val resolvedBlocks = blocks.map(ParquetBlockMetadata.fromJsonObj).toArray
+        ParquetStatistics(path, len.toLong, indexSchema, fileSchema, resolvedBlocks)
+    case other =>
+      throw new UnsupportedOperationException("Could not convert json to ParquetStatistics")
   }
 }
