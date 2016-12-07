@@ -16,22 +16,28 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
-import java.util.Arrays
+import java.util.{Arrays, UUID}
 
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
+import scala.util.control.NonFatal
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.hadoop.mapreduce._
+import org.apache.hadoop.mapreduce.lib.input.FileSplit
+import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl
+
 
 import org.apache.parquet.column.statistics._
-import org.apache.parquet.hadoop.ParquetFileReader
+import org.apache.parquet.hadoop.{ParquetFileReader, ParquetInputSplit, ParquetRecordReader}
 import org.apache.parquet.hadoop.metadata.{ColumnChunkMetaData, ParquetMetadata}
-import org.apache.parquet.schema.MessageType
+import org.apache.parquet.schema.{MessageType, MessageTypeParser}
 
 import org.apache.spark.{SparkContext, Partition, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
+import org.apache.spark.util.sketch.BloomFilter
 
 import com.github.lightcopy.util.SerializableConfiguration
 
@@ -69,27 +75,27 @@ private[parquet] class ParquetFileStatusPartition (
  * schema (which means merged schemas are not supported). Uses distributed Hadoop configuration to
  * read file on each executor.
  * @param sc Spark context
- * @param configuration Hadoop configuration, normally 'sc.hadoopConfiguration'
+ * @param hadoopConf Hadoop configuration, normally 'sc.hadoopConfiguration'
  * @param schema columns to compute index for
  * @param data list of Parquet file statuses
  * @param numPartitions number of partitions on use
  */
 class ParquetStatisticsRDD(
     @transient private val sc: SparkContext,
-    @transient private val configuration: Configuration,
+    @transient private val hadoopConf: Configuration,
     schema: StructType,
     data: Seq[ParquetFileStatus],
     numPartitions: Int)
   extends RDD[ParquetStatistics](sc, Nil) {
 
   private val confBroadcast =
-    sparkContext.broadcast(new SerializableConfiguration(configuration))
+    sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
 
   // validate Spark SQL schema, schema should be subset of Parquet file message type and be one of
   // supported types
   ParquetStatisticsRDD.validateStructType(schema)
 
-  def hadoopConf: Configuration = confBroadcast.value.value
+  def hadoopConfiguration: Configuration = confBroadcast.value.value
 
   override def getPartitions: Array[Partition] = {
     val slices = ParquetStatisticsRDD.partitionData(data, numPartitions)
@@ -99,9 +105,10 @@ class ParquetStatisticsRDD(
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[ParquetStatistics] = {
-    val configuration = hadoopConf
+    val configuration = hadoopConfiguration
     val partition = split.asInstanceOf[ParquetFileStatusPartition]
     // convert schema of struct type into Parquet schema
+    val partitionIndex = partition.index
     val requestedSchema = new ParquetSchemaConverter().convert(schema)
     logDebug(s"Indexed schema ${schema.prettyJson}, parquet schema $requestedSchema")
     val iter = partition.iterator
@@ -138,8 +145,98 @@ class ParquetStatisticsRDD(
         // since we can reduce schema during metadata collection.
         // TODO: Partially merge schema during each task
         val blocks = ParquetStatisticsRDD.convert(metadata, requestedSchema)
-        ParquetStatistics(status.getPath.toString, status.getLen, schema.toString, blocks)
+        val fileStats = ParquetStatistics(status.getPath.toString, status.getLen,
+          requestedSchema.toString, schema.toString, blocks)
+
+        // check if we need to compute bloom filters for each index column, currently there is no
+        // selection on different index on a column, as well as no subset indexing.
+        val bloomFilterEnabled = configuration.
+          getBoolean(ParquetIndexFileFormat.PARQUET_INDEX_BLOOM_FILTER_ENABLED, true)
+        // if bloom filtering is enabled check that directory is set and accessible
+        if (bloomFilterEnabled) {
+          logInfo("Create bloom filter for columns")
+          try {
+            val filterDir = configuration.get(ParquetIndexFileFormat.PARQUET_INDEX_BLOOM_FILTER_DIR)
+            require(filterDir != null, "Path is not specified in configuration")
+            val filterPath = new Path(filterDir)
+            val filterDirStatus = filterPath.getFileSystem(configuration).getFileStatus(filterPath)
+            if (!status.isDirectory) {
+              throw new IllegalArgumentException(s"Expected directory, found $filterDirStatus")
+            }
+            // create bloom filters for columns in requested schema and update file statistics
+            withBloomFilters(fileStats, configuration, partitionIndex, status, filterDirStatus)
+          } catch {
+            case NonFatal(err) =>
+              throw new IllegalStateException("Failed to write bloom filter into directory, see " +
+                "cause for more information", err)
+          }
+        } else {
+          logInfo("Bloom filter is disabled")
+        }
+
+        fileStats
       }
+    }
+  }
+
+  /**
+   * Write bloom filters on disk into provided directory and update file statistics.
+   * @param stats Parquet file statistics
+   * @param conf Hadoop configuration
+   * @param index partition index to include into filter folder
+   * @param status Parquet file status
+   * @param filterDirStatus directory status, where to store bloom filters
+   */
+  private def withBloomFilters(
+      stats: ParquetStatistics,
+      conf: Configuration,
+      index: Int,
+      status: FileStatus,
+      filterDirStatus: FileStatus): Unit = {
+    // building map of bloom filters
+    val schema = MessageTypeParser.parseMessageType(stats.indexSchema)
+    val map = extract(schema, stats)
+    // creating split for reading
+    val taskName = UUID.randomUUID.toString
+    val attemptId = new TaskAttemptID(new TaskID(new JobID(taskName, 0), TaskType.MAP, index), 0)
+    val split = new FileSplit(status.getPath, 0, status.getLen, Array.empty)
+    val parquetSplit = new ParquetInputSplit(split.getPath, split.getStart,
+      split.getStart + split.getLength, split.getLength, split.getLocations, null)
+    // make requested schema to be available for record reader
+    conf.set(ParquetIndexFileFormat.PARQUET_INDEX_READ_SCHEMA, stats.indexSchema)
+    val context = new TaskAttemptContextImpl(conf, attemptId)
+
+    val reader = new ParquetRecordReader[Container](new ParquetIndexSupport())
+    try {
+      reader.initialize(parquetSplit, context)
+      // read container and update bloom filters for every column
+      while (reader.nextKeyValue) {
+        val container = reader.getCurrentValue()
+      }
+    } finally {
+      reader.close()
+    }
+  }
+
+  private def extract(
+      schema: MessageType,
+      stats: ParquetStatistics): Map[Int, (ParquetColumnMetadata, BloomFilter)] = {
+    // all columns should have the same index across blocks
+    if (stats.blocks.nonEmpty) {
+      val numRows = stats.numRows()
+      val columns = stats.blocks.head.columns
+      schema.getFields.asScala.flatMap { field =>
+        val index = schema.getFieldIndex(field.getName)
+        if (columns.contains(field.getName)) {
+          // create bloom filter with fpp of 5%
+          Some((index, (columns(field.getName), BloomFilter.create(numRows, 0.05))))
+        } else {
+          None
+        }
+      }.toMap
+    } else {
+      logWarning("Statistics have no blocks listed, do not create filters")
+      Map.empty
     }
   }
 }

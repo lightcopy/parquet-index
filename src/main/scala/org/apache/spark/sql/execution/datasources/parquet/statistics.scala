@@ -212,14 +212,20 @@ case class ParquetBlockMetadata(
  * Global Parquet file statistics and metadata.
  * @param path fully-qualified path to the file
  * @param len length in bytes
+ * @param indexSchema message type of Parquet index columns (subset of fileSchema)
  * @param fileSchema message type of Parquet file as string
  * @param blocks row groups statistics in file
  */
 case class ParquetStatistics(
     path: String,
     len: Long,
+    indexSchema: String,
     fileSchema: String,
     blocks: Array[ParquetBlockMetadata]) {
+
+  def numRows(): Long = {
+    if (blocks.isEmpty) 0 else blocks.map { _.rowCount }.sum
+  }
 
   override def toString(): String = {
     s"${getClass.getSimpleName}[path=$path, size=$len, schema=$fileSchema " +
