@@ -134,23 +134,23 @@ object ParquetColumnStatistics {
 
   def fromJsonObj(value: JValue): ParquetColumnStatistics = value match {
     case JObject(
-      JField("statistics", JString(INT_TYPE)) ::
-      JField("min", JInt(min)) ::
-      JField("max", JInt(max)) ::
-      JField("nulls", JInt(numNulls)) :: Nil) =>
-        ParquetIntStatistics(min.toInt, max.toInt, numNulls.toLong)
+        JField("statistics", JString(INT_TYPE)) ::
+        JField("min", JInt(min)) ::
+        JField("max", JInt(max)) ::
+        JField("nulls", JInt(numNulls)) :: Nil) =>
+      ParquetIntStatistics(min.toInt, max.toInt, numNulls.toLong)
     case JObject(
-      JField("statistics", JString(LONG_TYPE)) ::
-      JField("min", JInt(min)) ::
-      JField("max", JInt(max)) ::
-      JField("nulls", JInt(numNulls)) :: Nil) =>
-        ParquetLongStatistics(min.toLong, max.toLong, numNulls.toLong)
+        JField("statistics", JString(LONG_TYPE)) ::
+        JField("min", JInt(min)) ::
+        JField("max", JInt(max)) ::
+        JField("nulls", JInt(numNulls)) :: Nil) =>
+      ParquetLongStatistics(min.toLong, max.toLong, numNulls.toLong)
     case JObject(
-      JField("statistics", JString(STRING_TYPE)) ::
-      JField("min", JString(min)) ::
-      JField("max", JString(max)) ::
-      JField("nulls", JInt(numNulls)) :: Nil) =>
-        ParquetStringStatistics(min, max, numNulls.toLong)
+        JField("statistics", JString(STRING_TYPE)) ::
+        JField("min", JString(min)) ::
+        JField("max", JString(max)) ::
+        JField("nulls", JInt(numNulls)) :: Nil) =>
+      ParquetStringStatistics(min, max, numNulls.toLong)
     case other => throw new UnsupportedOperationException(
       s"Could not convert json $other to ParquetColumnStatistics")
   }
@@ -231,7 +231,7 @@ case class ParquetBloomFilter(path: String) extends ParquetColumnFilter {
 }
 
 object ParquetColumnFilter {
-  val BLOOM_FILTER = "bloom-filter"
+  val BLOOM_FILTER = "bloom"
 
   def fromJsonObj(value: JValue): ParquetColumnFilter = value match {
     case JObject(
