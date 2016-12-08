@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.execution.datasources.parquet
+package com.github.lightcopy
 
-case class ParquetIndexFileFormat()
+import org.apache.spark.sql.{DataFrameIndexReader, SparkSession}
 
-object ParquetIndexFileFormat {
-  val PARQUET_INDEX_READ_SCHEMA = "parquet.index.read.schema"
-  val PARQUET_INDEX_BLOOM_FILTER_ENABLED = "parquet.index.bloom.enabled"
-  val PARQUET_INDEX_BLOOM_FILTER_DIR = "parquet.index.bloom.dir"
+/** Implicit methods for index */
+package object implicits {
+  /** [[QueryContext]] to access index functionality using SparkSession */
+  implicit class QueryContext(session: SparkSession) {
+    def index: DataFrameIndexReader = {
+      new DataFrameIndexReader(session)
+    }
+  }
 }
