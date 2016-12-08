@@ -21,11 +21,114 @@ import java.io.InputStream
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.types._
 import org.apache.spark.util.sketch.BloomFilter
 
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.{JsonMethods => JSON}
+
+////////////////////////////////////////////////////////////////
+// == Parquet partition columns ==
+////////////////////////////////////////////////////////////////
+
+/**
+ * Partition column for directory partitioning, we support more types compare to statistics. This
+ * should be on parity with partitioning types in Spark SQL.
+ */
+abstract class PartitionColumn[T] {
+  def index: Int
+  def identifier: String
+  def dataType: DataType
+  def value: T
+  protected def valueJson(): JValue
+
+  def toJsonObj(): JValue = {
+    ("index" -> index) ~
+      ("identifier" -> identifier) ~
+        ("dataType" -> dataType.toString) ~
+          ("value" -> valueJson())
+  }
+}
+
+case class StringPartitionColumn(index: Int, identifier: String, dataType: DataType, value: String)
+  extends PartitionColumn[String] {
+
+  override def valueJson(): JValue = JString(value)
+}
+
+case class IntPartitionColumn(index: Int, identifier: String, dataType: DataType, value: Int)
+  extends PartitionColumn[Int] {
+
+  override def valueJson(): JValue = JInt(value)
+}
+
+case class LongPartitionColumn(index: Int, identifier: String, dataType: DataType, value: Long)
+  extends PartitionColumn[Long] {
+
+  override def valueJson(): JValue = JInt(value)
+}
+
+case class DoublePartitionColumn(index: Int, identifier: String, dataType: DataType, value: Double)
+  extends PartitionColumn[Double] {
+
+  override def valueJson(): JValue = JDouble(value)
+}
+
+object PartitionColumn {
+  val stringType = StringType.toString
+  val integerType = IntegerType.toString
+  val longType = LongType.toString
+  val doubleType = DoubleType.toString
+
+  def fromJsonObj(value: JValue): PartitionColumn[_] = value match {
+    case JObject(
+        JField("index", JInt(index)) ::
+        JField("identifier", JString(identifier)) ::
+        JField("dataType", JString(stringType)) ::
+        JField("value", JString(value)) :: Nil) =>
+      StringPartitionColumn(index.toInt, identifier, StringType, value)
+    case JObject(
+        JField("index", JInt(index)) ::
+        JField("identifier", JString(identifier)) ::
+        JField("dataType", JString(integerType)) ::
+        JField("value", JInt(value)) :: Nil) =>
+      IntPartitionColumn(index.toInt, identifier, IntegerType, value.toInt)
+    case JObject(
+        JField("index", JInt(index)) ::
+        JField("identifier", JString(identifier)) ::
+        JField("dataType", JString(longType)) ::
+        JField("value", JInt(value)) :: Nil) =>
+      LongPartitionColumn(index.toInt, identifier, LongType, value.toLong)
+    case JObject(
+        JField("index", JInt(index)) ::
+        JField("identifier", JString(identifier)) ::
+        JField("dataType", JString(doubleType)) ::
+        JField("value", JDouble(value)) :: Nil) =>
+      DoublePartitionColumn(index.toInt, identifier, DoubleType, value)
+    case other => throw new UnsupportedOperationException(
+      s"Could not convert json $other to PartitionColumn")
+  }
+
+  def fromInternalRow(row: InternalRow, schema: StructType): Array[PartitionColumn[_]] = {
+    val numFields = row.numFields
+    require(numFields <= schema.size, s"Row $row has more elements than supporting schema $schema")
+    val columns = new Array[PartitionColumn[_]](numFields)
+    for (i <- 0 until numFields) {
+      val field = schema(i)
+      val col = field.dataType match {
+        case StringType => StringPartitionColumn(i, field.name, StringType, row.getString(i))
+        case IntegerType => IntPartitionColumn(i, field.name, IntegerType, row.getInt(i))
+        case LongType => LongPartitionColumn(i, field.name, LongType, row.getLong(i))
+        case DoubleType => DoublePartitionColumn(i, field.name, DoubleType, row.getDouble(i))
+        case other => sys.error(s"Unsupported type $other, for $field field at index $i")
+      }
+      columns(i) = col
+    }
+    columns
+  }
+}
 
 ////////////////////////////////////////////////////////////////
 // == Parquet column statitics ==
@@ -371,6 +474,7 @@ object ParquetBlockMetadata {
  * Global Parquet file statistics and metadata.
  * @param path fully-qualified path to the file
  * @param len length in bytes
+ * @param partitionColumns list of partitioning columns, empty if no partitioning
  * @param indexSchema message type of Parquet index columns (subset of fileSchema)
  * @param fileSchema message type of Parquet file as string
  * @param blocks row groups statistics in file
@@ -378,6 +482,7 @@ object ParquetBlockMetadata {
 case class ParquetStatistics(
     path: String,
     len: Long,
+    partitionColumns: Array[PartitionColumn[_]],
     indexSchema: String,
     fileSchema: String,
     blocks: Array[ParquetBlockMetadata]) {
@@ -387,12 +492,14 @@ case class ParquetStatistics(
   }
 
   private[parquet] def toJsonObj(): JValue = {
+    val partitionColumnsJson = partitionColumns.map(_.toJsonObj).toList
     val blocksJson = blocks.map(_.toJsonObj).toList
     ("path" -> path) ~
       ("len" -> len) ~
-        ("indexSchema" -> indexSchema) ~
-          ("fileSchema" -> fileSchema) ~
-            ("blocks" -> blocksJson)
+        ("partitionColumns" -> partitionColumnsJson) ~
+          ("indexSchema" -> indexSchema) ~
+            ("fileSchema" -> fileSchema) ~
+              ("blocks" -> blocksJson)
   }
 
   def toJSON(): String = {
@@ -400,14 +507,13 @@ case class ParquetStatistics(
   }
 
   override def toString(): String = {
-    s"${getClass.getSimpleName}[path=$path, size=$len, schema=$fileSchema " +
+    s"${getClass.getSimpleName}[path=$path, len=$len, " +
+    s"partitionColumns=${partitionColumns.mkString("[", ", ", "]")}, schema=$fileSchema " +
     s"blocks=${blocks.mkString("[", ", ", "]")}]"
   }
 }
 
 object ParquetStatistics {
-  implicit private val formats = org.json4s.DefaultFormats
-
   def fromJSON(json: String): ParquetStatistics = {
     fromJsonObj(JSON.parse(json))
   }
@@ -416,12 +522,85 @@ object ParquetStatistics {
     case JObject(
         JField("path", JString(path)) ::
         JField("len", JInt(len)) ::
+        JField("partitionColumns", JArray(partitionColumns)) ::
         JField("indexSchema", JString(indexSchema)) ::
         JField("fileSchema", JString(fileSchema)) ::
         JField("blocks", JArray(blocks)) :: Nil) =>
+      val resolvedPartitionColumns = partitionColumns.map(PartitionColumn.fromJsonObj).toArray
       val resolvedBlocks = blocks.map(ParquetBlockMetadata.fromJsonObj).toArray
-      ParquetStatistics(path, len.toLong, indexSchema, fileSchema, resolvedBlocks)
+      ParquetStatistics(path, len.toLong, resolvedPartitionColumns, indexSchema, fileSchema,
+        resolvedBlocks)
     case other => throw new UnsupportedOperationException(
       s"Could not convert json $other to ParquetStatistics")
+  }
+}
+
+////////////////////////////////////////////////////////////////
+// == Parquet table definition ==
+////////////////////////////////////////////////////////////////
+
+/**
+ * Table definition for Parquet.
+ * @param tablePath fully-qualified table path
+ * @param tableSchema full table schema (after schema inference)
+ * @param partitionSchema partitioning schema (optional)
+ * @param indexSchema index schema as StructType (equivalent to indexSchema in statistics)
+ * @param statistics list of available statistics
+ */
+case class ParquetTable(
+    tablePath: String,
+    tableSchema: StructType,
+    indexSchema: StructType,
+    partitionSchema: Option[StructType],
+    statistics: Array[ParquetStatistics]) {
+
+  private[parquet] def toJsonObj(): JValue = {
+    val tableSchemaJson = JSON.parse(tableSchema.json)
+    val indexSchemaJson = JSON.parse(indexSchema.json)
+    val statisticsSeq = statistics.map(_.toJsonObj).toList
+    val partitionSchemaJson = partitionSchema match {
+      case Some(schema) => JSON.parse(schema.json)
+      case None => JSON.parse(StructType(Nil).json)
+    }
+
+    ("format" -> "parquet") ~
+      ("tablePath" -> tablePath) ~
+        ("tableSchema" -> tableSchemaJson) ~
+          ("indexSchema" -> indexSchemaJson) ~
+            ("partitionSchema" -> partitionSchemaJson) ~
+              ("statistics" -> statisticsSeq)
+  }
+
+  def toJSON(): String = {
+    JSON.compact(JSON.render(toJsonObj()))
+  }
+}
+
+object ParquetTable {
+  def fromJSON(json: String): ParquetTable = {
+    fromJsonObj(JSON.parse(json))
+  }
+
+  def fromJsonObj(value: JValue): ParquetTable = value match {
+    case JObject(
+        JField("format", JString("parquet")) ::
+        JField("tablePath", JString(tablePath)) ::
+        JField("tableSchema", tableSchema: JObject) ::
+        JField("indexSchema", indexSchema: JObject) ::
+        JField("partitionSchema", partSchema @ JObject(partColumns)) ::
+        JField("statistics", JArray(statistics)) :: Nil) =>
+      val resolvedPartSchema = {
+        val schema = toSchema(partSchema)
+        if (schema.isEmpty) None else Some(schema)
+      }
+      val resolvedStats = statistics.map(ParquetStatistics.fromJsonObj).toArray
+      ParquetTable(tablePath, toSchema(tableSchema), toSchema(indexSchema), resolvedPartSchema,
+        resolvedStats)
+    case other => throw new UnsupportedOperationException(
+      s"Could not convert json $other to ParquetStatistics")
+  }
+
+  private def toSchema(value: JValue): StructType = {
+    DataType.fromJson(JSON.compact(JSON.render(value))).asInstanceOf[StructType]
   }
 }

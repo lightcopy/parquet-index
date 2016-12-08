@@ -47,9 +47,9 @@ import com.github.lightcopy.util.SerializableConfiguration
  * required to be a valid Parquet file. Normally obtained after listing files before scanning files
  * in `ParquetRelation`.
  * @param path fully-qualified path to the Parquet file
- * @param len total size in bytes
+ * @param partitionColumns partition columns for this path
  */
-case class ParquetFileStatus(path: String, len: Long)
+case class ParquetFileStatus(path: String, partitionColumns: Array[PartitionColumn[_]])
 
 /** [[ParquetFileStatusPartition]] to keep information about file statuses */
 private[parquet] class ParquetFileStatusPartition (
@@ -120,7 +120,8 @@ class ParquetStatisticsRDD(
       }
 
       override def next(): ParquetStatistics = {
-        val path = new Path(iter.next.path)
+        val parquetFileStatus = iter.next
+        val path = new Path(parquetFileStatus.path)
         val fs = path.getFileSystem(configuration)
         val status = fs.getFileStatus(path)
         logInfo(s"Reading file ${status.getPath}")
@@ -147,7 +148,7 @@ class ParquetStatisticsRDD(
         // TODO: Partially merge schema during each task
         val blocks = ParquetStatisticsRDD.convert(metadata, requestedSchema)
         val fileStats = ParquetStatistics(status.getPath.toString, status.getLen,
-          requestedSchema.toString, schema.toString, blocks)
+          parquetFileStatus.partitionColumns, requestedSchema.toString, schema.toString, blocks)
 
         // check if we need to compute bloom filters for each index column, currently there is no
         // selection on different index on a column, as well as no subset indexing.
