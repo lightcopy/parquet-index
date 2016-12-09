@@ -30,6 +30,25 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
     this
   }
 
+  def mode(mode: SaveMode): DataFrameIndexReader = {
+    this.mode = mode
+    this
+  }
+
+  def mode(mode: String): DataFrameIndexReader = {
+    val typedMode = mode.toLowerCase match {
+      case "append" => SaveMode.Append
+      case "overwrite" => SaveMode.Overwrite
+      case "error" => SaveMode.ErrorIfExists
+      case "ignore" => SaveMode.Ignore
+      case other => throw new UnsupportedOperationException(
+        s"Unsupported mode $mode, must be one of ${SaveMode.Append}, ${SaveMode.Overwrite}, " +
+        s"${SaveMode.ErrorIfExists}, ${SaveMode.Ignore}")
+    }
+    this.mode = typedMode
+    this
+  }
+
   def option(key: String, value: String): DataFrameIndexReader = {
     this.extraOptions += (key -> value)
     this
@@ -46,37 +65,46 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
     this
   }
 
-  def load(): DataFrame = {
-    load(Seq.empty: _*)
-  }
-
   def load(path: String): DataFrame = {
-    option("path", path).load(Seq.empty: _*)
-  }
-
-  def load(paths: String*): DataFrame = {
+    option("path", path)
     sparkSession.baseRelationToDataFrame(
       IndexedDataSource(
         sparkSession,
-        paths = paths,
-        userSpecifiedSchema = userSpecifiedSchema,
         className = source,
+        userSpecifiedSchema = userSpecifiedSchema,
+        mode = mode,
         options = extraOptions.toMap).resolveRelation())
   }
 
   /**
-   * Loads a Parquet file, returning the result as a `DataFrame`. See the documentation
-   * on the other overloaded `parquet()` method for more details.
-   *
-   * @since 2.0.0
+   * Create indexed DataFrame from Parquet table.
+   * @param path filepath to the Parquet table (directory)
    */
   def parquet(path: String): DataFrame = {
-    format("parquet").load(Seq(path): _*)
+    format("parquet").load(path)
   }
 
+  /**
+   * Create index for table with path and columns to index.
+   * @param path filepath to the Parquet table (directory)
+   * @param cols set of columns to index by
+   */
+  def create(path: String, cols: Column*): Unit = {
+    option("path", path)
+    IndexedDataSource(
+      sparkSession,
+      className = source,
+      userSpecifiedSchema = userSpecifiedSchema,
+      mode = mode,
+      options = extraOptions.toMap).createIndex(cols)
+  }
+
+  def delete(path: String): Unit = {
+    option("path", path)
+  }
+
+  private var mode: SaveMode = SaveMode.ErrorIfExists
   private var source: String = sparkSession.sessionState.conf.defaultDataSourceName
-
   private var userSpecifiedSchema: Option[StructType] = None
-
   private var extraOptions = new scala.collection.mutable.HashMap[String, String]
 }

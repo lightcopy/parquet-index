@@ -19,7 +19,7 @@ package org.apache.spark.sql.execution.datasources
 import scala.util.{Try, Success, Failure}
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Column, SaveMode, SparkSession}
 import org.apache.spark.sql.execution.datasources.parquet.ParquetIndexFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.StructType
@@ -29,7 +29,7 @@ import org.apache.spark.util.Utils
 case class IndexedDataSource(
     sparkSession: SparkSession,
     className: String,
-    paths: Seq[String] = Nil,
+    mode: SaveMode = SaveMode.ErrorIfExists,
     userSpecifiedSchema: Option[StructType] = None,
     options: Map[String, String] = Map.empty) extends Logging {
 
@@ -37,6 +37,10 @@ case class IndexedDataSource(
 
   def resolveRelation(): BaseRelation = {
     null
+  }
+
+  def createIndex(columns: Seq[Column]): Unit = {
+
   }
 }
 
@@ -63,7 +67,7 @@ object IndexedDataSource {
         dataSource
       case Failure(error) =>
         throw new ClassNotFoundException(
-          s"Failed to find data source: $provider. Please find packages at ", error)
+          s"Failed to find data source: $provider", error)
     }
   }
 }
