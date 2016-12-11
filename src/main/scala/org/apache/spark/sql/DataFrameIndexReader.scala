@@ -25,11 +25,6 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
     this
   }
 
-  def schema(schema: StructType): DataFrameIndexReader = {
-    this.userSpecifiedSchema = Option(schema)
-    this
-  }
-
   def mode(mode: SaveMode): DataFrameIndexReader = {
     this.mode = mode
     this
@@ -71,7 +66,6 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
       IndexedDataSource(
         sparkSession,
         className = source,
-        userSpecifiedSchema = userSpecifiedSchema,
         mode = mode,
         options = extraOptions.toMap).resolveRelation())
   }
@@ -94,17 +88,20 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
     IndexedDataSource(
       sparkSession,
       className = source,
-      userSpecifiedSchema = userSpecifiedSchema,
       mode = mode,
       options = extraOptions.toMap).createIndex(cols)
   }
 
   def delete(path: String): Unit = {
     option("path", path)
+    IndexedDataSource(
+      sparkSession,
+      className = source,
+      mode = mode,
+      options = extraOptions.toMap).deleteIndex()
   }
 
   private var mode: SaveMode = SaveMode.ErrorIfExists
   private var source: String = sparkSession.sessionState.conf.defaultDataSourceName
-  private var userSpecifiedSchema: Option[StructType] = None
   private var extraOptions = new scala.collection.mutable.HashMap[String, String]
 }

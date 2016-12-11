@@ -18,11 +18,13 @@ package org.apache.spark.sql.execution.datasources
 
 import scala.util.{Try, Success, Failure}
 
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileStatus, Path}
+
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{Column, SaveMode, SparkSession}
 import org.apache.spark.sql.execution.datasources.parquet.ParquetIndexFileFormat
 import org.apache.spark.sql.sources.BaseRelation
-import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.Utils
 
 /** DataSource to resolve relations that support indexing */
@@ -30,16 +32,24 @@ case class IndexedDataSource(
     sparkSession: SparkSession,
     className: String,
     mode: SaveMode = SaveMode.ErrorIfExists,
-    userSpecifiedSchema: Option[StructType] = None,
     options: Map[String, String] = Map.empty) extends Logging {
 
   lazy val providingClass: Class[_] = IndexedDataSource.lookupDataSource(className)
+  lazy val tablePath: FileStatus = {
+    val path = options.getOrElse("path", sys.error("path option is required"))
+    IndexedDataSource.resolveTablePath(new Path(path),
+      sparkSession.sparkContext.hadoopConfiguration)
+  }
 
   def resolveRelation(): BaseRelation = {
     null
   }
 
   def createIndex(columns: Seq[Column]): Unit = {
+
+  }
+
+  def deleteIndex(): Unit = {
 
   }
 }
@@ -69,5 +79,11 @@ object IndexedDataSource {
         throw new ClassNotFoundException(
           s"Failed to find data source: $provider", error)
     }
+  }
+
+  /** Resolve table path into file status, should not contain any glob expansions */
+  def resolveTablePath(path: Path, conf: Configuration): FileStatus = {
+    val fs = path.getFileSystem(conf)
+    fs.getFileStatus(path)
   }
 }
