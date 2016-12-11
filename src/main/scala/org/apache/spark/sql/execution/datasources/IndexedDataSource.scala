@@ -86,4 +86,12 @@ object IndexedDataSource {
     val fs = path.getFileSystem(conf)
     fs.getFileStatus(path)
   }
+
+  /**
+   * Convert table file status into index table file status, and function to store table metadata
+   * into created index file status, status is guaranteed to be directory.
+   */
+  def withIndexTableDirectory(status: FileStatus)(func: FileStatus => Unit): Unit = {
+
+  }
 }
