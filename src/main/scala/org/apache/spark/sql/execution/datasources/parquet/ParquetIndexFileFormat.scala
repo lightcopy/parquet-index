@@ -38,7 +38,10 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
 }
 
 object ParquetIndexFileFormat {
-  val PARQUET_INDEX_READ_SCHEMA = "parquet.index.read.schema"
-  val PARQUET_INDEX_BLOOM_FILTER_ENABLED = "parquet.index.bloom.enabled"
-  val PARQUET_INDEX_BLOOM_FILTER_DIR = "parquet.index.bloom.dir"
+  // internal option to set schema for Parquet reader
+  val PARQUET_INDEX_READ_SCHEMA = "spark.sql.index.parquet.read.schema"
+  // public option to enable/disable bloom filters
+  val PARQUET_INDEX_BLOOM_FILTER_ENABLED = "spark.sql.index.parquet.bloom.enabled"
+  // internal option to specify bloom filters directory
+  val PARQUET_INDEX_BLOOM_FILTER_DIR = "spark.sql.index.parquet.bloom.dir"
 }
