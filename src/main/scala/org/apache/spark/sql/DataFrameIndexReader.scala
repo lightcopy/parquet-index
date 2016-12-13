@@ -16,7 +16,7 @@
 
 package org.apache.spark.sql
 
-import org.apache.spark.sql.execution.datasources.IndexedDataSource
+import org.apache.spark.sql.execution.datasources.{IndexedDataSource, Metastore}
 import org.apache.spark.sql.types.StructType
 
 class DataFrameIndexReader(sparkSession: SparkSession) {
@@ -64,7 +64,7 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
     option("path", path)
     sparkSession.baseRelationToDataFrame(
       IndexedDataSource(
-        sparkSession,
+        Metastore.getOrCreate(sparkSession),
         className = source,
         mode = mode,
         options = extraOptions.toMap).resolveRelation())
@@ -86,7 +86,7 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
   def create(path: String, cols: Column*): Unit = {
     option("path", path)
     IndexedDataSource(
-      sparkSession,
+      Metastore.getOrCreate(sparkSession),
       className = source,
       mode = mode,
       options = extraOptions.toMap).createIndex(cols)
@@ -95,7 +95,7 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
   def delete(path: String): Unit = {
     option("path", path)
     IndexedDataSource(
-      sparkSession,
+      Metastore.getOrCreate(sparkSession),
       className = source,
       mode = mode,
       options = extraOptions.toMap).deleteIndex()

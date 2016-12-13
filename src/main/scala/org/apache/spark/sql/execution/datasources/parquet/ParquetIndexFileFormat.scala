@@ -16,7 +16,26 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
-case class ParquetIndexFileFormat()
+import org.apache.hadoop.fs.FileStatus
+
+import org.apache.spark.sql.Column
+import org.apache.spark.sql.execution.datasources._
+
+case class ParquetIndexFileFormat() extends MetastoreSupport {
+  override def identifier: String = "parquet"
+
+  override def createIndex(
+      metastore: Metastore,
+      indexDirectory: FileStatus,
+      isAppend: Boolean,
+      partitionSpec: PartitionSpec,
+      files: Seq[Partition],
+      columns: Seq[Column]): Unit = {
+    if (isAppend) {
+      throw new UnsupportedOperationException(s"${getClass.getSimpleName} does not support append")
+    }
+  }
+}
 
 object ParquetIndexFileFormat {
   val PARQUET_INDEX_READ_SCHEMA = "parquet.index.read.schema"

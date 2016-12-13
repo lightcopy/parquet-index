@@ -25,11 +25,12 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{Column, SaveMode, SparkSession}
 import org.apache.spark.sql.execution.datasources.parquet.ParquetIndexFileFormat
 import org.apache.spark.sql.sources.BaseRelation
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.Utils
 
 /** DataSource to resolve relations that support indexing */
 case class IndexedDataSource(
-    sparkSession: SparkSession,
+    metastore: Metastore,
     className: String,
     mode: SaveMode = SaveMode.ErrorIfExists,
     options: Map[String, String] = Map.empty) extends Logging {
@@ -38,19 +39,41 @@ case class IndexedDataSource(
   lazy val tablePath: FileStatus = {
     val path = options.getOrElse("path", sys.error("path option is required"))
     IndexedDataSource.resolveTablePath(new Path(path),
-      sparkSession.sparkContext.hadoopConfiguration)
+      metastore.session.sparkContext.hadoopConfiguration)
   }
 
   def resolveRelation(): BaseRelation = {
     null
   }
 
-  def createIndex(columns: Seq[Column]): Unit = {
-
+  /**
+   * Create index based on provided format, if no exception is thrown during creation, considered
+   * as process succeeded.
+   */
+  def createIndex(columns: Seq[Column]): Unit = providingClass.newInstance() match {
+    case s: MetastoreSupport =>
+      // infer partitions from file path
+      val paths = Seq(tablePath.getPath)
+      val partitionSchema: Option[StructType] = None
+      val catalog = new ListingFileCatalog(metastore.session, paths, options, partitionSchema,
+        ignoreFileNotFound = false)
+      val partitionSpec = catalog.partitionSpec
+      // ignore filtering expression for partitions, fetch all available files
+      val allFiles = catalog.listFiles(Nil)
+      metastore.create(s.identifier, tablePath.getPath, mode) { (status, isAppend) =>
+        s.createIndex(metastore, status, isAppend, partitionSpec, allFiles, columns)
+      }
+    case other =>
+      throw new UnsupportedOperationException(s"Creation of index is not supported by $other")
   }
 
-  def deleteIndex(): Unit = {
-
+  /** Delete index if exists, otherwise no-op */
+  def deleteIndex(): Unit = providingClass.newInstance() match {
+    case s: MetastoreSupport =>
+      metastore.delete(s.identifier, tablePath.getPath) { case status =>
+        s.deleteIndex(metastore, status) }
+    case other =>
+      throw new UnsupportedOperationException(s"Deletion of index is not supported by $other")
   }
 }
 
@@ -85,13 +108,5 @@ object IndexedDataSource {
   def resolveTablePath(path: Path, conf: Configuration): FileStatus = {
     val fs = path.getFileSystem(conf)
     fs.getFileStatus(path)
-  }
-
-  /**
-   * Convert table file status into index table file status, and function to store table metadata
-   * into created index file status, status is guaranteed to be directory.
-   */
-  def withIndexTableDirectory(status: FileStatus)(func: FileStatus => Unit): Unit = {
-
   }
 }
