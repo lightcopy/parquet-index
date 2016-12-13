@@ -24,6 +24,7 @@ trait MetastoreSupport {
   /**
    * Index path suffix to identify file format to load index.
    * Must be lowercase alpha-numeric characters only.
+   * TODO: Fix method to resolve collisions in names between formats
    */
   def identifier: String
 
