@@ -34,7 +34,7 @@ trait MetastoreSupport {
    * @param indexDirectory index directory of metastore to store relevant data
    * @param isAppend flag indicates whether or not data should be appended to existing files
    * @param partitionSpec partition spec for table
-   * @param files all partitions for table (partition is empty row, if no directory partitioning)
+   * @param partitions all partitions for table (include file status and partition as row)
    * @param columns sequence of columns to index
    */
   def createIndex(
@@ -42,7 +42,7 @@ trait MetastoreSupport {
       indexDirectory: FileStatus,
       isAppend: Boolean,
       partitionSpec: PartitionSpec,
-      files: Seq[Partition],
+      partitions: Seq[Partition],
       columns: Seq[Column]): Unit
 
   /**
