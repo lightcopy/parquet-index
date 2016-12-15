@@ -17,6 +17,7 @@
 package org.apache.spark.sql
 
 import org.apache.spark.sql.execution.datasources.{IndexedDataSource, Metastore}
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.StructType
 
 class DataFrameIndexReader(sparkSession: SparkSession) {
@@ -81,15 +82,26 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
   /**
    * Create index for table with path and columns to index.
    * @param path filepath to the Parquet table (directory)
-   * @param cols set of columns to index by
+   * @param column column to index (at least one required)
+   * @param columns set of columns to index by
    */
-  def create(path: String, cols: Column*): Unit = {
+  def create(path: String, column: Column, columns: Column*): Unit = {
     option("path", path)
     IndexedDataSource(
       Metastore.getOrCreate(sparkSession),
       className = source,
       mode = mode,
-      options = extraOptions.toMap).createIndex(cols)
+      options = extraOptions.toMap).createIndex(column +: columns)
+  }
+
+  /**
+   * Create index using table path and column names.
+   * @param path filepath to the Parquet table (directory)
+   * @param columnName column name to provide (at least one required)
+   * @param columnNames column names as strings
+   */
+  def create(path: String, columnName: String, columnNames: String*): Unit = {
+    create(path, col(columnName), columnNames.map(col): _*)
   }
 
   def delete(path: String): Unit = {
@@ -102,6 +114,6 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
   }
 
   private var mode: SaveMode = SaveMode.ErrorIfExists
-  private var source: String = sparkSession.sessionState.conf.defaultDataSourceName
+  private var source: String = IndexedDataSource.parquet
   private var extraOptions = new scala.collection.mutable.HashMap[String, String]
 }
