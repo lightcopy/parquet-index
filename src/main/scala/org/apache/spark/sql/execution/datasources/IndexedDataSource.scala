@@ -52,6 +52,7 @@ case class IndexedDataSource(
    */
   def createIndex(columns: Seq[Column]): Unit = providingClass.newInstance() match {
     case s: MetastoreSupport =>
+      logInfo(s"Create index for $s, table=${tablePath.getPath}, columns=$columns, mode=$mode")
       // infer partitions from file path
       val paths = Seq(tablePath.getPath)
       val partitionSchema: Option[StructType] = None
@@ -70,6 +71,7 @@ case class IndexedDataSource(
   /** Delete index if exists, otherwise no-op */
   def deleteIndex(): Unit = providingClass.newInstance() match {
     case s: MetastoreSupport =>
+      logInfo(s"Delete index for $s, table=${tablePath.getPath}")
       metastore.delete(s.identifier, tablePath.getPath) { case status =>
         s.deleteIndex(metastore, status) }
     case other =>

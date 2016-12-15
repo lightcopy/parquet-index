@@ -153,12 +153,12 @@ class ParquetStatisticsRDD(
         // check if we need to compute bloom filters for each index column, currently there is no
         // selection on different index on a column, as well as no subset indexing.
         val bloomFilterEnabled = configuration.
-          getBoolean(ParquetIndexFileFormat.PARQUET_INDEX_BLOOM_FILTER_ENABLED, true)
+          getBoolean(ParquetIndexFileFormat.BLOOM_FILTER_ENABLED, true)
         // if bloom filtering is enabled check that directory is set and accessible
         if (bloomFilterEnabled) {
           logInfo("Create bloom filter for columns")
           try {
-            val filterDir = configuration.get(ParquetIndexFileFormat.PARQUET_INDEX_BLOOM_FILTER_DIR)
+            val filterDir = configuration.get(ParquetIndexFileFormat.BLOOM_FILTER_DIR)
             require(filterDir != null,
               "Bloom filter is enabled, but path is not specified in configuration")
             val filterPath = new Path(filterDir)
@@ -213,7 +213,7 @@ class ParquetStatisticsRDD(
     val parquetSplit = new ParquetInputSplit(split.getPath, split.getStart,
       split.getStart + split.getLength, split.getLength, split.getLocations, null)
     // make requested schema to be available for record reader
-    conf.set(ParquetIndexFileFormat.PARQUET_INDEX_READ_SCHEMA, stats.indexSchema)
+    conf.set(ParquetIndexFileFormat.READ_SCHEMA, stats.indexSchema)
     val context = new TaskAttemptContextImpl(conf, attemptId)
 
     val reader = new ParquetRecordReader[Container](new ParquetIndexSupport())

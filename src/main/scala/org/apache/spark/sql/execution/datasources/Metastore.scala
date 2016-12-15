@@ -132,6 +132,7 @@ class Metastore(@transient val session: SparkSession) extends Logging {
                 logWarning(s"Failed to delete path $resolvedPath", io)
             }
           }
+          throw err
       }
     }
   }
@@ -149,9 +150,10 @@ class Metastore(@transient val session: SparkSession) extends Logging {
       } finally {
         try {
           fs.delete(resolvedPath, true)
+          logInfo(s"Deleted index path $resolvedPath for $identifier")
         } catch {
           case NonFatal(io) =>
-            logWarning(s"Failed to delete path $resolvedPath", io)
+            logWarning(s"Failed to delete path $resolvedPath for $identifier", io)
         }
       }
     }

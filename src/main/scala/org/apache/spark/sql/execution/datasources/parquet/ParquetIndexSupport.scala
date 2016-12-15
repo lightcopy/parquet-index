@@ -116,7 +116,7 @@ class ParquetIndexSupport extends ReadSupport[Container] {
       conf: Configuration,
       keyValueMetaData: JMap[String, String],
       fileSchema: MessageType): ReadContext = {
-    val partialSchemaString = conf.get(ParquetIndexFileFormat.PARQUET_INDEX_READ_SCHEMA)
+    val partialSchemaString = conf.get(ParquetIndexFileFormat.READ_SCHEMA)
     val requestedProjection = ReadSupport.getSchemaForRead(fileSchema, partialSchemaString)
     new ReadContext(requestedProjection)
   }
