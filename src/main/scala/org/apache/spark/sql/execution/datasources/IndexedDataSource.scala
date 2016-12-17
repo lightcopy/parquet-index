@@ -42,8 +42,12 @@ case class IndexedDataSource(
       metastore.session.sparkContext.hadoopConfiguration)
   }
 
-  def resolveRelation(): BaseRelation = {
-    null
+  def resolveRelation(): BaseRelation = providingClass.newInstance() match {
+    case s: MetastoreSupport =>
+      logInfo(s"Loading index for $s, table=${tablePath.getPath}")
+      null
+    case other =>
+      throw new UnsupportedOperationException(s"Index is not supported by $other")
   }
 
   /**
