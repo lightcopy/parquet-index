@@ -33,7 +33,8 @@ case class IndexedDataSource(
     metastore: Metastore,
     className: String,
     mode: SaveMode = SaveMode.ErrorIfExists,
-    options: Map[String, String] = Map.empty) extends Logging {
+    options: Map[String, String] = Map.empty,
+    bucketSpec: Option[BucketSpec] = None) extends Logging {
 
   lazy val providingClass: Class[_] = IndexedDataSource.lookupDataSource(className)
   lazy val tablePath: FileStatus = {
@@ -42,12 +43,29 @@ case class IndexedDataSource(
       metastore.session.sparkContext.hadoopConfiguration)
   }
 
-  def resolveRelation(): BaseRelation = providingClass.newInstance() match {
-    case s: MetastoreSupport =>
-      logInfo(s"Loading index for $s, table=${tablePath.getPath}")
-      null
-    case other =>
-      throw new UnsupportedOperationException(s"Index is not supported by $other")
+  def resolveRelation(): BaseRelation = {
+    val caseInsensitiveOptions = new CaseInsensitiveMap(options)
+    providingClass.newInstance() match {
+      case s: MetastoreSupport =>
+        logInfo(s"Loading index for $s, table=${tablePath.getPath}")
+
+        var indexCatalog: MetastoreIndexCatalog = null
+        metastore.load(s.identifier, tablePath.getPath) { status =>
+          indexCatalog = s.loadIndex(metastore, status)
+        }
+
+        // TODO: make sure that filters apply not only partitioning columns, but also index columns
+        HadoopFsRelation(
+          metastore.session,
+          location = indexCatalog,
+          partitionSchema = indexCatalog.partitionSpec().partitionColumns,
+          dataSchema = indexCatalog.inferSchema().asNullable,
+          bucketSpec = bucketSpec,
+          fileFormat = s.fileFormat,
+          options = caseInsensitiveOptions)
+      case other =>
+        throw new UnsupportedOperationException(s"Index is not supported by $other")
+    }
   }
 
   /**

@@ -29,6 +29,12 @@ trait MetastoreSupport {
   def identifier: String
 
   /**
+   * Spark FileFormat datasource that is a base for metastore index. For example, for Parquet index
+   * file format is `ParquetFileFormat`, that provides necessary reader to return records.
+   */
+  def fileFormat: FileFormat
+
+  /**
    * Create index based on provided index directory that is guaranteed to exist.
    * @param metastore current index metastore
    * @param indexDirectory index directory of metastore to store relevant data
@@ -44,6 +50,14 @@ trait MetastoreSupport {
       partitionSpec: PartitionSpec,
       partitions: Seq[Partition],
       columns: Seq[Column]): Unit
+
+  /**
+   * Load index into `MetastoreIndexCatalog`, which provides methods to return all files, apply
+   * filtering on discovered files and infer schema.
+   * @param metastore current index metastore
+   * @param indexDirectory index directory of metastore to load relevant data
+   */
+  def loadIndex(metastore: Metastore, indexDirectory: FileStatus): MetastoreIndexCatalog
 
   /**
    * Delete index, this method should be overwritten when special handling of data inside index

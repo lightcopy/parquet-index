@@ -32,6 +32,14 @@ import com.github.lightcopy.util.IOUtils
 case class ParquetIndexFileFormat() extends MetastoreSupport {
   override def identifier: String = "parquet"
 
+  override def fileFormat: FileFormat = new ParquetFileFormat()
+
+  override def loadIndex(
+      metastore: Metastore,
+      indexDirectory: FileStatus): MetastoreIndexCatalog = {
+    throw new UnsupportedOperationException()
+  }
+
   override def createIndex(
       metastore: Metastore,
       indexDirectory: FileStatus,
