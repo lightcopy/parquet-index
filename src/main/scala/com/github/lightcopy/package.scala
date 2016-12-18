@@ -17,12 +17,19 @@
 package com.github.lightcopy
 
 import org.apache.spark.sql.{DataFrameIndexReader, SparkSession}
+import org.apache.spark.sql.execution.datasources.IndexSourceStrategy
 
 /** Implicit methods for index */
 package object implicits {
   /** [[QueryContext]] to access index functionality using SparkSession */
   implicit class QueryContext(session: SparkSession) {
     def index: DataFrameIndexReader = {
+      // check that index strategy is included
+      val strategies = session.experimental.extraStrategies
+      if (!strategies.contains(IndexSourceStrategy)) {
+        session.experimental.extraStrategies = strategies :+ IndexSourceStrategy
+      }
+
       new DataFrameIndexReader(session)
     }
   }

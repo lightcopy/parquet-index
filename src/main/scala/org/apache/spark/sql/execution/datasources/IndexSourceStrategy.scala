@@ -34,7 +34,7 @@ object IndexSourceStrategy extends Strategy with Logging {
   def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case PhysicalOperation(projects, filters,
       l @ LogicalRelation(fsRelation: HadoopFsRelation, _, table))
-      if fsRelation.location.getClass == classOf[MetastoreIndexCatalog] =>
+      if fsRelation.location.isInstanceOf[MetastoreIndexCatalog] =>
 
       val sparkSession = fsRelation.sparkSession
       val catalog = fsRelation.location.asInstanceOf[MetastoreIndexCatalog]
@@ -99,8 +99,7 @@ object IndexSourceStrategy extends Strategy with Logging {
         requiredSchema = outputSchema,
         filters = pushedDownFilters,
         options = fsRelation.options,
-        hadoopConf = sparkSession.sessionState.newHadoopConfWithOptions(
-          fsRelation.options))
+        hadoopConf = sparkSession.sessionState.newHadoopConfWithOptions(fsRelation.options))
 
       val plannedPartitions = fsRelation.bucketSpec match {
         case Some(bucketing) if sparkSession.sessionState.conf.bucketingEnabled =>

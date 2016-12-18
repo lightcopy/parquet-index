@@ -16,6 +16,7 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import java.io.IOException
 import java.util.Arrays
 
 import org.apache.hadoop.fs.{FileStatus, Path}
@@ -37,7 +38,14 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
   override def loadIndex(
       metastore: Metastore,
       indexDirectory: FileStatus): MetastoreIndexCatalog = {
-    throw new UnsupportedOperationException()
+    val readDir = tableMetadataLocation(indexDirectory.getPath)
+    if (!metastore.fs.exists(readDir)) {
+      throw new IOException(s"Path $readDir for table metadata does not exist")
+    }
+
+    val content = IOUtils.readContent(metastore.fs, readDir)
+    val table = ParquetTable.fromJSON(content)
+    new ParquetIndexCatalog(table)
   }
 
   override def createIndex(
@@ -99,8 +107,7 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
       statistics = statistics)
 
     // write table to disk, create path with table metadata
-    val metadataDir =
-      indexDirectory.getPath.suffix(s"${Path.SEPARATOR}${ParquetIndexFileFormat.TABLE_METADATA}")
+    val metadataDir = tableMetadataLocation(indexDirectory.getPath)
     IOUtils.writeContent(metastore.fs, metadataDir, table.toJSON)
   }
 
@@ -119,6 +126,10 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
     // fetch specified columns
     val fields = fileStruct.filter { field => columns.contains(field.name) }
     StructType(fields)
+  }
+
+  private def tableMetadataLocation(root: Path): Path = {
+    root.suffix(s"${Path.SEPARATOR}${ParquetIndexFileFormat.TABLE_METADATA}")
   }
 }
 

@@ -49,20 +49,17 @@ case class IndexedDataSource(
       case s: MetastoreSupport =>
         logInfo(s"Loading index for $s, table=${tablePath.getPath}")
 
-        var indexCatalog: MetastoreIndexCatalog = null
-        metastore.load(s.identifier, tablePath.getPath) { status =>
-          indexCatalog = s.loadIndex(metastore, status)
+        var indexCatalog = metastore.load(s.identifier, tablePath.getPath) { status =>
+          s.loadIndex(metastore, status)
         }
 
-        // TODO: make sure that filters apply not only partitioning columns, but also index columns
         HadoopFsRelation(
-          metastore.session,
           location = indexCatalog,
           partitionSchema = indexCatalog.partitionSpec().partitionColumns,
           dataSchema = indexCatalog.dataSchema().asNullable,
           bucketSpec = bucketSpec,
           fileFormat = s.fileFormat,
-          options = caseInsensitiveOptions)
+          options = caseInsensitiveOptions)(metastore.session)
       case other =>
         throw new UnsupportedOperationException(s"Index is not supported by $other")
     }

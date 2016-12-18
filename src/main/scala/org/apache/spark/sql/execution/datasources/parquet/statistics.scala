@@ -128,6 +128,11 @@ object PartitionColumn {
     }
     columns
   }
+
+  /** Return InternalRow with original partitioning schema that was encoded in column */
+  def toInternalRow(columns: Array[PartitionColumn[_]]): InternalRow = {
+    InternalRow.fromSeq(columns.map(_.value).toSeq)
+  }
 }
 
 ////////////////////////////////////////////////////////////////

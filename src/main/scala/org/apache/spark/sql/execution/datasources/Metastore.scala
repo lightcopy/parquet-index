@@ -138,7 +138,8 @@ class Metastore(@transient val session: SparkSession) extends Logging {
   }
 
   /** Load index directory if exists, fail if none found for identifier */
-  def load(identifier: String, path: Path)(func: FileStatus => Unit): Unit = {
+  def load(identifier: String, path: Path)
+      (func: FileStatus => MetastoreIndexCatalog): MetastoreIndexCatalog = {
     val resolvedPath = location(identifier, path)
     if (!fs.exists(resolvedPath)) {
       throw new IOException(s"Index does not exist for $identifier and path $path")
