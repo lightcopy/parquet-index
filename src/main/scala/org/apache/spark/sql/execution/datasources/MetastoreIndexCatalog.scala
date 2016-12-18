@@ -19,6 +19,7 @@ package org.apache.spark.sql.execution.datasources
 import org.apache.hadoop.fs.{FileStatus, Path}
 
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 
 abstract class MetastoreIndexCatalog extends FileCatalog {
@@ -29,22 +30,30 @@ abstract class MetastoreIndexCatalog extends FileCatalog {
   /** Returns the specification of the partitions inferred from the data. */
   def partitionSpec(): PartitionSpec
 
+  /** Index schema, used to prune files based on filters for indexed columns */
+  def indexSchema(): StructType
+
+  /** Return schema for listed files */
+  def dataSchema(): StructType
+
   /**
    * Returns all valid files grouped into partitions when the data is partitioned. If the data is
    * unpartitioned, this will return a single partition with no partition values.
-   * @param filters The filters used to prune which partitions are returned.
+   * @param filters filters used to prune which partitions are returned.
    */
   def listFiles(filters: Seq[Expression]): Seq[Partition]
+
+  /**
+   * Return all valid files grouped into partitions that confirm to partition filters and index
+   * filters when available.
+   * @param filters filters used to prune which partitions are returned
+   * @param indexFilters filters used to select files based on provided index
+   */
+  def listFilesWithIndexSupport(filters: Seq[Expression], indexFilters: Seq[Filter]): Seq[Partition]
 
   /** Returns all the valid files. */
   def allFiles(): Seq[FileStatus]
 
   /** Refresh the file listing */
   def refresh(): Unit
-
-  /** Index schema, used to prune files based on filters for indexed columns */
-  def indexSchema(): StructType
-
-  /** Return schema for listed files */
-  def dataSchema(): StructType
 }
