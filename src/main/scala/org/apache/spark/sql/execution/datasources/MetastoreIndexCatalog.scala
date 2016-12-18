@@ -42,6 +42,9 @@ abstract class MetastoreIndexCatalog extends FileCatalog {
   /** Refresh the file listing */
   def refresh(): Unit
 
+  /** Index schema, used to prune files based on filters for indexed columns */
+  def indexSchema(): StructType
+
   /** Return schema for listed files */
-  def inferSchema(): StructType
+  def dataSchema(): StructType
 }

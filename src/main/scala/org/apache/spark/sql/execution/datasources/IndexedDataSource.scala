@@ -59,7 +59,7 @@ case class IndexedDataSource(
           metastore.session,
           location = indexCatalog,
           partitionSchema = indexCatalog.partitionSpec().partitionColumns,
-          dataSchema = indexCatalog.inferSchema().asNullable,
+          dataSchema = indexCatalog.dataSchema().asNullable,
           bucketSpec = bucketSpec,
           fileFormat = s.fileFormat,
           options = caseInsensitiveOptions)
