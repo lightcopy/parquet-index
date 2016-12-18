@@ -41,7 +41,9 @@ abstract class MetastoreIndexCatalog extends FileCatalog {
    * unpartitioned, this will return a single partition with no partition values.
    * @param filters filters used to prune which partitions are returned.
    */
-  def listFiles(filters: Seq[Expression]): Seq[Partition]
+  def listFiles(filters: Seq[Expression]): Seq[Partition] = {
+    listFilesWithIndexSupport(filters, Nil)
+  }
 
   /**
    * Return all valid files grouped into partitions that confirm to partition filters and index

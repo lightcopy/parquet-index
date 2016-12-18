@@ -38,10 +38,6 @@ class ParquetIndexCatalog(table: ParquetTable) extends MetastoreIndexCatalog {
 
   override lazy val indexSchema = table.indexSchema
 
-  override def listFiles(filters: Seq[Expression]): Seq[Partition] = {
-    listFilesWithIndexSupport(filters, Seq.empty)
-  }
-
   override def listFilesWithIndexSupport(
       filters: Seq[Expression], indexFilters: Seq[Filter]): Seq[Partition] = Nil
 
