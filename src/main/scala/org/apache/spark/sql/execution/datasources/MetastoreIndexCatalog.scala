@@ -24,8 +24,8 @@ import org.apache.spark.sql.types.StructType
 
 abstract class MetastoreIndexCatalog extends FileCatalog {
 
-  /** Returns the list of input paths from which the catalog will get files. */
-  def paths: Seq[Path]
+  /** Fully qualified table path */
+  def tablePath(): Path
 
   /** Returns the specification of the partitions inferred from the data. */
   def partitionSpec(): PartitionSpec
@@ -37,6 +37,21 @@ abstract class MetastoreIndexCatalog extends FileCatalog {
   def dataSchema(): StructType
 
   /**
+   * Return all valid files grouped into partitions that confirm to partition filters and index
+   * filters when available.
+   * @param filters filters used to prune which partitions are returned
+   * @param indexFilters filters used to select files based on provided index
+   */
+  def listFilesWithIndexSupport(
+      filters: Seq[Expression], indexFilters: Seq[Filter]): Seq[Partition]
+
+  /** Returns all the valid files. */
+  def allFiles(): Seq[FileStatus]
+
+  /** Returns the list of input paths from which the catalog will get files. */
+  def paths: Seq[Path] = Seq(tablePath)
+
+  /**
    * Returns all valid files grouped into partitions when the data is partitioned. If the data is
    * unpartitioned, this will return a single partition with no partition values.
    * @param filters filters used to prune which partitions are returned.
@@ -45,17 +60,6 @@ abstract class MetastoreIndexCatalog extends FileCatalog {
     listFilesWithIndexSupport(filters, Nil)
   }
 
-  /**
-   * Return all valid files grouped into partitions that confirm to partition filters and index
-   * filters when available.
-   * @param filters filters used to prune which partitions are returned
-   * @param indexFilters filters used to select files based on provided index
-   */
-  def listFilesWithIndexSupport(filters: Seq[Expression], indexFilters: Seq[Filter]): Seq[Partition]
-
-  /** Returns all the valid files. */
-  def allFiles(): Seq[FileStatus]
-
   /** Refresh the file listing */
-  def refresh(): Unit
+  def refresh(): Unit = { }
 }

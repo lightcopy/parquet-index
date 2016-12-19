@@ -42,10 +42,8 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
     if (!metastore.fs.exists(readDir)) {
       throw new IOException(s"Path $readDir for table metadata does not exist")
     }
-
-    val content = IOUtils.readContent(metastore.fs, readDir)
-    val table = ParquetTable.fromJSON(content)
-    new ParquetIndexCatalog(table)
+    // TODO: Load index
+    null
   }
 
   override def createIndex(
@@ -79,36 +77,7 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
       throw new UnsupportedOperationException("Index schema must have at least one column, " +
         s"found $indexSchema, make sure that specified columns are part of table schema")
     }
-
-    // Parquet file statuses
-    val files = partitions.flatMap { partition =>
-      val partSchema = PartitionColumn.fromInternalRow(partition.values, partitionSchema)
-      partition.files.map { status =>
-        ParquetFileStatus(status.getPath.toString, partSchema)
-      }
-    }
-
-    val sc = metastore.session.sparkContext
-    val hadoopConf = metastore.session.sessionState.newHadoopConf()
-    hadoopConf.set(ParquetIndexFileFormat.BLOOM_FILTER_ENABLED,
-      metastore.session.conf.get(ParquetIndexFileFormat.BLOOM_FILTER_ENABLED, "false"))
-    hadoopConf.set(ParquetIndexFileFormat.BLOOM_FILTER_DIR, indexDirectory.getPath.toString)
-
-    val numPartitions = Math.min(sc.defaultParallelism * 2,
-      metastore.session.conf.get("spark.sql.shuffle.partitions").toInt)
-    val rdd = new ParquetStatisticsRDD(sc, hadoopConf, indexSchema, files, numPartitions)
-    val statistics = rdd.collect
-
-    val table = ParquetTable(
-      tablePath = "",
-      tableSchema = ParquetIndexFileFormat.inferSchema(metastore.session, statistics),
-      indexSchema = indexSchema,
-      partitionSchema = Some(partitionSchema),
-      statistics = statistics)
-
-    // write table to disk, create path with table metadata
-    val metadataDir = tableMetadataLocation(indexDirectory.getPath)
-    IOUtils.writeContent(metastore.fs, metadataDir, table.toJSON)
+    // TODO: save RDD content
   }
 
   /** Infer schema by requesting provided set of columns */
@@ -143,7 +112,7 @@ object ParquetIndexFileFormat {
   // metadata name
   val TABLE_METADATA = "_table_metadata"
 
-  def inferSchema(sparkSession: SparkSession, statistics: Array[ParquetStatistics]): StructType = {
+  def inferSchema(sparkSession: SparkSession, statistics: Array[ParquetFileStatus]): StructType = {
     val assumeBinaryIsString = sparkSession.sessionState.conf.isParquetBinaryAsString
     val assumeInt96IsTimestamp = sparkSession.sessionState.conf.isParquetINT96AsTimestamp
     val writeLegacyParquetFormat = sparkSession.sessionState.conf.writeLegacyParquetFormat

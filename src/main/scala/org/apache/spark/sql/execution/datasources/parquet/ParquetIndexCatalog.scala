@@ -23,25 +23,17 @@ import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 
-class ParquetIndexCatalog(table: ParquetTable) extends MetastoreIndexCatalog {
-  private val statistics = table.statistics
-  private val partitionSchema = table.partitionSchema.getOrElse(StructType(Nil))
+class ParquetIndexCatalog extends MetastoreIndexCatalog {
+  override lazy val tablePath: Path = null
 
-  override lazy val paths: Seq[Path] = new Path(table.tablePath) :: Nil
+  override lazy val partitionSpec: PartitionSpec = null
 
-  override lazy val partitionSpec: PartitionSpec = {
-    // TODO: parse partition directories
-    PartitionSpec(partitionSchema, Seq.empty[PartitionDirectory])
-  }
+  override lazy val dataSchema = null
 
-  override lazy val dataSchema = table.tableSchema
-
-  override lazy val indexSchema = table.indexSchema
+  override lazy val indexSchema = null
 
   override def listFilesWithIndexSupport(
       filters: Seq[Expression], indexFilters: Seq[Filter]): Seq[Partition] = Nil
 
   override def allFiles(): Seq[FileStatus] = Nil
-
-  override def refresh(): Unit = { }
 }
