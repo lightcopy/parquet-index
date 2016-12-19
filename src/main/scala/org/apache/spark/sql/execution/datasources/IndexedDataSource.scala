@@ -81,7 +81,7 @@ case class IndexedDataSource(
       // ignore filtering expression for partitions, fetch all available files
       val allFiles = catalog.listFiles(Nil)
       metastore.create(s.identifier, tablePath.getPath, mode) { (status, isAppend) =>
-        s.createIndex(metastore, status, isAppend, partitionSpec, allFiles, columns)
+        s.createIndex(metastore, status, tablePath, isAppend, partitionSpec, allFiles, columns)
       }
     case other =>
       throw new UnsupportedOperationException(s"Creation of index is not supported by $other")

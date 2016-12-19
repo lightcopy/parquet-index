@@ -38,6 +38,7 @@ trait MetastoreSupport {
    * Create index based on provided index directory that is guaranteed to exist.
    * @param metastore current index metastore
    * @param indexDirectory index directory of metastore to store relevant data
+   * @param tablePath path to the table, mainly for reference, should not be used to list files
    * @param isAppend flag indicates whether or not data should be appended to existing files
    * @param partitionSpec partition spec for table
    * @param partitions all partitions for table (include file status and partition as row)
@@ -46,6 +47,7 @@ trait MetastoreSupport {
   def createIndex(
       metastore: Metastore,
       indexDirectory: FileStatus,
+      tablePath: FileStatus,
       isAppend: Boolean,
       partitionSpec: PartitionSpec,
       partitions: Seq[Partition],

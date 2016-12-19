@@ -24,11 +24,12 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.parquet.schema.MessageTypeParser
 
+import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.{Column, SparkSession}
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.types.StructType
 
-import com.github.lightcopy.util.IOUtils
+import com.github.lightcopy.util.{SerializableFileStatus, IOUtils}
 
 case class ParquetIndexFileFormat() extends MetastoreSupport {
   override def identifier: String = "parquet"
@@ -49,6 +50,7 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
   override def createIndex(
       metastore: Metastore,
       indexDirectory: FileStatus,
+      tablePath: FileStatus,
       isAppend: Boolean,
       partitionSpec: PartitionSpec,
       partitions: Seq[Partition],
@@ -77,7 +79,57 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
       throw new UnsupportedOperationException("Index schema must have at least one column, " +
         s"found $indexSchema, make sure that specified columns are part of table schema")
     }
-    // TODO: save RDD content
+
+    // serialized file statuses for Parquet table
+    val files = partitions.flatMap { partition =>
+      partition.files.map { status =>
+        SerializableFileStatus.fromFileStatus(status)
+      }
+    }
+
+    val sc = metastore.session.sparkContext
+    val hadoopConf = metastore.session.sessionState.newHadoopConf()
+    val bloomFilteringEnabled =
+      metastore.session.conf.get(ParquetIndexFileFormat.BLOOM_FILTER_ENABLED, "false").toBoolean
+    if (bloomFilteringEnabled) {
+      hadoopConf.set(ParquetIndexFileFormat.BLOOM_FILTER_DIR, indexDirectory.getPath.toString)
+    }
+
+    val numPartitions = Math.min(sc.defaultParallelism * 2,
+      metastore.session.conf.get("spark.sql.shuffle.partitions").toInt)
+    val rdd = new ParquetStatisticsRDD(sc, hadoopConf, indexSchema, files, numPartitions)
+    val statistics = rdd.collect
+
+    val extendedPartitions = partitions.map { partition =>
+      ParquetPartition(partition.values, partition.files.map { status =>
+        // search status filepath in collected statistics and replace
+        // assume that there is only one path per partition
+        val maybeStats = statistics.find { stats => stats.status.path == status.getPath.toString }
+        if (maybeStats.isEmpty) {
+          throw new IllegalStateException(
+            s"No match found when converting statistics to partitions, failed status = $status")
+        }
+        maybeStats.get
+      })
+    }
+
+    // full index metadata, data schema does not include partitioning columns, this will be added
+    // by data source when reading format
+    val indexMetadata = ParquetIndexMetadata(
+      tablePath = tablePath.getPath.toString,
+      dataSchema = ParquetIndexFileFormat.inferSchema(metastore.session, statistics),
+      indexSchema = indexSchema,
+      partitionSpec = partitionSpec,
+      partitions = extendedPartitions)
+
+    // write table to disk, create path with table metadata
+    val metadataDir = tableMetadataLocation(indexDirectory.getPath)
+    IOUtils.writeContentStream(metastore.fs, metadataDir) { out =>
+      val kryo = new KryoSerializer(sc.getConf)
+      val serializedStream = kryo.newInstance().serializeStream(out)
+      serializedStream.writeObject(indexMetadata)
+      serializedStream.close()
+    }
   }
 
   /** Infer schema by requesting provided set of columns */
@@ -112,6 +164,7 @@ object ParquetIndexFileFormat {
   // metadata name
   val TABLE_METADATA = "_table_metadata"
 
+  /** Partition columns are automatically added when reading file format */
   def inferSchema(sparkSession: SparkSession, statistics: Array[ParquetFileStatus]): StructType = {
     val assumeBinaryIsString = sparkSession.sessionState.conf.isParquetBinaryAsString
     val assumeInt96IsTimestamp = sparkSession.sessionState.conf.isParquetINT96AsTimestamp

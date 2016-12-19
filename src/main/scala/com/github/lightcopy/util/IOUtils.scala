@@ -16,6 +16,8 @@
 
 package com.github.lightcopy.util
 
+import java.io.OutputStream
+
 import org.apache.commons.io.{IOUtils => CommonIOUtils}
 import org.apache.hadoop.fs.{FileSystem, Path}
 
@@ -36,6 +38,16 @@ object IOUtils {
     val out = fs.create(path, true)
     try {
       CommonIOUtils.write(content, out, "UTF-8")
+    } finally {
+      out.close()
+    }
+  }
+
+  /** Write content into stream, file is overwritten on next attempt */
+  def writeContentStream(fs: FileSystem, path: Path)(func: OutputStream => Unit): Unit = {
+    val out = fs.create(path, true)
+    try {
+      func(out)
     } finally {
       out.close()
     }
