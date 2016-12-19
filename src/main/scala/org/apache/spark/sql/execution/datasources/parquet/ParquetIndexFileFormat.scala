@@ -19,6 +19,8 @@ package org.apache.spark.sql.execution.datasources.parquet
 import java.io.IOException
 import java.util.Arrays
 
+import scala.util.control.NonFatal
+
 import org.apache.hadoop.fs.{FileStatus, Path}
 
 import org.apache.parquet.hadoop.ParquetFileReader
@@ -43,8 +45,23 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
     if (!metastore.fs.exists(readDir)) {
       throw new IOException(s"Path $readDir for table metadata does not exist")
     }
-    // TODO: Load index
-    null
+
+    val metadataDir = tableMetadataLocation(indexDirectory.getPath)
+    var indexMetadata: ParquetIndexMetadata = null
+    IOUtils.readContentStream(metastore.fs, metadataDir) { in =>
+      val kryo = new KryoSerializer(metastore.session.sparkContext.getConf)
+      val deserializedStream = kryo.newInstance.deserializeStream(in)
+      try {
+        indexMetadata = deserializedStream.readObject()
+      } catch {
+        case NonFatal(err) =>
+          throw new IOException("Corrupt stream", err)
+      } finally {
+        deserializedStream.close()
+      }
+    }
+
+    new ParquetIndexCatalog(metastore, indexMetadata)
   }
 
   override def createIndex(
@@ -127,8 +144,14 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
     IOUtils.writeContentStream(metastore.fs, metadataDir) { out =>
       val kryo = new KryoSerializer(sc.getConf)
       val serializedStream = kryo.newInstance().serializeStream(out)
-      serializedStream.writeObject(indexMetadata)
-      serializedStream.close()
+      try {
+        serializedStream.writeObject(indexMetadata)
+      } catch {
+        case NonFatal(err) =>
+          throw new IOException("Failed to serialize object", err)
+      } finally {
+        serializedStream.close()
+      }
     }
   }
 

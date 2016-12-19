@@ -16,7 +16,7 @@
 
 package com.github.lightcopy.util
 
-import java.io.OutputStream
+import java.io.{InputStream, OutputStream}
 
 import org.apache.commons.io.{IOUtils => CommonIOUtils}
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -28,6 +28,16 @@ object IOUtils {
     val in = fs.open(path)
     try {
       CommonIOUtils.toString(in, "UTF-8")
+    } finally {
+      in.close()
+    }
+  }
+
+  /** Read content from stream */
+  def readContentStream(fs: FileSystem, path: Path)(func: InputStream => Unit): Unit = {
+    val in = fs.open(path)
+    try {
+      func(in)
     } finally {
       in.close()
     }

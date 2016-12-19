@@ -18,11 +18,12 @@ package org.apache.spark.sql.execution.datasources
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 
-abstract class MetastoreIndexCatalog extends FileCatalog {
+abstract class MetastoreIndexCatalog extends FileCatalog with Logging {
 
   /** Fully qualified table path */
   def tablePath(): Path
