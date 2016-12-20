@@ -16,5 +16,7 @@
 
 package org.apache.spark.sql.sources
 
-/** Trivial filter to resolve directly */
+/**
+ * Trivial filter to resolve directly, provides empty list of references.
+ */
 case class Trivial(value: Boolean) extends Filter
