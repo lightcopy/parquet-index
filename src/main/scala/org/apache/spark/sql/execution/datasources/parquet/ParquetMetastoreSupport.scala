@@ -33,7 +33,7 @@ import org.apache.spark.sql.types.StructType
 
 import com.github.lightcopy.util.{SerializableFileStatus, IOUtils}
 
-case class ParquetIndexFileFormat() extends MetastoreSupport {
+case class ParquetMetastoreSupport() extends MetastoreSupport {
   override def identifier: String = "parquet"
 
   override def fileFormat: FileFormat = new ParquetFileFormat()
@@ -106,10 +106,8 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
 
     val sc = metastore.session.sparkContext
     val hadoopConf = metastore.session.sessionState.newHadoopConf()
-    val bloomFilteringEnabled =
-      metastore.session.conf.get(ParquetIndexFileFormat.BLOOM_FILTER_ENABLED, "false").toBoolean
-    if (bloomFilteringEnabled) {
-      hadoopConf.set(ParquetIndexFileFormat.BLOOM_FILTER_DIR, indexDirectory.getPath.toString)
+    if (metastore.conf.parquetBloomFilterEnabled) {
+      hadoopConf.set(ParquetMetastoreSupport.BLOOM_FILTER_DIR, indexDirectory.getPath.toString)
     }
 
     val numPartitions = Math.min(sc.defaultParallelism * 2,
@@ -134,7 +132,7 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
     // by data source when reading format
     val indexMetadata = ParquetIndexMetadata(
       tablePath = tablePath.getPath.toString,
-      dataSchema = ParquetIndexFileFormat.inferSchema(metastore.session, statistics),
+      dataSchema = ParquetMetastoreSupport.inferSchema(metastore.session, statistics),
       indexSchema = indexSchema,
       partitionSpec = partitionSpec,
       partitions = extendedPartitions)
@@ -173,16 +171,14 @@ case class ParquetIndexFileFormat() extends MetastoreSupport {
   }
 
   private def tableMetadataLocation(root: Path): Path = {
-    root.suffix(s"${Path.SEPARATOR}${ParquetIndexFileFormat.TABLE_METADATA}")
+    root.suffix(s"${Path.SEPARATOR}${ParquetMetastoreSupport.TABLE_METADATA}")
   }
 }
 
-object ParquetIndexFileFormat {
-  // internal option to set schema for Parquet reader
+object ParquetMetastoreSupport {
+  // internal Hadoop configuration option to set schema for Parquet reader
   val READ_SCHEMA = "spark.sql.index.parquet.read.schema"
-  // public option to enable/disable bloom filters
-  val BLOOM_FILTER_ENABLED = "spark.sql.index.parquet.bloom.enabled"
-  // internal option to specify bloom filters directory
+  // internal Hadoop configuration option to specify bloom filters directory
   val BLOOM_FILTER_DIR = "spark.sql.index.parquet.bloom.dir"
   // metadata name
   val TABLE_METADATA = "_table_metadata"

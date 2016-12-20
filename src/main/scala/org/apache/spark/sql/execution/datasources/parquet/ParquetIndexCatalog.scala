@@ -62,7 +62,6 @@ class ParquetIndexCatalog(
       }
     }
 
-    // TODO: Make it trace after testing
     logTrace("Selected files after partition pruning:\n\t" + selectedPartitions.mkString("\n\t"))
 
     // evaluate index filters
@@ -72,8 +71,7 @@ class ParquetIndexCatalog(
       pruneIndexedPartitions(indexFilters, selectedPartitions)
     }
 
-    // TODO: Make it trace after testing
-    logInfo("Selected files after index filtering:\n\t" + filteredPartitions.mkString("\n\t"))
+    logTrace("Selected files after index filtering:\n\t" + filteredPartitions.mkString("\n\t"))
 
     // convert it into sequence of Spark `Partition`s
     filteredPartitions.map { partition =>

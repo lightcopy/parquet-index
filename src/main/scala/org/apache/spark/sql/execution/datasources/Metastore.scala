@@ -18,7 +18,6 @@ package org.apache.spark.sql.execution.datasources
 
 import java.io.IOException
 
-import scala.util.Try
 import scala.util.control.NonFatal
 
 import org.apache.hadoop.conf.Configuration
@@ -27,16 +26,21 @@ import org.apache.hadoop.fs.permission.{FsAction, FsPermission}
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.internal.IndexConf
 
 /**
  * [[Metastore]] provides global access to index directory and allows to locate index directory
  * when creating, loading or deleting table index.
+ * @param session Spark session
+ * @param conf index configuration
  */
-class Metastore(@transient val session: SparkSession) extends Logging {
+private[sql] class Metastore(
+    @transient val session: SparkSession,
+    val conf: IndexConf) extends Logging {
   // Hadoop configuration used to create Spark context, to capture default file system
   private val hadoopConf = session.sparkContext.hadoopConfiguration
   // Metastore location to use
-  private val metastore = resolveMetastore(getMetastorePath(session), hadoopConf)
+  private val metastore = resolveMetastore(getMetastorePath, hadoopConf)
 
   // Publicly available file system that is used to metastore
   val fs = metastore.getFileSystem(hadoopConf)
@@ -45,8 +49,11 @@ class Metastore(@transient val session: SparkSession) extends Logging {
   logInfo(s"Registered file system $fs")
 
   /** Resolve metastore path as raw string */
-  private[sql] def getMetastorePath(session: SparkSession): Option[String] = {
-    Try(session.conf.get(Metastore.METASTORE_OPTION)).toOption
+  private[sql] def getMetastorePath: Option[String] = {
+    Option(conf.metastoreLocation) match {
+      case valid @ Some(value) if value.nonEmpty => valid
+      case other => None
+    }
   }
 
   /** Return fully-qualified path for metastore */
@@ -178,9 +185,16 @@ class Metastore(@transient val session: SparkSession) extends Logging {
     }
   }
 
-  def location(identifier: String, path: Path): Path = {
+  /**
+   * Get path of index location for an identifier and path. Path is expected to be fully-qualified
+   * filepath with scheme.
+   */
+  private[datasources] def location(identifier: String, path: Path): Path = {
     Metastore.validateSupportIdentifier(identifier)
-    metastore.suffix(s"${Path.SEPARATOR}$identifier").
+    val scheme = Option(path.toUri.getScheme).getOrElse(fs.getScheme)
+    metastore.
+      suffix(s"${Path.SEPARATOR}$identifier").
+      suffix(s"${Path.SEPARATOR}$scheme").
       suffix(s"${Path.SEPARATOR}${path.toUri.getPath}")
   }
 
@@ -189,9 +203,7 @@ class Metastore(@transient val session: SparkSession) extends Logging {
   }
 }
 
-private[sql] object Metastore {
-  // reserved Spark configuration option for metastore
-  val METASTORE_OPTION = "spark.sql.index.metastore"
+object Metastore {
   // default metastore directory name
   val DEFAULT_METASTORE_DIR = "index_metastore"
   // permission mode "rwxrw-rw-"
@@ -200,8 +212,13 @@ private[sql] object Metastore {
 
   private val stores = scala.collection.mutable.HashMap[SparkSession, Metastore]()
 
+  /**
+   * Get already cached metastore for session, or create new one with index configuration.
+   * Index configuration is not updated when cached version is used.
+   */
   def getOrCreate(sparkSession: SparkSession): Metastore = {
-    stores.getOrElseUpdate(sparkSession, new Metastore(sparkSession))
+    stores.getOrElseUpdate(sparkSession, new Metastore(sparkSession,
+      IndexConf.newConf(sparkSession)))
   }
 
   def validateSupportIdentifier(identifier: String): Unit = {

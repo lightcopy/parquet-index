@@ -61,6 +61,10 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
     this
   }
 
+  /**
+   * Load indexed table as DataFrame.
+   * @param path filepath to the table (directory)
+   */
   def load(path: String): DataFrame = {
     option("path", path)
     sparkSession.baseRelationToDataFrame(
@@ -81,7 +85,7 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
 
   /**
    * Create index for table with path and columns to index.
-   * @param path filepath to the Parquet table (directory)
+   * @param path filepath to the table (directory)
    * @param column column to index (at least one required)
    * @param columns set of columns to index by
    */
@@ -96,7 +100,7 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
 
   /**
    * Create index using table path and column names.
-   * @param path filepath to the Parquet table (directory)
+   * @param path filepath to the table (directory)
    * @param columnName column name to provide (at least one required)
    * @param columnNames column names as strings
    */
@@ -104,6 +108,10 @@ class DataFrameIndexReader(sparkSession: SparkSession) {
     create(path, col(columnName), columnNames.map(col): _*)
   }
 
+  /**
+   * Delete index for table path
+   * @param path filepath to the table (directory)
+   */
   def delete(path: String): Unit = {
     option("path", path)
     IndexedDataSource(

@@ -23,6 +23,10 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 
+/**
+ * [[MetastoreIndexCatalog]] is a wrapper on index metadata stored in [[Metastore]]. Currently
+ * designed to provide catalog with single table path.
+ */
 abstract class MetastoreIndexCatalog extends FileCatalog with Logging {
 
   /** Fully qualified table path */
@@ -49,18 +53,18 @@ abstract class MetastoreIndexCatalog extends FileCatalog with Logging {
   /** Returns all the valid files. */
   def allFiles(): Seq[FileStatus]
 
+  /** Refresh the file listing */
+  def refresh(): Unit = { }
+
   /** Returns the list of input paths from which the catalog will get files. */
-  def paths: Seq[Path] = Seq(tablePath)
+  final def paths: Seq[Path] = Seq(tablePath)
 
   /**
    * Returns all valid files grouped into partitions when the data is partitioned. If the data is
    * unpartitioned, this will return a single partition with no partition values.
    * @param filters filters used to prune which partitions are returned.
    */
-  def listFiles(filters: Seq[Expression]): Seq[Partition] = {
+  final def listFiles(filters: Seq[Expression]): Seq[Partition] = {
     listFilesWithIndexSupport(filters, Nil)
   }
-
-  /** Refresh the file listing */
-  def refresh(): Unit = { }
 }

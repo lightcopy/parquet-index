@@ -20,6 +20,9 @@ import org.apache.hadoop.fs.FileStatus
 
 import org.apache.spark.sql.Column
 
+/**
+ * Interface [[MetastoreSupport]] to describe how index metadata should be saved or loaded.
+ */
 trait MetastoreSupport {
   /**
    * Index path suffix to identify file format to load index.

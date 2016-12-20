@@ -23,7 +23,7 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{Column, SaveMode, SparkSession}
-import org.apache.spark.sql.execution.datasources.parquet.ParquetIndexFileFormat
+import org.apache.spark.sql.execution.datasources.parquet.ParquetMetastoreSupport
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.Utils
@@ -34,7 +34,8 @@ case class IndexedDataSource(
     className: String,
     mode: SaveMode = SaveMode.ErrorIfExists,
     options: Map[String, String] = Map.empty,
-    bucketSpec: Option[BucketSpec] = None) extends Logging {
+    bucketSpec: Option[BucketSpec] = None)
+  extends Logging {
 
   lazy val providingClass: Class[_] = IndexedDataSource.lookupDataSource(className)
   lazy val tablePath: FileStatus = {
@@ -99,7 +100,7 @@ case class IndexedDataSource(
 }
 
 object IndexedDataSource {
-  val parquet = classOf[ParquetIndexFileFormat].getCanonicalName
+  val parquet = classOf[ParquetMetastoreSupport].getCanonicalName
 
   /**
    * Resolve class name into fully-qualified class path if available. If no match found, return

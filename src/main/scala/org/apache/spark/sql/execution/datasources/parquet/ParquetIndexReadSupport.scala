@@ -111,12 +111,12 @@ class ParquetIndexRecordMaterializer(
   }
 }
 
-class ParquetIndexSupport extends ReadSupport[Container] {
+class ParquetIndexReadSupport extends ReadSupport[Container] {
   override def init(
       conf: Configuration,
       keyValueMetaData: JMap[String, String],
       fileSchema: MessageType): ReadContext = {
-    val partialSchemaString = conf.get(ParquetIndexFileFormat.READ_SCHEMA)
+    val partialSchemaString = conf.get(ParquetMetastoreSupport.READ_SCHEMA)
     val requestedProjection = ReadSupport.getSchemaForRead(fileSchema, partialSchemaString)
     new ReadContext(requestedProjection)
   }
