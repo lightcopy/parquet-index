@@ -28,10 +28,19 @@ import org.apache.hadoop.fs.permission.{FsAction, FsPermission}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{SaveMode, SparkSession}
 
+/**
+ * [[Metastore]] provides global access to index directory and allows to locate index directory
+ * when creating, loading or deleting table index.
+ */
 class Metastore(@transient val session: SparkSession) extends Logging {
+  // Hadoop configuration used to create Spark context, to capture default file system
   private val hadoopConf = session.sparkContext.hadoopConfiguration
+  // Metastore location to use
   private val metastore = resolveMetastore(getMetastorePath(session), hadoopConf)
+
+  // Publicly available file system that is used to metastore
   val fs = metastore.getFileSystem(hadoopConf)
+
   logInfo(s"Resolved metastore directory to $metastore")
   logInfo(s"Registered file system $fs")
 

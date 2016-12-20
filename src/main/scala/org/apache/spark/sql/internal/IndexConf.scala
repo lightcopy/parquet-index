@@ -22,6 +22,7 @@ import scala.collection.JavaConverters._
 import scala.collection.immutable
 
 import org.apache.spark.internal.config._
+import org.apache.spark.sql.SparkSession
 
 /**
  * All available configuration for index functionality, similar to `SQLConf`.
@@ -33,7 +34,7 @@ private[spark] object IndexConf {
 
   def register(entry: ConfigEntry[_]): Unit = confEntries.synchronized {
     require(!confEntries.containsKey(entry.key),
-      s"Duplicate SQLConfigEntry. ${entry.key} has been registered")
+      s"Duplicate ConfigEntry. ${entry.key} has been registered")
     confEntries.put(entry.key, entry)
   }
 
@@ -41,6 +42,18 @@ private[spark] object IndexConf {
     def apply(key: String): ConfigBuilder = {
       new ConfigBuilder(key).onCreate(register)
     }
+  }
+
+  /** Get new configuration by extracting registered keys from Spark session */
+  def newConf(sparkSession: SparkSession): IndexConf = {
+    val conf = new IndexConf()
+    for (key <- confEntries.keySet().asScala) {
+      sparkSession.conf.getOption(key) match {
+        case Some(value) => conf.setConfString(key, value)
+        case None => // do nothing
+      }
+    }
+    conf
   }
 
   // metastore location (root directory in case of file system)
@@ -51,7 +64,7 @@ private[spark] object IndexConf {
     stringConf.
     createWithDefault("")
 
-  val CREATE_INDEX_WHEN_NOT_EXISTS = IndexConfigBuilder("spark.sql.index.createNotExists").
+  val CREATE_INDEX_IF_NOT_EXISTS = IndexConfigBuilder("spark.sql.index.createIfNotExists").
     doc("When set to true creates index during table read, if index does not exist in metastore").
     booleanConf.
     createWithDefault(false)
@@ -70,12 +83,19 @@ private[spark] class IndexConf extends Serializable {
   @transient private val settings = java.util.Collections.synchronizedMap(
     new java.util.HashMap[String, String]())
 
+  //////////////////////////////////////////////////////////////
   // == Index configuration ==
+  //////////////////////////////////////////////////////////////
+
   def metastoreLocation: String = getConf(METASTORE_LOCATION)
 
-  def createIndexWhenNotExists: Boolean = getConf(CREATE_INDEX_WHEN_NOT_EXISTS)
+  def createIndexIfNotExists: Boolean = getConf(CREATE_INDEX_IF_NOT_EXISTS)
 
   def parquetBloomFilterEnabled: Boolean = getConf(PARQUET_BLOOM_FILTER_ENABLED)
+
+  //////////////////////////////////////////////////////////////
+  // == Configuration functionality methods ==
+  //////////////////////////////////////////////////////////////
 
   /** Set the given configuration property using a `string` value. */
   def setConfString(key: String, value: String): Unit = {
