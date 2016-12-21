@@ -26,6 +26,12 @@ import org.apache.parquet.io.api._
 import org.apache.parquet.hadoop.api.ReadSupport
 import org.apache.parquet.hadoop.api.ReadSupport.ReadContext
 
+// Parquet read support and simple record materializer for index filters, e.g. bloom filters.
+// File schema is MessageType (GroupType), record materializer defines GroupConverter that allows
+// to traverse fields and invoke either group converter or primitive converter. Current
+// implementation only defines group converter for schema, it grabs only primitive fields at the
+// top level.
+
 abstract class Container {
   def setString(ordinal: Int, value: String): Unit
   def setBoolean(ordinal: Int, value: Boolean): Unit
@@ -48,6 +54,8 @@ private[parquet] class MapContainer extends Container {
   override def setLong(ordinal: Int, value: Long): Unit = buffer.put(ordinal, value)
   override def getByIndex(ordinal: Int): Any = buffer.get(ordinal)
 
+  // Initialize map before every read, allows to have access to current record and provides cleanup
+  // for every scan.
   override def init(): Unit = {
     if (buffer == null) {
       buffer = new JHashMap[Int, Any]()
