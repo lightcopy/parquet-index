@@ -16,6 +16,8 @@
 
 package com.github.lightcopy.util
 
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path => HadoopPath}
 
@@ -47,6 +49,71 @@ class UtilSuite extends UnitTestSuite {
       val path = new HadoopPath(dir.toString / "test")
       IOUtils.writeContent(fs, path, "test-content")
       IOUtils.readContent(fs, path) should be ("test-content")
+    }
+  }
+
+  test("read content into stream") {
+    withTempDir { dir =>
+      val path = dir.toString / "test"
+      touch(path)
+      val bytes = new Array[Byte](128)
+      IOUtils.readContentStream(fs, new HadoopPath(path)) { in =>
+        in.read(bytes)
+      }
+      bytes.sum should be (0)
+    }
+  }
+
+  test("write content into stream") {
+    withTempDir { dir =>
+      val path = dir.toString / "test"
+      val bytes = "test-content".getBytes()
+      IOUtils.writeContentStream(fs, new HadoopPath(path)) { out =>
+        out.write(bytes)
+      }
+      IOUtils.readContent(fs, new HadoopPath(path)) should be ("test-content")
+    }
+  }
+
+  test("Hadoop configuration - read/write object") {
+    val conf = new Configuration(false)
+    conf.set("test.key", "test.value")
+
+    withTempDir { dir =>
+      val path = dir.toString / "obj.tmp"
+      IOUtils.writeContentStream(fs, new HadoopPath(path)) { out =>
+        new ObjectOutputStream(out).writeObject(new SerializableConfiguration(conf))
+      }
+
+      // try reading object from the file and check for consistency
+      IOUtils.readContentStream(fs, new HadoopPath(path)) { in =>
+        val deserial = new ObjectInputStream(in).readObject().
+          asInstanceOf[SerializableConfiguration]
+        deserial.value.get("test.key") should be ("test.value")
+      }
+    }
+  }
+
+  test("SerializableFileStatus - from file status conversion") {
+    withTempDir { dir =>
+      val status = fs.getFileStatus(dir)
+      val serde = SerializableFileStatus.fromFileStatus(status)
+      serde.path should be (status.getPath.toString)
+      serde.length should be (status.getLen)
+      serde.isDir should be (status.isDirectory)
+      serde.blockReplication should be (status.getReplication)
+      serde.blockSize should be (status.getBlockSize)
+      serde.modificationTime should be (status.getModificationTime)
+      serde.accessTime should be (status.getAccessTime)
+    }
+  }
+
+  test("SerializableFileStatus - from/to file status conversion") {
+    withTempDir { dir =>
+      val status = fs.getFileStatus(dir)
+      val serde = SerializableFileStatus.fromFileStatus(status)
+      val result = SerializableFileStatus.toFileStatus(serde)
+      result should be (status)
     }
   }
 }
