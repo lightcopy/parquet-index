@@ -99,6 +99,12 @@ class DataFrameIndexManager(sparkSession: SparkSession) {
       source = source,
       options = extraOptions)
   }
+
+  /** Get currently set source, for testing only */
+  private[sql] def getSource(): String = this.source
+
+  /** Get currently set options, for testing only */
+  private[sql] def getOptions(): Map[String, String] = this.extraOptions.toMap
 }
 
 /**
@@ -169,6 +175,18 @@ private[sql] case class CreateIndexCommand(
     this.source = IndexedDataSource.parquet
     table(path)
   }
+
+  /** Get currently set source, for testing only */
+  private[sql] def getSource(): String = this.source
+
+  /** Get currently set options, for testing only */
+  private[sql] def getOptions(): Map[String, String] = this.options.toMap
+
+  /** Get currently set mode, for testing only */
+  private[sql] def getMode(): SaveMode = this.mode
+
+  /** Get currently set columns, for testing only */
+  private[sql] def getColumns(): Seq[Column] = this.columns.toList
 }
 
 /**
@@ -194,4 +212,10 @@ private[sql] case class DeleteIndexCommand(
     this.source = IndexedDataSource.parquet
     table(path)
   }
+
+  /** Get currently set source, for testing only */
+  private[sql] def getSource(): String = this.source
+
+  /** Get currently set options, for testing only */
+  private[sql] def getOptions(): Map[String, String] = this.options.toMap
 }

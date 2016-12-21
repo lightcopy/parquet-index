@@ -29,13 +29,18 @@ import org.apache.spark.sql.SparkSession
  * Used as part of the metastore.
  */
 private[spark] object IndexConf {
-  private val confEntries = java.util.Collections.synchronizedMap(
-    new java.util.HashMap[String, ConfigEntry[_]]())
+  private val confEntries =
+    java.util.Collections.synchronizedMap(new java.util.HashMap[String, ConfigEntry[_]]())
 
   def register(entry: ConfigEntry[_]): Unit = confEntries.synchronized {
     require(!confEntries.containsKey(entry.key),
-      s"Duplicate ConfigEntry. ${entry.key} has been registered")
+      s"Duplicate ConfigEntry. ${entry.key} has been registered, settings $confEntries")
     confEntries.put(entry.key, entry)
+  }
+
+  /** Reset list of registered configuration entries, for testing only */
+  private[internal] def reset(): Unit = {
+    confEntries.clear()
   }
 
   object IndexConfigBuilder {
@@ -75,7 +80,7 @@ private[spark] class IndexConf extends Serializable {
   import IndexConf._
 
   /** Only low degree of contention is expected for conf, thus NOT using ConcurrentHashMap. */
-  @transient private val settings = java.util.Collections.synchronizedMap(
+  @transient private[internal] val settings = java.util.Collections.synchronizedMap(
     new java.util.HashMap[String, String]())
 
   //////////////////////////////////////////////////////////////
@@ -89,6 +94,13 @@ private[spark] class IndexConf extends Serializable {
   //////////////////////////////////////////////////////////////
   // == Configuration functionality methods ==
   //////////////////////////////////////////////////////////////
+
+  /**
+   * Update value in configuration.
+   */
+  private def setConfWithCheck(key: String, value: String): Unit = {
+    settings.put(key, value)
+  }
 
   /** Set the given configuration property using a `string` value. */
   def setConfString(key: String, value: String): Unit = {
@@ -125,13 +137,6 @@ private[spark] class IndexConf extends Serializable {
    */
   def getAllConfs: immutable.Map[String, String] =
     settings.synchronized { settings.asScala.toMap }
-
-  /**
-   * Update value in configuration.
-   */
-  private def setConfWithCheck(key: String, value: String): Unit = {
-    settings.put(key, value)
-  }
 
   /**
    * Unset configuration for a given key.

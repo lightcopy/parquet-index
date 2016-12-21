@@ -37,4 +37,13 @@ class QueryContextSuite extends UnitTestSuite with SparkLocal {
     val strategies = spark.experimental.extraStrategies
     strategies.contains(IndexSourceStrategy) should be (true)
   }
+
+  test("strategy should be added once only") {
+    import com.github.lightcopy.implicits._
+    for (i <- 0 until 10) {
+      val manager = spark.index
+      val strategies = spark.experimental.extraStrategies
+      strategies.filter(_ == IndexSourceStrategy).length should be (1)
+    }
+  }
 }
