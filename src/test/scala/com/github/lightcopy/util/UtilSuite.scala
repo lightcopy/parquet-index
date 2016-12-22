@@ -19,7 +19,7 @@ package com.github.lightcopy.util
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{Path => HadoopPath}
+import org.apache.hadoop.fs.{BlockLocation, LocatedFileStatus, Path => HadoopPath}
 
 import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
@@ -111,6 +111,29 @@ class UtilSuite extends UnitTestSuite {
   test("SerializableFileStatus - from/to file status conversion") {
     withTempDir { dir =>
       val status = fs.getFileStatus(dir)
+      val serde = SerializableFileStatus.fromFileStatus(status)
+      val result = SerializableFileStatus.toFileStatus(serde)
+      result should be (status)
+    }
+  }
+
+  test("SerializableFileStatus - convert from status with block location") {
+    withTempDir { dir =>
+      val blocks = Array(new BlockLocation(Array("a", "b"), Array("h1", "h2"), 1L, 2L))
+      val status = new LocatedFileStatus(fs.getFileStatus(dir), blocks)
+      val serde = SerializableFileStatus.fromFileStatus(status)
+      serde.blockLocations.length should be (1)
+      serde.blockLocations.head.names should be (Array("a", "b"))
+      serde.blockLocations.head.hosts should be (Array("h1", "h2"))
+      serde.blockLocations.head.offset should be (1L)
+      serde.blockLocations.head.length should be (2L)
+    }
+  }
+
+  test("SerializableFileStatus - convert to status with block locations") {
+    withTempDir { dir =>
+      val blocks = Array(new BlockLocation(Array("a", "b"), Array("h1", "h2"), 1L, 2L))
+      val status = new LocatedFileStatus(fs.getFileStatus(dir), blocks)
       val serde = SerializableFileStatus.fromFileStatus(status)
       val result = SerializableFileStatus.toFileStatus(serde)
       result should be (status)

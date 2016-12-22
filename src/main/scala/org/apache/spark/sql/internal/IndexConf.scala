@@ -16,7 +16,7 @@
 
 package org.apache.spark.sql.internal
 
-import java.util.{NoSuchElementException, Properties}
+import java.util.{Collections, HashMap, NoSuchElementException, Properties}
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable
@@ -29,21 +29,17 @@ import org.apache.spark.sql.SparkSession
  * Used as part of the metastore.
  */
 private[spark] object IndexConf {
+  // readonly/write-once map to restore conf entries
   private val confEntries =
-    java.util.Collections.synchronizedMap(new java.util.HashMap[String, ConfigEntry[_]]())
+    Collections.synchronizedMap(new HashMap[String, ConfigEntry[_]]())
 
-  def register(entry: ConfigEntry[_]): Unit = confEntries.synchronized {
+  private[internal] def register(entry: ConfigEntry[_]): Unit = confEntries.synchronized {
     require(!confEntries.containsKey(entry.key),
       s"Duplicate ConfigEntry. ${entry.key} has been registered, settings $confEntries")
     confEntries.put(entry.key, entry)
   }
 
-  /** Reset list of registered configuration entries, for testing only */
-  private[internal] def reset(): Unit = {
-    confEntries.clear()
-  }
-
-  object IndexConfigBuilder {
+  private object IndexConfigBuilder {
     def apply(key: String): ConfigBuilder = {
       new ConfigBuilder(key).onCreate(register)
     }
@@ -117,7 +113,6 @@ private[spark] class IndexConf extends Serializable {
   def setConf[T](entry: ConfigEntry[T], value: T): Unit = {
     require(entry != null, "entry cannot be null")
     require(value != null, s"value cannot be null for key: ${entry.key}")
-    require(confEntries.get(entry.key) == entry, s"$entry is not registered")
     setConfWithCheck(entry.key, entry.stringConverter(value))
   }
 
@@ -126,7 +121,6 @@ private[spark] class IndexConf extends Serializable {
    * set yet, return `defaultValue` in `ConfigEntry`.
    */
   def getConf[T](entry: ConfigEntry[T]): T = {
-    require(confEntries.get(entry.key) == entry, s"$entry is not registered")
     Option(settings.get(entry.key)).map(entry.valueConverter).orElse(entry.defaultValue).
       getOrElse(throw new NoSuchElementException(entry.key))
   }

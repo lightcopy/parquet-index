@@ -32,23 +32,17 @@ class IndexConfSuite extends UnitTestSuite with SparkLocal {
     stopSparkSession()
   }
 
-  before {
-    IndexConf.reset()
-  }
-
   test("fail when registering duplicate key") {
-    val entry = IndexConfigBuilder("test.key").stringConf.createWithDefault("test.value")
-
     // fail to register the same entry
     var err = intercept[IllegalArgumentException] {
-      IndexConf.register(entry)
+      IndexConf.register(IndexConf.METASTORE_LOCATION)
     }
     assert(err.getMessage.contains("Duplicate ConfigEntry"))
 
     // fail to register new entry with the same key
     err = intercept[IllegalArgumentException] {
       IndexConf.register(
-        IndexConfigBuilder("test.key").stringConf.createWithDefault("test.value"))
+        ConfigBuilder(IndexConf.METASTORE_LOCATION.key).stringConf.createWithDefault("test.value"))
     }
     assert(err.getMessage.contains("Duplicate ConfigEntry"))
   }
@@ -59,8 +53,9 @@ class IndexConfSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("create new conf with registered entries") {
-    val entry = IndexConfigBuilder("test.key").stringConf.createWithDefault("test.value")
+    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("")
     val conf = IndexConf.newConf(spark)
+    conf.setConf(entry, "test.value")
     conf.getConf(entry) should be ("test.value")
   }
 
@@ -84,7 +79,7 @@ class IndexConfSuite extends UnitTestSuite with SparkLocal {
     }
     assert(err.getMessage.contains("entry cannot be null"))
 
-    val entry = IndexConfigBuilder("test.key").stringConf.createWithDefault("test.value")
+    val entry = ConfigBuilder("test.key").stringConf.createOptional
     err = intercept[IllegalArgumentException] {
       conf.setConf(entry, null)
     }
@@ -92,7 +87,7 @@ class IndexConfSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("set key for existing entry") {
-    val entry = IndexConfigBuilder("test.key").stringConf.createWithDefault("test.value")
+    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("test.value")
     val conf = new IndexConf()
     conf.setConf(entry, "test.value1")
     conf.setConfString("test.key", "test.value2")
@@ -100,21 +95,14 @@ class IndexConfSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("get existing key") {
-    val entry = IndexConfigBuilder("test.key").stringConf.createWithDefault("test.value")
+    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("")
     val conf = new IndexConf()
+    conf.setConf(entry, "test.value")
     conf.getConf(entry) should be ("test.value")
   }
 
-  test("fail to get non-existing key") {
-    val conf = new IndexConf()
-    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("test.value")
-    intercept[IllegalArgumentException] {
-      conf.getConf(entry)
-    }
-  }
-
   test("fail to get unregistered key") {
-    val entry = IndexConfigBuilder("test.key").stringConf.createOptional
+    val entry = ConfigBuilder("test.key").stringConf.createOptional
     val conf = new IndexConf()
     intercept[NoSuchElementException] {
       conf.getConf(entry)
@@ -122,7 +110,7 @@ class IndexConfSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("unset key") {
-    val entry = IndexConfigBuilder("test.key").stringConf.createWithDefault("test.value")
+    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("test.value")
     val conf = new IndexConf()
     conf.setConf(entry, "test.value1")
     conf.unsetConf(entry.key)
@@ -130,7 +118,7 @@ class IndexConfSuite extends UnitTestSuite with SparkLocal {
   }
 
   test("unset entry") {
-    val entry = IndexConfigBuilder("test.key").stringConf.createWithDefault("test.value")
+    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("test.value")
     val conf = new IndexConf()
     conf.setConf(entry, "test.value1")
     conf.unsetConf(entry)
