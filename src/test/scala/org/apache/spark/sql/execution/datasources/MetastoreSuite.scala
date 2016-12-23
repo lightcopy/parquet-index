@@ -28,25 +28,28 @@ import org.apache.spark.sql.internal.IndexConf
 import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
 import com.github.lightcopy.testutil.implicits._
 
-class MetastoreSuite extends UnitTestSuite with SparkLocal {
+// Provided shortcut to create metastore in tests
+private[datasources] trait TestMetastore {
+  /** Load metastore and set metastore location to provided path */
+  def testMetastore(spark: SparkSession, location: Path): Metastore = {
+    testMetastore(spark, location.toString)
+  }
+
+  /** Load metastore and set metastore location to provided path as string */
+  def testMetastore(spark: SparkSession, location: String): Metastore = {
+    val conf = IndexConf.newConf(spark)
+    conf.setConf(IndexConf.METASTORE_LOCATION, location)
+    new Metastore(spark, conf)
+  }
+}
+
+class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
   override def beforeAll {
     startSparkSession()
   }
 
   override def afterAll {
     stopSparkSession()
-  }
-
-  // Load metastore and set metastore location to provided path
-  private def testMetastore(spark: SparkSession, location: Path): Metastore = {
-    testMetastore(spark, location.toString)
-  }
-
-  // Load metastore and set metastore location to provided path as string
-  private def testMetastore(spark: SparkSession, location: String): Metastore = {
-    val conf = IndexConf.newConf(spark)
-    conf.setConf(IndexConf.METASTORE_LOCATION, location)
-    new Metastore(spark, conf)
   }
 
   test("create non-existent directory for metastore") {

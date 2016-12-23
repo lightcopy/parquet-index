@@ -58,6 +58,7 @@ private[sql] class Metastore(
 
   /** Return fully-qualified path for metastore */
   private[sql] def resolveMetastore(rawPath: Option[String], conf: Configuration): Path = {
+    // path is not provided always resolve to local file system
     val hadoopConf = if (rawPath.isEmpty) new Configuration(false) else conf
     val path = new Path(rawPath.getOrElse(Metastore.DEFAULT_METASTORE_DIR))
     val fs = path.getFileSystem(hadoopConf)
