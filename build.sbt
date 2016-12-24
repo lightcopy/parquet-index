@@ -40,7 +40,7 @@ libraryDependencies ++= Seq(
   "io.netty" % "netty" % "3.6.2.Final" % "provided"
 )
 
-// check deprecation without manual restart
+// Check deprecation without manual restart
 scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation", "-feature")
 
 // Display full-length stacktraces from ScalaTest
