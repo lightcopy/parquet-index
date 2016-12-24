@@ -85,6 +85,19 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
+  test("fail to create if index schema contains non-existing column") {
+    withTempDir { dir =>
+      withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        spark.range(0, 10).write.parquet(dir.toString / "test")
+        val err = intercept[IllegalArgumentException] {
+          spark.index.create.indexBy("str", "id").parquet(dir.toString / "test")
+        }
+        assert(err.getMessage.contains("Failed to select indexed columns. Column str does not " +
+          "exist in inferred schema struct<id:bigint>"))
+      }
+    }
+  }
+
   test("create Parquet index with overwrite mode") {
     withTempDir { dir =>
       withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
@@ -148,7 +161,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         spark.range(0, 9).withColumn("str", lit("abc")).write.parquet(dir.toString / "test")
         spark.index.create.indexBy("id", "str").parquet(dir.toString / "test")
         spark.index.exists.parquet(dir.toString / "test") should be (true)
-        spark.index.delete.table(dir.toString / "test")
+        spark.index.delete.parquet(dir.toString / "test")
         spark.index.exists.parquet(dir.toString / "test") should be (false)
       }
     }
@@ -159,7 +172,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
       withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
         spark.range(0, 9).withColumn("str", lit("abc")).write.parquet(dir.toString / "test")
         spark.index.exists.parquet(dir.toString / "test") should be (false)
-        spark.index.delete.table(dir.toString / "test")
+        spark.index.delete.parquet(dir.toString / "test")
         spark.index.exists.parquet(dir.toString / "test") should be (false)
       }
     }
@@ -169,7 +182,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     withTempDir { dir =>
       withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
         intercept[FileNotFoundException] {
-          spark.index.delete.table(dir.toString / "test")
+          spark.index.delete.parquet(dir.toString / "test")
         }
       }
     }
@@ -192,13 +205,16 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
-        spark.range(0, 1000).withColumn("str", lit("abc")).repartition(200).
-          write.parquet(dir.toString / "test")
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+          (id, s"$id") }.toDF("id", "str")
+        df.write.parquet(dir.toString / "test")
+
         spark.index.create.indexBy("id", "str").parquet(dir.toString / "test")
         val df1 = spark.index.parquet(dir.toString / "test").filter(col("id") === 1)
         val df2 = spark.read.parquet(dir.toString / "test").filter(col("id") === 1)
         checkAnswer(df1, df2)
-        df1.show()
       }
     }
   }
@@ -208,15 +224,18 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
-        spark.range(0, 1000).withColumn("str", col("id").cast("string")).repartition(200).
-          write.parquet(dir.toString / "test")
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+          (id, s"$id") }.toDF("id", "str")
+        df.write.parquet(dir.toString / "test")
+
         spark.index.create.indexBy("id", "str").parquet(dir.toString / "test")
         val df1 = spark.index.parquet(dir.toString / "test").
           filter(col("id") === 1 && col("str") === "999")
         val df2= spark.read.parquet(dir.toString / "test").
           filter(col("id") === 1 && col("str") === "999")
         checkAnswer(df1, df2)
-        df1.show()
       }
     }
   }
@@ -226,15 +245,37 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
-        spark.range(0, 1000).withColumn("str", col("id").cast("string")).repartition(200).
-          write.parquet(dir.toString / "test")
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+          (id, s"$id") }.toDF("id", "str")
+        df.write.parquet(dir.toString / "test")
+
         spark.index.create.indexBy("id", "str").parquet(dir.toString / "test")
         val df1 = spark.index.parquet(dir.toString / "test").
           filter(col("id") === 1 || col("str") === "999")
         val df2= spark.read.parquet(dir.toString / "test").
           filter(col("id") === 1 || col("str") === "999")
         checkAnswer(df1, df2)
-        df1.show()
+      }
+    }
+  }
+
+  test("read correctness for Parquet table (bloom filters) with null filter") {
+    withTempDir { dir =>
+      withSQLConf(
+          METASTORE_LOCATION.key -> dir.toString / "metastore",
+          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+          (id, s"$id") }.toDF("id", "str")
+        df.write.parquet(dir.toString / "test")
+
+        spark.index.create.indexBy("id", "str").parquet(dir.toString / "test")
+        val df1 = spark.index.parquet(dir.toString / "test").filter(col("str").isNull)
+        val df2 = spark.index.parquet(dir.toString / "test").filter(col("str").isNull)
+        checkAnswer(df1, df2)
       }
     }
   }
@@ -244,13 +285,16 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
-        spark.range(0, 1000).withColumn("str", col("id").cast("string")).repartition(200).
-          write.parquet(dir.toString / "test")
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+          (id, s"$id") }.toDF("id", "str")
+        df.write.parquet(dir.toString / "test")
+
         spark.index.create.indexBy("id").parquet(dir.toString / "test")
         val df1 = spark.index.parquet(dir.toString / "test").filter(col("str") === "999")
         val df2 = spark.read.parquet(dir.toString / "test").filter(col("str") === "999")
         checkAnswer(df1, df2)
-        df1.show()
       }
     }
   }
@@ -260,15 +304,18 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
-        spark.range(0, 1000).withColumn("str", col("id").cast("string")).repartition(200).
-          write.parquet(dir.toString / "test")
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+          (id, s"$id") }.toDF("id", "str")
+        df.write.parquet(dir.toString / "test")
+
         spark.index.create.indexBy("id").parquet(dir.toString / "test")
         val df1 = spark.index.parquet(dir.toString / "test").
           filter(col("id") > 900 || col("id") < 2)
         val df2 = spark.read.parquet(dir.toString / "test").
           filter(col("id") > 900 || col("id") < 2)
         checkAnswer(df1, df2)
-        df1.show()
       }
     }
   }

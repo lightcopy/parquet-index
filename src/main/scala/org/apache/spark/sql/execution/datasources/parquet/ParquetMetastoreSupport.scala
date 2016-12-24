@@ -167,7 +167,18 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
 
     // fetch specified columns
     val fields = fileStruct.filter { field => columns.contains(field.name) }
-    StructType(fields)
+    val inferredSchema = StructType(fields)
+
+    // inferred fields should be the same as requested columns
+    columns.foreach { name =>
+      val containsField = inferredSchema.exists { _.name == name }
+      if (!containsField) {
+        throw new IllegalArgumentException(s"Failed to select indexed columns. Column $name does " +
+          s"not exist in inferred schema ${inferredSchema.simpleString}")
+      }
+    }
+
+    inferredSchema
   }
 
   private def tableMetadataLocation(root: Path): Path = {
