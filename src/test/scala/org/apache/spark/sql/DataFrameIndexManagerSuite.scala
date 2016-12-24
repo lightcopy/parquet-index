@@ -155,6 +155,13 @@ class DataFrameIndexManagerSuite extends UnitTestSuite with SparkLocal {
     ddl.indexBy("a", "b", "c").getColumns should be (Seq(col("a"), col("b"), col("c")))
   }
 
+  test("exists command - init") {
+    val manager = new DataFrameIndexManager(spark).option("key", "value")
+    val ddl = manager.exists
+    ddl.getSource should be (manager.getSource)
+    ddl.getOptions should be (manager.getOptions)
+  }
+
   test("delete command - init") {
     val manager = new DataFrameIndexManager(spark).option("key", "value")
     val ddl = manager.delete

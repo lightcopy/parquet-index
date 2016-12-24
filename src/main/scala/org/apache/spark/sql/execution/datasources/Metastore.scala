@@ -186,6 +186,12 @@ private[sql] class Metastore(
     }
   }
 
+  /** Check whether or not path exists for given identifier and path */
+  def exists(identifier: String, path: Path): Boolean = {
+    val resolvedPath = location(identifier, path)
+    fs.exists(resolvedPath)
+  }
+
   /**
    * Get path of index location for an identifier and path. Path is expected to be fully-qualified
    * filepath with scheme.

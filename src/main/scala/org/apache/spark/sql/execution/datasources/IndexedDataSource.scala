@@ -88,6 +88,15 @@ case class IndexedDataSource(
       throw new UnsupportedOperationException(s"Creation of index is not supported by $other")
   }
 
+  /** Check if index exists */
+  def existsIndex(): Boolean = providingClass.newInstance() match {
+    case s: MetastoreSupport =>
+      logInfo(s"Check index for $s, table=${tablePath.getPath}")
+      metastore.exists(s.identifier, tablePath.getPath)
+    case other =>
+      throw new UnsupportedOperationException(s"Check of index is not supported by $other")
+  }
+
   /** Delete index if exists, otherwise no-op */
   def deleteIndex(): Unit = providingClass.newInstance() match {
     case s: MetastoreSupport =>

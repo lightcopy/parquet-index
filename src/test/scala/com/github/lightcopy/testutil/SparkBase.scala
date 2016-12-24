@@ -16,6 +16,8 @@
 
 package com.github.lightcopy.testutil
 
+import scala.util.Try
+
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SparkSession
 
@@ -57,4 +59,17 @@ private[testutil] trait SparkBase {
 
   /** Returns Spark session */
   def spark: SparkSession = _spark
+
+  /** Allow tests to set custom SQL configuration for duration of the closure */
+  def withSQLConf(pairs: (String, String)*)(func: => Unit): Unit = {
+    val (keys, values) = pairs.unzip
+    val currentValues = keys.map(key => Try(spark.conf.get(key)).toOption)
+    (keys, values).zipped.foreach(spark.conf.set)
+    try func finally {
+      keys.zip(currentValues).foreach {
+        case (key, Some(value)) => spark.conf.set(key, value)
+        case (key, None) => spark.conf.unset(key)
+      }
+    }
+  }
 }

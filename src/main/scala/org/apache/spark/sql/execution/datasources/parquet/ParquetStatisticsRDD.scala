@@ -41,7 +41,7 @@ import org.apache.spark.util.sketch.BloomFilter
 import com.github.lightcopy.util.{SerializableConfiguration, SerializableFileStatus}
 
 /** [[ParquetStatisticsPartition]] to keep information about file statuses */
-private[parquet] class ParquetStatisticsPartition (
+private[parquet] class ParquetStatisticsPartition(
     val rddId: Long,
     val slice: Int,
     val values: Seq[SerializableFileStatus])

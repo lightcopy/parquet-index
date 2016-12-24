@@ -92,6 +92,14 @@ class DataFrameIndexManager(sparkSession: SparkSession) {
       options = extraOptions)
   }
 
+  /** DDL command to check if index exists in metastore */
+  def exists: ExistsIndexCommand = {
+    ExistsIndexCommand(
+      sparkSession = sparkSession,
+      source = source,
+      options = extraOptions)
+  }
+
   /** DDL command to delete index for provided source */
   def delete: DeleteIndexCommand = {
     DeleteIndexCommand(
@@ -187,6 +195,36 @@ private[sql] case class CreateIndexCommand(
 
   /** Get currently set columns, for testing only */
   private[sql] def getColumns(): Seq[Column] = this.columns.toList
+}
+
+/**
+ * [[ExistsIndexCommand]] reports whether or not given table path is indexed.
+ */
+private[sql] case class ExistsIndexCommand(
+    @transient val sparkSession: SparkSession,
+    private var source: String,
+    private val options: MutableHashMap[String, String]) {
+
+  /** Path to the table to check index for */
+  def table(path: String): Boolean = {
+    this.options += "path" -> path
+    IndexedDataSource(
+      Metastore.getOrCreate(sparkSession),
+      className = source,
+      options = this.options.toMap).existsIndex()
+  }
+
+  /** Path to the parquet table to check existence of index for, forces Parquet source */
+  def parquet(path: String): Boolean = {
+    this.source = IndexedDataSource.parquet
+    table(path)
+  }
+
+  /** Get currently set source, for testing only */
+  private[sql] def getSource(): String = this.source
+
+  /** Get currently set options, for testing only */
+  private[sql] def getOptions(): Map[String, String] = this.options.toMap
 }
 
 /**
