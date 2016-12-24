@@ -193,7 +193,12 @@ case class ParquetColumnMetadata(
 
   /** Update current column metadata with new filter */
   def withFilter(newFilter: Option[ParquetColumnFilter]): ParquetColumnMetadata = {
-    ParquetColumnMetadata(fieldName, valueCount, stats, newFilter)
+    // do check on option value
+    val updatedFilter = newFilter match {
+      case Some(null) | None => None
+      case valid @ Some(_) => valid
+    }
+    ParquetColumnMetadata(fieldName, valueCount, stats, updatedFilter)
   }
 }
 

@@ -264,8 +264,56 @@ class StatisticsSuite extends UnitTestSuite {
     }
   }
 
+  test("ParquetBloomFilter - set filter") {
+    val filter = BloomFilter.create(100, 0.05)
+    filter.put(1)
+
+    val p = ParquetBloomFilter("path")
+    p.setBloomFilter(filter)
+    p.isSet should be (true)
+    p.mightContain(1) should be (true)
+  }
+
+  test("ParquetBloomFilter - init is no-op if filter is already set") {
+    val filter = BloomFilter.create(100, 0.05)
+    filter.put(1)
+
+    val p = ParquetBloomFilter(null)
+    p.setBloomFilter(filter)
+    p.init(new Configuration(false))
+
+    p.mightContain(1) should be (true)
+  }
+
   test("ParquetBloomFilter - toString") {
     val filter = ParquetBloomFilter("/tmp/bloom.filter")
     filter.toString should be ("ParquetBloomFilter(path=/tmp/bloom.filter)")
+  }
+
+  test("ParquetColumnMetadata - withFilter") {
+    val meta = ParquetColumnMetadata("field", 100, ParquetIntStatistics(0, 1, 0L), None)
+    meta.withFilter(None).filter should be (None)
+    meta.withFilter(Some(null)).filter should be (None)
+    meta.withFilter(Some(ParquetBloomFilter("path"))).filter should be (
+      Some(ParquetBloomFilter("path")))
+  }
+
+  test("ParquetFileStatus - numRows for empty blocks") {
+    val status = ParquetFileStatus(status = null, "schema", Array.empty)
+    status.numRows should be (0)
+  }
+
+  test("ParquetFileStatus - numRows for single block") {
+    val status = ParquetFileStatus(status = null, "schema",
+      Array(ParquetBlockMetadata(123, Map.empty)))
+    status.numRows should be (123)
+  }
+
+  test("ParquetFileStatus - numRows for non-empty blocks") {
+    val status = ParquetFileStatus(status = null, "schema", Array(
+      ParquetBlockMetadata(11, Map.empty),
+      ParquetBlockMetadata(12, Map.empty),
+      ParquetBlockMetadata(13, Map.empty)))
+    status.numRows should be (36)
   }
 }
