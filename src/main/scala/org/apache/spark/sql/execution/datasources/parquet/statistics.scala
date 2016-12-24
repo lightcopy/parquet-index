@@ -58,8 +58,12 @@ abstract class ParquetColumnStatistics {
 case class ParquetIntStatistics(min: Int, max: Int, numNulls: Long)
   extends ParquetColumnStatistics {
 
+  require(min <= max, s"Min $min is expected to be less than or equal to max $max")
+  require(numNulls >= 0, s"Number of nulls $numNulls is negative")
+
   override def contains(value: Any): Boolean = value match {
     case intValue: Int => intValue >= min && intValue <= max
+    case other if other == null && hasNull => true
     case other => false
   }
 
@@ -73,8 +77,12 @@ case class ParquetIntStatistics(min: Int, max: Int, numNulls: Long)
 case class ParquetLongStatistics(min: Long, max: Long, numNulls: Long)
   extends ParquetColumnStatistics {
 
+  require(min <= max, s"Min $min is expected to be less than or equal to max $max")
+  require(numNulls >= 0, s"Number of nulls $numNulls is negative")
+
   override def contains(value: Any): Boolean = value match {
     case longValue: Long => longValue >= min && longValue <= max
+    case other if other == null && hasNull => true
     case other => false
   }
 
@@ -85,11 +93,20 @@ case class ParquetLongStatistics(min: Long, max: Long, numNulls: Long)
   override def getNumNulls(): Long  = numNulls
 }
 
+// Statistics use lexicographical order when comparing strings
+// TODO: Add support for non-ASCII characters comparison, see
+// https://issues.apache.org/jira/browse/SPARK-17213
 case class ParquetStringStatistics(min: String, max: String, numNulls: Long)
   extends ParquetColumnStatistics {
 
+  require(min != null, "Min value cannot be null, set null count instead")
+  require(max != null, "Max value cannot be null, set null count instead")
+  require(min <= max, s"Min $min is greater than max $max")
+  require(numNulls >= 0, s"Number of nulls $numNulls is negative")
+
   override def contains(value: Any): Boolean = value match {
     case stringValue: String => stringValue >= min && stringValue <= max
+    case other if other == null && hasNull => true
     case other => false
   }
 
@@ -107,6 +124,9 @@ case class ParquetStringStatistics(min: String, max: String, numNulls: Long)
 abstract class ParquetColumnFilter {
   /** Initialize filter, e.g. load from disk */
   def init(conf: Configuration): Unit
+
+  /** Whether or not filter requires calling init() method */
+  def isSet(): Boolean
 
   /** Destroy filter, release memory and/or resources */
   def destroy(): Unit
@@ -141,6 +161,8 @@ case class ParquetBloomFilter(path: String) extends ParquetColumnFilter {
       }
     }
   }
+
+  override def isSet(): Boolean = bloomFilter != null
 
   override def destroy(): Unit = {
     bloomFilter = null
