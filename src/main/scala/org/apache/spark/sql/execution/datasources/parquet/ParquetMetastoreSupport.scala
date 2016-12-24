@@ -153,7 +153,7 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
     }
   }
 
-  /** Infer schema by requesting provided set of columns */
+  /** Infer schema by requesting provided set of columns from a single partition */
   private def inferIndexSchema(
       metastore: Metastore, partitions: Seq[Partition], columns: Seq[String]): StructType = {
     val conf = metastore.session.sparkContext.hadoopConfiguration

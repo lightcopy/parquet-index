@@ -31,7 +31,7 @@ import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl
 import org.apache.parquet.column.statistics._
 import org.apache.parquet.hadoop.{ParquetFileReader, ParquetInputSplit, ParquetRecordReader}
 import org.apache.parquet.hadoop.metadata.{ColumnChunkMetaData, ParquetMetadata}
-import org.apache.parquet.schema.{MessageType, MessageTypeParser}
+import org.apache.parquet.schema.MessageType
 
 import org.apache.spark.{SparkContext, Partition, TaskContext}
 import org.apache.spark.rdd.RDD
@@ -149,11 +149,11 @@ class ParquetStatisticsRDD(
 
         val updatedBlocks = if (bloomFilterDir.isDefined) {
           logDebug(s"Bloom filter root status: $bloomFilterDir, requested schema: $requestedSchema")
-          val attemptId = new TaskAttemptID(new TaskID(new JobID(UUID.randomUUID.toString, 0),
-            TaskType.MAP, partitionIndex), 0)
-          val context = new TaskAttemptContextImpl(configuration, attemptId)
-
-          ParquetStatisticsRDD.withBloomFilters(requestedSchema, context, blocks, status,
+          ParquetStatisticsRDD.withBloomFilters(
+            requestedSchema,
+            ParquetStatisticsRDD.taskAttemptContext(configuration, partitionIndex),
+            blocks,
+            status,
             bloomFilterDir.get)
         } else {
           logDebug(s"Bloom filter is disabled")
@@ -192,6 +192,10 @@ private[parquet] object ParquetStatisticsRDD {
   def validateStructType(schema: StructType): Unit = {
     // supported data types from Spark SQL
     val supportedTypes: Set[DataType] = Set(IntegerType, LongType, StringType)
+    if (schema.isEmpty) {
+      throw new UnsupportedOperationException(s"Empty schema $schema is not supported, please " +
+        s"provide at least one column of a type ${supportedTypes.mkString("[", ", ", "]")}")
+    }
     schema.fields.foreach { field =>
       if (!supportedTypes.contains(field.dataType)) {
         throw new UnsupportedOperationException("Schema contains unsupported type, " +
@@ -210,6 +214,16 @@ private[parquet] object ParquetStatisticsRDD {
         convertColumns(block.getColumns().asScala, schema))
     }
     blocks.toArray
+  }
+
+  /**
+   * Get task context based on hadoop configuration and partition index.
+   * Essentially a shortcut that is used in tests too.
+   */
+  def taskAttemptContext(conf: Configuration, partitionIndex: Int): TaskAttemptContext = {
+    val attemptId = new TaskAttemptID(new TaskID(new JobID(UUID.randomUUID.toString, 0),
+      TaskType.MAP, partitionIndex), 0)
+    new TaskAttemptContextImpl(conf, attemptId)
   }
 
   private def convertColumns(
@@ -323,7 +337,11 @@ private[parquet] object ParquetStatisticsRDD {
     }
   }
 
-  private def prepareBloomFilter(
+  /**
+   * Prepare bloom filter per column, blocks are used to get total number of records for fpp
+   * estimation.
+   */
+  private[parquet] def prepareBloomFilter(
       schema: MessageType,
       blocks: Array[ParquetBlockMetadata]): Map[Int, (String, BloomFilter)] = {
     // all columns should have the same index across blocks
