@@ -100,7 +100,7 @@ class ParquetStatisticsRDD(
     // convert schema of struct type into Parquet schema
     val partitionIndex = partition.index
     val requestedSchema = new ParquetSchemaConverter().convert(schema)
-    logDebug(s"Indexed schema ${schema.prettyJson}, parquet schema $requestedSchema")
+    logInfo(s"Indexed schema ${schema.prettyJson}, parquet schema $requestedSchema")
     val iter = partition.iterator
 
     new Iterator[ParquetFileStatus]() {
@@ -111,7 +111,7 @@ class ParquetStatisticsRDD(
       override def next(): ParquetFileStatus = {
         val serdeStatus = iter.next
         val status = SerializableFileStatus.toFileStatus(serdeStatus)
-        logInfo(s"Reading file ${status.getPath}")
+        logDebug(s"Reading file ${status.getPath}")
         // read metadata for the file, we always extract one footer
         val footer = ParquetFileReader.readAllFootersInParallelUsingSummaryFiles(
           configuration, Arrays.asList(status), false).get(0)
@@ -120,7 +120,7 @@ class ParquetStatisticsRDD(
         // check that requested schema is part of the file schema
         schema.checkContains(requestedSchema)
 
-        logInfo(s"""
+        logDebug(s"""
           | Collect statistics for Parquet file:
           | ${status.getPath}
           | == Schema ==
@@ -148,7 +148,7 @@ class ParquetStatisticsRDD(
         val blocks = ParquetStatisticsRDD.convertBlocks(metadata, requestedSchema)
 
         val updatedBlocks = if (bloomFilterDir.isDefined) {
-          logInfo(s"Bloom filter root status: $bloomFilterDir, requested schema: $requestedSchema")
+          logDebug(s"Bloom filter root status: $bloomFilterDir, requested schema: $requestedSchema")
           val attemptId = new TaskAttemptID(new TaskID(new JobID(UUID.randomUUID.toString, 0),
             TaskType.MAP, partitionIndex), 0)
           val context = new TaskAttemptContextImpl(configuration, attemptId)
@@ -156,7 +156,7 @@ class ParquetStatisticsRDD(
           ParquetStatisticsRDD.withBloomFilters(requestedSchema, context, blocks, status,
             bloomFilterDir.get)
         } else {
-          logInfo(s"Bloom filter is disabled")
+          logDebug(s"Bloom filter is disabled")
           blocks
         }
 
