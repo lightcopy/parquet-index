@@ -351,8 +351,8 @@ private[parquet] object ParquetStatisticsRDD {
       schema.getFields.asScala.flatMap { field =>
         val index = schema.getFieldIndex(field.getName)
         if (columns.contains(field.getName)) {
-          // create bloom filter with fpp of 5%
-          Some((index, (field.getName, BloomFilter.create(numRows, 0.05))))
+          // create bloom filter with fpp of 3%
+          Some((index, (field.getName, BloomFilter.create(numRows, 0.03))))
         } else {
           None
         }

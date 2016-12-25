@@ -67,7 +67,7 @@ private[spark] object IndexConf {
 
   // option to enable/disable bloom filters for Parquet index
   val PARQUET_BLOOM_FILTER_ENABLED = IndexConfigBuilder("spark.sql.index.parquet.bloom.enabled").
-    doc("Whet set to true writes bloom filters for indexed columns when creating table index").
+    doc("When set to true writes bloom filters for indexed columns when creating table index").
     booleanConf.
     createWithDefault(false)
 }
