@@ -85,7 +85,7 @@ class ParquetIndexCatalog(
     partition.files.map { parquetFile => SerializableFileStatus.toFileStatus(parquetFile.status) }
   }
 
-  private def prunePartitions(
+  private[parquet] def prunePartitions(
       predicates: Seq[Expression],
       partitionSpec: PartitionSpec): Seq[PartitionDirectory] = {
     val PartitionSpec(partitionColumns, partitions) = partitionSpec

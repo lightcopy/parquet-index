@@ -17,12 +17,15 @@
 package org.apache.spark.sql.execution.datasources.parquet
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
 
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.execution.datasources.TestMetastore
+import org.apache.spark.sql.catalyst.expressions
+import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 
+import com.github.lightcopy.util.SerializableFileStatus
 import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
 import com.github.lightcopy.testutil.implicits._
 
@@ -45,6 +48,18 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
     stopSparkSession()
   }
 
+  private def testSerDeStatus: SerializableFileStatus = {
+    SerializableFileStatus(
+      path = "path",
+      length = 1L,
+      isDir = false,
+      blockReplication = 1,
+      blockSize = 128L,
+      modificationTime = 1L,
+      accessTime = 1L,
+      blockLocations = Array.empty)
+  }
+
   test("fail if index metadata is null") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir.toString / "test_metastore")
@@ -52,6 +67,70 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
         new ParquetIndexCatalog(metastore, null)
       }
       assert(err.getMessage.contains("Parquet index metadata is null"))
+    }
+  }
+
+  // Test invokes all overwritten methods for catalog to ensure that we return expected results
+  test("initialize parquet index catalog") {
+    withTempDir { dir =>
+      val metastore = testMetastore(spark, dir.toString / "test_metastore")
+      val metadata = ParquetIndexMetadata(
+        "tablePath",
+        StructType(StructField("a", LongType) :: Nil),
+        StructType(StructField("a", LongType) :: Nil),
+        PartitionSpec(StructType(Nil), Seq.empty),
+        Seq(
+          ParquetPartition(InternalRow.empty, Seq(
+            ParquetFileStatus(
+              status = testSerDeStatus,
+              fileSchema = "schema",
+              blocks = Array.empty
+            )
+          ))
+        ))
+      val catalog = new ParquetIndexCatalog(metastore, metadata)
+
+      // check all metadata
+      catalog.paths should be (Seq(new Path("tablePath")))
+      catalog.allFiles should be (Seq(SerializableFileStatus.toFileStatus(testSerDeStatus)))
+      catalog.dataSchema should be (StructType(StructField("a", LongType) :: Nil))
+      catalog.indexSchema should be (StructType(StructField("a", LongType) :: Nil))
+      catalog.partitionSpec should be (PartitionSpec(StructType(Nil), Seq.empty))
+    }
+  }
+
+  test("prunePartitions - do not prune partitions for empty expressions") {
+    withTempDir { dir =>
+      val metastore = testMetastore(spark, dir.toString / "test_metastore")
+      val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
+      val catalog = new ParquetIndexCatalog(metastore, metadata)
+      val spec = PartitionSpec(StructType(Nil), Seq(PartitionDirectory(InternalRow.empty, "path")))
+      catalog.prunePartitions(Seq.empty, spec) should be (spec.partitions)
+    }
+  }
+
+  test("prunePartitions - prune partitions for expressions") {
+    withTempDir { dir =>
+      val metastore = testMetastore(spark, dir.toString / "test_metastore")
+      val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
+      val catalog = new ParquetIndexCatalog(metastore, metadata)
+
+      val spec = PartitionSpec(StructType(StructField("a", IntegerType) :: Nil), Seq(
+        PartitionDirectory(InternalRow(1), new Path("path1")),
+        PartitionDirectory(InternalRow(2), new Path("path2")),
+        PartitionDirectory(InternalRow(3), new Path("path3"))
+      ))
+
+      val filter = expressions.Or(
+        expressions.EqualTo(expressions.AttributeReference("a", IntegerType)(),
+          expressions.Literal(1)),
+        expressions.EqualTo(expressions.AttributeReference("a", IntegerType)(),
+          expressions.Literal(3))
+      )
+      // remove "a=2" partition
+      catalog.prunePartitions(filter :: Nil, spec) should be (
+        PartitionDirectory(InternalRow(1), new Path("path1")) ::
+        PartitionDirectory(InternalRow(3), new Path("path3")) :: Nil)
     }
   }
 
