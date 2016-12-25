@@ -207,7 +207,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
-        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+        val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
           (id, s"$id") }.toDF("id", "str")
         df.write.parquet(dir.toString / "test")
 
@@ -226,7 +226,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
-        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+        val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
           (id, s"$id") }.toDF("id", "str")
         df.write.parquet(dir.toString / "test")
 
@@ -247,7 +247,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
-        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+        val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
           (id, s"$id") }.toDF("id", "str")
         df.write.parquet(dir.toString / "test")
 
@@ -268,7 +268,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
-        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+        val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
           (id, s"$id") }.toDF("id", "str")
         df.write.parquet(dir.toString / "test")
 
@@ -287,7 +287,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
-        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+        val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
           (id, s"$id") }.toDF("id", "str")
         df.write.parquet(dir.toString / "test")
 
@@ -306,7 +306,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
           PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
-        val df = spark.sparkContext.parallelize(0 until 100, 100).map { id =>
+        val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
           (id, s"$id") }.toDF("id", "str")
         df.write.parquet(dir.toString / "test")
 
