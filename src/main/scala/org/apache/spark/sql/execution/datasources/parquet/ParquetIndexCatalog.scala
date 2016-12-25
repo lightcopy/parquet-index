@@ -32,8 +32,8 @@ import com.github.lightcopy.util.SerializableFileStatus
  * Metastore is used mainly to provide Hadoop configuration.
  */
 class ParquetIndexCatalog(
-  @transient val metastore: Metastore,
-  @transient val indexMetadata: ParquetIndexMetadata)
+    @transient val metastore: Metastore,
+    @transient val indexMetadata: ParquetIndexMetadata)
   extends MetastoreIndexCatalog {
 
   require(indexMetadata != null, "Parquet index metadata is null, serialized data is incorrect")
@@ -124,14 +124,52 @@ class ParquetIndexCatalog(
    * Since [[ParquetFileStatus]] can contain multiple blocks we have to resolve all of them and
    * result should be `Or` of all subresults.
    */
-  private def resolveSupported(
+  private[parquet] def resolveSupported(
       filter: Filter,
       status: ParquetFileStatus): Filter = {
     // we need configuration to resolve column filters
     val conf = metastore.session.sessionState.newHadoopConf()
+    require(status.blocks.nonEmpty,
+      "Parquet file status has empty blocks, required at least one block metadata")
+    ParquetIndexCatalog.foldFilter(filter, conf, status.blocks)
+  }
+
+  private[parquet] def pruneIndexedPartitions(
+      indexFilters: Seq[Filter],
+      partitions: Seq[ParquetPartition]): Seq[ParquetPartition] = {
+    require(indexFilters.nonEmpty, s"Expected non-empty index filters, got $indexFilters")
+    // reduce filters to supported only
+    val reducedFilter = indexFilters.reduceLeft(And)
+    partitions.flatMap { partition =>
+      val filteredStatuses = partition.files.filter { file =>
+        resolveSupported(reducedFilter, file) match {
+          case Trivial(true) => true
+          case Trivial(false) => false
+          case other => sys.error(s"Failed to resolve filter, got $other, expected trivial")
+        }
+      }
+
+      if (filteredStatuses.isEmpty) {
+        None
+      } else {
+        Some(ParquetPartition(partition.values, filteredStatuses))
+      }
+    }
+  }
+}
+
+private[parquet] object ParquetIndexCatalog {
+  /**
+   * Recursively fold provided index filters to trivial,
+   * blocks are always non-empty
+   */
+  def foldFilter(
+      filter: Filter,
+      conf: Configuration,
+      blocks: Array[ParquetBlockMetadata]): Filter = {
     filter match {
       case eq @ EqualTo(attribute: String, value: Any) =>
-        val references = status.blocks.map { block =>
+        val references = blocks.map { block =>
           // find relevant column and resolve based on statistics
           // if column metadata is not found, return 'true' to scan everything
           block.indexedColumns.get(attribute) match {
@@ -149,13 +187,15 @@ class ParquetIndexCatalog(
                   }
                 case not @ Trivial(false) => not
               }
-            case None => Trivial(true)
+            case None =>
+              // Attribute is not indexed, return trivial filter to scan file
+              Trivial(true)
           }
         }
         // all filters must be resolved at this point
-        references.reduceLeft(Or)
+        foldFilter(references.reduceLeft(Or), conf, blocks)
       case And(left: Filter, right: Filter) =>
-        And(resolveSupported(left, status), resolveSupported(right, status)) match {
+        And(foldFilter(left, conf, blocks), foldFilter(right, conf, blocks)) match {
           case And(Trivial(false), _) => Trivial(false)
           case And(_, Trivial(false)) => Trivial(false)
           case And(Trivial(true), right) => right
@@ -163,38 +203,18 @@ class ParquetIndexCatalog(
           case other => other
         }
       case Or(left: Filter, right: Filter) =>
-        Or(resolveSupported(left, status), resolveSupported(right, status)) match {
+        Or(foldFilter(left, conf, blocks), foldFilter(right, conf, blocks)) match {
           case Or(Trivial(false), right) => right
           case Or(left, Trivial(false)) => left
           case Or(Trivial(true), _) => Trivial(true)
           case Or(_, Trivial(true)) => Trivial(true)
           case other => other
         }
+      case trivial: Trivial =>
+        trivial
       case unsupportedFilter =>
         // return 'true' to scan all partitions
         Trivial(true)
-    }
-  }
-
-  private def pruneIndexedPartitions(
-      indexFilters: Seq[Filter],
-      partitions: Seq[ParquetPartition]): Seq[ParquetPartition] = {
-    // reduce filters to supported only
-    val reducedFilter = indexFilters.reduceLeft(And)
-    partitions.flatMap { partition =>
-      val filteredStatuses = partition.files.filter { file =>
-        resolveSupported(reducedFilter, file) match {
-          case Trivial(true) => true
-          case Trivial(false) => false
-          case other => sys.error(s"Failed to resolve filter, got $other, expected trivial")
-        }
-      }
-
-      if (filteredStatuses.isEmpty) {
-        None
-      } else {
-        Some(ParquetPartition(partition.values, filteredStatuses))
-      }
     }
   }
 }

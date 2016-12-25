@@ -50,7 +50,7 @@ case class IndexedDataSource(
       case s: MetastoreSupport =>
         logInfo(s"Loading index for $s, table=${tablePath.getPath}")
 
-        var indexCatalog = metastore.load(s.identifier, tablePath.getPath) { status =>
+        val indexCatalog = metastore.load(s.identifier, tablePath.getPath) { status =>
           s.loadIndex(metastore, status)
         }
 

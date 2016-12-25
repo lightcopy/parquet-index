@@ -177,6 +177,34 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
     }
   }
 
+  test("existsIndex - fail if class does not have metastore support") {
+    withTempDir { dir =>
+      val metastore = testMetastore(spark, dir.toString / "test")
+      val source = IndexedDataSource(
+        metastore,
+        classOf[TestDefaultSource].getCanonicalName,
+        options = Map("path" -> dir.toString))
+      val err = intercept[UnsupportedOperationException] {
+        source.existsIndex()
+      }
+      assert(err.getMessage.contains("Check of index is not supported"))
+    }
+  }
+
+  test("existsIndex - invoke metastore support method") {
+    withTempDir { dir =>
+      val metastore = testMetastore(spark, dir.toString / "test")
+      val path = metastore.location("test", dir)
+      // create directory in index metastore, to check index existence
+      mkdirs(path.toString)
+      val source = IndexedDataSource(
+        metastore,
+        classOf[TestMetastoreSupport].getCanonicalName,
+        options = Map("path" -> dir.toString))
+      source.existsIndex() should be (true)
+    }
+  }
+
   test("deleteIndex - fail if class does not have metastore support") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir.toString / "test")
