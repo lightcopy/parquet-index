@@ -107,4 +107,4 @@ df.collect
 This library is built using `sbt`, to build a JAR file simply run `sbt package` from project root.
 
 ## Testing
-Run `sbt test` from project root. See `.travis.yml` to see CI build matrix.
+Run `sbt test` from project root. See `.travis.yml` for CI build matrix.
