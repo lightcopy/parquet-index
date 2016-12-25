@@ -45,7 +45,7 @@ limitations and add support for different versions. Any feedback, issues or PRs 
 | 1.6.x | Not supported |
 | 2.0.0 | Not supported |
 | 2.0.1 | [0.1.0](http://spark-packages.org/package/lightcopy/parquet-index) |
-| 2.0.2 | Not supported |
+| 2.0.2 | [0.1.0](http://spark-packages.org/package/lightcopy/parquet-index) |
 | 2.1.x | Not supported |
 
 ## Linking
