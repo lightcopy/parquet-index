@@ -55,7 +55,7 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
         indexMetadata = deserializedStream.readObject()
       } catch {
         case NonFatal(err) =>
-          throw new IOException("Corrupt stream", err)
+          throw new IOException("Failed to deserialize object", err)
       } finally {
         deserializedStream.close()
       }
