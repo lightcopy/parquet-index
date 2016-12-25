@@ -62,7 +62,7 @@ class ParquetIndexCatalog(
       }
     }
 
-    logTrace("Selected files after partition pruning:\n\t" + selectedPartitions.mkString("\n\t"))
+    logDebug("Selected files after partition pruning:\n\t" + selectedPartitions.mkString("\n\t"))
 
     // evaluate index filters
     val filteredPartitions = if (indexFilters.isEmpty) {
@@ -71,7 +71,7 @@ class ParquetIndexCatalog(
       pruneIndexedPartitions(indexFilters, selectedPartitions)
     }
 
-    logTrace("Selected files after index filtering:\n\t" + filteredPartitions.mkString("\n\t"))
+    logDebug("Selected files after index filtering:\n\t" + filteredPartitions.mkString("\n\t"))
 
     // convert it into sequence of Spark `Partition`s
     filteredPartitions.map { partition =>
