@@ -48,6 +48,13 @@ case class IndexedDataSource(
     val caseInsensitiveOptions = new CaseInsensitiveMap(options)
     providingClass.newInstance() match {
       case s: MetastoreSupport =>
+        // if index does not exist in metastore and option is selected, we will create it before
+        // loading index catalog. Note that empty list of columns indicates all available columns
+        // will be inferred
+        if (metastore.conf.createIfNotExists && !existsIndex()) {
+          logInfo("Index does not exist in metastore, will create for all available columns")
+          createIndex(Nil)
+        }
         logInfo(s"Loading index for $s, table=${tablePath.getPath}")
 
         val indexCatalog = metastore.load(s.identifier, tablePath.getPath) { status =>

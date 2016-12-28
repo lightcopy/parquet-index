@@ -22,17 +22,20 @@ import org.apache.hadoop.fs.Path
 
 import org.apache.spark.sql.internal.IndexConf._
 import org.apache.spark.sql.functions.{col, lit}
+import org.apache.spark.sql.types._
 
 import com.github.lightcopy.implicits._
 import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
 import com.github.lightcopy.testutil.implicits._
 
 class IndexSuite extends UnitTestSuite with SparkLocal {
-  override def beforeAll {
+  // Reset SparkSession for every test, because Metastore caches instance per session, and we
+  // do not reset options per metastore configuration.
+  before {
     startSparkSession()
   }
 
-  override def afterAll {
+  after {
     stopSparkSession()
   }
 
@@ -98,6 +101,22 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
+  test("create Parquet index with all available columns in the table") {
+    withTempDir { dir =>
+      withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        spark.range(5).withColumn("str", lit("abc")).withColumn("num", lit(1)).
+          write.parquet(dir.toString / "table")
+        spark.index.create.indexByAll.parquet(dir.toString / "table")
+        spark.index.exists.parquet(dir.toString / "table") should be (true)
+        val df = spark.index.parquet(dir.toString / "table")
+        df.schema should be (StructType(
+          StructField("id", LongType) ::
+          StructField("str", StringType) ::
+          StructField("num", IntegerType) :: Nil))
+      }
+    }
+  }
+
   test("create Parquet index with overwrite mode") {
     withTempDir { dir =>
       withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
@@ -151,6 +170,20 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         }
         assert(err.getMessage.contains(
           "ParquetMetastoreSupport does not support append to existing index"))
+      }
+    }
+  }
+
+  test("create index if one does not already exist in metastore when loading") {
+    withTempDir { dir =>
+      withSQLConf(
+          METASTORE_LOCATION.key -> dir.toString / "metastore",
+          CREATE_IF_NOT_EXISTS.key -> "true") {
+        spark.range(0, 9).withColumn("str", lit("abc")).write.parquet(dir.toString / "table")
+        spark.index.exists.parquet(dir.toString / "table") should be (false)
+        val df = spark.index.parquet(dir.toString / "table").filter(col("id") === 1)
+        df.count should be (1)
+        spark.index.exists.parquet(dir.toString / "table") should be (true)
       }
     }
   }

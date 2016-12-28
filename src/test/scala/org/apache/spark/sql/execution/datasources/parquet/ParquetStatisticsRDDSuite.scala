@@ -16,9 +16,13 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import java.io.IOException
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.permission.FsPermission
 
+import org.apache.parquet.column.statistics._
 import org.apache.parquet.schema.MessageTypeParser
 
 import org.apache.spark.SparkException
@@ -65,6 +69,52 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     part1.iterator.isEmpty should be (true)
     part2.iterator.isEmpty should be (false)
     part2.iterator.next should be (null)
+  }
+
+  test("ParquetStatisticsRDD - partitionData, fail for non-positive slices") {
+    var err = intercept[IllegalArgumentException] {
+      ParquetStatisticsRDD.partitionData(Seq(1, 2, 3), -1)
+    }
+    assert(err.getMessage.contains("Positive number of slices required, found -1"))
+
+    err = intercept[IllegalArgumentException] {
+      ParquetStatisticsRDD.partitionData(Seq(1, 2, 3), 0)
+    }
+    assert(err.getMessage.contains("Positive number of slices required, found 0"))
+  }
+
+  test("ParquetStatisticsRDD - partitionData, partition per element") {
+    val seq = ParquetStatisticsRDD.partitionData(Seq(1, 2, 3), 3)
+    seq should be (Seq(Seq(1), Seq(2), Seq(3)))
+  }
+
+  test("ParquetStatisticsRDD - convertStatistics, integer stats") {
+    val stats = new IntStatistics()
+    stats.setMinMax(1, 2)
+    stats.setNumNulls(5)
+    ParquetStatisticsRDD.convertStatistics(stats) should be (ParquetIntStatistics(1, 2, 5))
+  }
+
+  test("ParquetStatisticsRDD - convertStatistics, long stats") {
+    val stats = new LongStatistics()
+    stats.setMinMax(1L, 2L)
+    stats.setNumNulls(5)
+    ParquetStatisticsRDD.convertStatistics(stats) should be (ParquetLongStatistics(1L, 2L, 5))
+  }
+
+  test("ParquetStatisticsRDD - convertStatistics, string stats") {
+    val stats = new BinaryStatistics()
+    stats.setMinMaxFromBytes("a".getBytes(), "b".getBytes())
+    stats.setNumNulls(5)
+    ParquetStatisticsRDD.convertStatistics(stats) should be (ParquetStringStatistics("a", "b", 5))
+  }
+
+  test("ParquetStatisticsRDD - convertStatistics, unsupported stats") {
+    val stats = new BooleanStatistics()
+    val err = intercept[UnsupportedOperationException] {
+      ParquetStatisticsRDD.convertStatistics(stats)
+    }
+    assert(err.getMessage.contains("Statistics no stats for this column is not supported"))
   }
 
   test("ParquetStatisticsRDD - prepareBloomFilter, empty blocks array") {
@@ -166,6 +216,19 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       val filter2 = cols("str").filter.get
       filter2.init(new Configuration(false))
       filter2.mightContain("abc") should be (true)
+    }
+  }
+
+  test("ParquetStatisticsRDD - withBloomFilters, fail when cannot create directory") {
+    withTempDir(new FsPermission("444")) { dir =>
+      val context = ParquetStatisticsRDD.taskAttemptContext(new Configuration(false), 1)
+      val schema = MessageTypeParser.parseMessageType(
+        "message spark_schema { required boolean bool; }")
+      val err = intercept[IOException] {
+        ParquetStatisticsRDD.withBloomFilters(schema, context, Array.empty, fs.getFileStatus(dir),
+          fs.getFileStatus(dir))
+      }
+      assert(err.getMessage.contains("Failed to create target directory"))
     }
   }
 

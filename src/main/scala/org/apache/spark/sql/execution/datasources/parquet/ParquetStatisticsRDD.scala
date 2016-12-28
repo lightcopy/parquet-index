@@ -83,7 +83,7 @@ class ParquetStatisticsRDD(
 
   // validate Spark SQL schema, schema should be subset of Parquet file message type and be one of
   // supported types
-  ParquetStatisticsRDD.validateStructType(schema)
+  ParquetSchemaUtils.validateStructType(schema)
 
   def hadoopConfiguration: Configuration = confBroadcast.value.value
 
@@ -185,26 +185,6 @@ private[parquet] object ParquetStatisticsRDD {
   }
 
   /**
-   * Validate input schema as `StructType` and throw exception if schema does not match expected
-   * column types. Currently only IntegerType, LongType, and StringType are supported. Note that
-   * this is used in statistics conversion, so when adding new type, one should update statistics.
-   */
-  def validateStructType(schema: StructType): Unit = {
-    // supported data types from Spark SQL
-    val supportedTypes: Set[DataType] = Set(IntegerType, LongType, StringType)
-    if (schema.isEmpty) {
-      throw new UnsupportedOperationException(s"Empty schema $schema is not supported, please " +
-        s"provide at least one column of a type ${supportedTypes.mkString("[", ", ", "]")}")
-    }
-    schema.fields.foreach { field =>
-      if (!supportedTypes.contains(field.dataType)) {
-        throw new UnsupportedOperationException("Schema contains unsupported type, " +
-          s"field=$field, supported types=${supportedTypes.mkString("[", ", ", "]")}")
-      }
-    }
-  }
-
-  /**
    * Extract statistics from Parquet file metadata for requested schema, returns array of block
    * metadata (for each row group).
    */
@@ -226,7 +206,7 @@ private[parquet] object ParquetStatisticsRDD {
     new TaskAttemptContextImpl(conf, attemptId)
   }
 
-  private def convertColumns(
+  def convertColumns(
       columns: Seq[ColumnChunkMetaData],
       schema: MessageType): Map[String, ParquetColumnMetadata] = {
     val seq = columns.flatMap { column =>
@@ -235,11 +215,6 @@ private[parquet] object ParquetStatisticsRDD {
         // normalize path as "a.b.c"
         val dotString = column.getPath.toDotString
         val fieldIndex = schema.getFieldIndex(dotString)
-        // original type for column, can be null in case of INT64
-        val originalType = Option(schema.getType(fieldIndex).getOriginalType) match {
-          case Some(tpe) => tpe.name
-          case None => null
-        }
         // convert min-max statistics into internal format
         val columnMinMaxStats = convertStatistics(column.getStatistics)
         Some(ParquetColumnMetadata(dotString, column.getValueCount, columnMinMaxStats, None))
@@ -251,7 +226,7 @@ private[parquet] object ParquetStatisticsRDD {
     seq.map { meta => (meta.fieldName, meta) }.toMap
   }
 
-  private def convertStatistics(parquetStatistics: Statistics[_]): ParquetColumnStatistics = {
+  def convertStatistics(parquetStatistics: Statistics[_]): ParquetColumnStatistics = {
     parquetStatistics match {
       case stats: IntStatistics =>
         ParquetIntStatistics(stats.getMin, stats.getMax, stats.getNumNulls)

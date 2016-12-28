@@ -45,7 +45,8 @@ trait MetastoreSupport {
    * @param isAppend flag indicates whether or not data should be appended to existing files
    * @param partitionSpec partition spec for table
    * @param partitions all partitions for table (include file status and partition as row)
-   * @param columns sequence of columns to index
+   * @param columns sequence of columns to index, if list is empty, infer all available columns
+   * that can be indexed in the table
    */
   def createIndex(
       metastore: Metastore,

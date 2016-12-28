@@ -26,6 +26,7 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.parquet.schema.MessageTypeParser
 
+import org.apache.spark.internal.Logging
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.{Column, SparkSession}
 import org.apache.spark.sql.execution.datasources._
@@ -33,7 +34,7 @@ import org.apache.spark.sql.types.StructType
 
 import com.github.lightcopy.util.{SerializableFileStatus, IOUtils}
 
-case class ParquetMetastoreSupport() extends MetastoreSupport {
+case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
   override def identifier: String = "parquet"
 
   override def fileFormat: FileFormat = new ParquetFileFormat()
@@ -81,7 +82,6 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
     val columnNames = columns.map(_.toString)
     // make sure that columns are not part of partition columns
     val fieldNames = partitionSpec.partitionColumns.fieldNames.toSet
-
     for (name <- columnNames) {
       if (fieldNames.contains(name)) {
         throw new IllegalArgumentException(s"Found column $name in partitioning schema. " +
@@ -90,12 +90,9 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
     }
 
     val partitionSchema = partitionSpec.partitionColumns
-    // prepare index schema by fetching message type from random file
+    // prepare index schema by fetching message type from first partition
     val indexSchema = inferIndexSchema(metastore, partitions, columnNames)
-    if (indexSchema.isEmpty) {
-      throw new UnsupportedOperationException("Index schema must have at least one column, " +
-        s"found $indexSchema, make sure that specified columns are part of table schema")
-    }
+    logInfo(s"Resolved index schema ${indexSchema.simpleString}")
 
     // serialized file statuses for Parquet table
     val files = partitions.flatMap { partition =>
@@ -153,10 +150,13 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
     }
   }
 
-  /** Infer schema by requesting provided set of columns from a single partition */
-  private def inferIndexSchema(
+  /**
+   * Infer schema by requesting provided set of columns from a single partition.
+   * If list of column names is empty, infer all available columns in schema.
+   */
+  private[parquet] def inferIndexSchema(
       metastore: Metastore, partitions: Seq[Partition], columns: Seq[String]): StructType = {
-    val conf = metastore.session.sparkContext.hadoopConfiguration
+    val conf = metastore.session.sessionState.newHadoopConf()
     val status = partitions.head.files.head
 
     // read footer and extract schema into struct type
@@ -165,20 +165,23 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
     val schema = footer.getParquetMetadata.getFileMetaData.getSchema
     val fileStruct = new ParquetSchemaConverter().convert(schema)
 
-    // fetch specified columns
-    val fields = fileStruct.filter { field => columns.contains(field.name) }
-    val inferredSchema = StructType(fields)
-
-    // inferred fields should be the same as requested columns
-    columns.foreach { name =>
-      val containsField = inferredSchema.exists { _.name == name }
-      if (!containsField) {
-        throw new IllegalArgumentException(s"Failed to select indexed columns. Column $name does " +
-          s"not exist in inferred schema ${inferredSchema.simpleString}")
+    // if no columns provided prune struct type and return only valid columns, otherwise do
+    // normal column check
+    if (columns.isEmpty) {
+      ParquetSchemaUtils.pruneStructType(fileStruct)
+    } else {
+      // fetch specified columns, inferred fields should be the same as requested columns
+      val inferredSchema = StructType(fileStruct.filter { field => columns.contains(field.name) })
+      columns.foreach { name =>
+        val containsField = inferredSchema.exists { _.name == name }
+        if (!containsField) {
+          throw new IllegalArgumentException("Failed to select indexed columns. " +
+            s"Column $name does not exist in inferred schema ${inferredSchema.simpleString}")
+        }
       }
-    }
 
-    inferredSchema
+      inferredSchema
+    }
   }
 
   private def tableMetadataLocation(root: Path): Path = {
@@ -188,9 +191,9 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
 
 object ParquetMetastoreSupport {
   // internal Hadoop configuration option to set schema for Parquet reader
-  val READ_SCHEMA = "spark.sql.index.parquet.read.schema"
+  private[sql] val READ_SCHEMA = "spark.sql.index.parquet.read.schema"
   // internal Hadoop configuration option to specify bloom filters directory
-  val BLOOM_FILTER_DIR = "spark.sql.index.parquet.bloom.dir"
+  private[sql] val BLOOM_FILTER_DIR = "spark.sql.index.parquet.bloom.dir"
   // metadata name
   val TABLE_METADATA = "_table_metadata"
 
