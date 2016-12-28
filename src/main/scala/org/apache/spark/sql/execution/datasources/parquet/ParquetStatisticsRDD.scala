@@ -238,7 +238,7 @@ private[parquet] object ParquetStatisticsRDD {
     new TaskAttemptContextImpl(conf, attemptId)
   }
 
-  private def convertColumns(
+  def convertColumns(
       columns: Seq[ColumnChunkMetaData],
       schema: MessageType): Map[String, ParquetColumnMetadata] = {
     val seq = columns.flatMap { column =>
@@ -263,7 +263,7 @@ private[parquet] object ParquetStatisticsRDD {
     seq.map { meta => (meta.fieldName, meta) }.toMap
   }
 
-  private def convertStatistics(parquetStatistics: Statistics[_]): ParquetColumnStatistics = {
+  def convertStatistics(parquetStatistics: Statistics[_]): ParquetColumnStatistics = {
     parquetStatistics match {
       case stats: IntStatistics =>
         ParquetIntStatistics(stats.getMin, stats.getMax, stats.getNumNulls)
