@@ -115,6 +115,15 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     metastore.getMetastorePath should be (None)
   }
 
+  // test current working directory
+  test("resolveMetastore - empty path provided") {
+    val conf = IndexConf.newConf(spark)
+    conf.setConf(IndexConf.METASTORE_LOCATION, "")
+    val metastore = new Metastore(spark, conf)
+    val path = metastore.resolveMetastore(None, new Configuration(false))
+    assert(path.toString.startsWith(metastore.fs.getWorkingDirectory.toString))
+  }
+
   test("getMetastorePath - local file system path provided") {
     val conf = IndexConf.newConf(spark)
     conf.setConf(IndexConf.METASTORE_LOCATION, "file:/tmp/metastore")

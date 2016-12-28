@@ -89,12 +89,8 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
     }
 
     val partitionSchema = partitionSpec.partitionColumns
-    // prepare index schema by fetching message type from random file
+    // prepare index schema by fetching message type from first partition
     val indexSchema = inferIndexSchema(metastore, partitions, columnNames)
-    if (indexSchema.isEmpty) {
-      throw new UnsupportedOperationException("Index schema must have at least one column, " +
-        s"found $indexSchema, make sure that specified columns are part of table schema")
-    }
     logInfo(s"Resolved index schema ${indexSchema.simpleString}")
 
     // serialized file statuses for Parquet table
@@ -198,9 +194,9 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
 
 object ParquetMetastoreSupport {
   // internal Hadoop configuration option to set schema for Parquet reader
-  val READ_SCHEMA = "spark.sql.index.parquet.read.schema"
+  private[sql] val READ_SCHEMA = "spark.sql.index.parquet.read.schema"
   // internal Hadoop configuration option to specify bloom filters directory
-  val BLOOM_FILTER_DIR = "spark.sql.index.parquet.bloom.dir"
+  private[sql] val BLOOM_FILTER_DIR = "spark.sql.index.parquet.bloom.dir"
   // metadata name
   val TABLE_METADATA = "_table_metadata"
 
