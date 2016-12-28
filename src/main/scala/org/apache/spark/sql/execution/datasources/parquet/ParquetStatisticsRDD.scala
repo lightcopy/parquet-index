@@ -167,9 +167,6 @@ class ParquetStatisticsRDD(
 }
 
 private[parquet] object ParquetStatisticsRDD {
-  // Supported top-level Spark SQL data types
-  val SUPPORTED_TYPES: Set[DataType] = Set(IntegerType, LongType, StringType)
-
   /** Partition data into sequence of buckets with values based on provided number of partitions */
   def partitionData[T: ClassTag](data: Seq[T], numSlices: Int): Seq[Seq[T]] = {
     require(numSlices >= 1, s"Positive number of slices required, found $numSlices")
