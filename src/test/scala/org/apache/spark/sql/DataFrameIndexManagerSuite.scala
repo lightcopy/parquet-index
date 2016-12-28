@@ -155,6 +155,11 @@ class DataFrameIndexManagerSuite extends UnitTestSuite with SparkLocal {
     ddl.indexBy("a", "b", "c").getColumns should be (Seq(col("a"), col("b"), col("c")))
   }
 
+  test("create command - indexByAll") {
+    val ddl = new DataFrameIndexManager(spark).create
+    ddl.indexByAll().getColumns should be (Nil)
+  }
+
   test("exists command - init") {
     val manager = new DataFrameIndexManager(spark).option("key", "value")
     val ddl = manager.exists
