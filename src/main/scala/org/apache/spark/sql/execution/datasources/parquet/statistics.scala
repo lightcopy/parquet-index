@@ -36,6 +36,18 @@ abstract class ParquetColumnStatistics {
   /** Return true, if provided value is of compatible type and within range between min and max */
   def contains(value: Any): Boolean
 
+  /** Return true, if max is less than value */
+  def isLessThan(value: Any): Boolean
+
+  /** Return true, if max is less than or equal to value */
+  def isLessThanOrEqual(value: Any): Boolean
+
+  /** Return true, if min is greater than value */
+  def isGreaterThan(value: Any): Boolean
+
+  /** Return true, if min is greater than or equal to value */
+  def isGreaterThanOrEqual(value: Any): Boolean
+
   /** Get minimal value of column */
   def getMin(): Any
 
@@ -67,6 +79,26 @@ case class ParquetIntStatistics(min: Int, max: Int, numNulls: Long)
     case other => false
   }
 
+  override def isLessThan(value: Any): Boolean = value match {
+    case intValue: Int => max < intValue
+    case other => false
+  }
+
+  override def isLessThanOrEqual(value: Any): Boolean = value match {
+    case intValue: Int => max < intValue || max == intValue
+    case other => false
+  }
+
+  override def isGreaterThan(value: Any): Boolean = value match {
+    case intValue: Int => min > intValue
+    case other => false
+  }
+
+  override def isGreaterThanOrEqual(value: Any): Boolean = value match {
+    case intValue: Int => min > intValue || min == intValue
+    case other => false
+  }
+
   override def getMin(): Any = min
 
   override def getMax(): Any = max
@@ -83,6 +115,26 @@ case class ParquetLongStatistics(min: Long, max: Long, numNulls: Long)
   override def contains(value: Any): Boolean = value match {
     case longValue: Long => longValue >= min && longValue <= max
     case other if other == null && hasNull => true
+    case other => false
+  }
+
+  override def isLessThan(value: Any): Boolean = value match {
+    case longValue: Long => max < longValue
+    case other => false
+  }
+
+  override def isLessThanOrEqual(value: Any): Boolean = value match {
+    case longValue: Long => max < longValue || max == longValue
+    case other => false
+  }
+
+  override def isGreaterThan(value: Any): Boolean = value match {
+    case longValue: Long => min > longValue
+    case other => false
+  }
+
+  override def isGreaterThanOrEqual(value: Any): Boolean = value match {
+    case longValue: Long => min > longValue || min == longValue
     case other => false
   }
 
@@ -107,6 +159,26 @@ case class ParquetStringStatistics(min: String, max: String, numNulls: Long)
   override def contains(value: Any): Boolean = value match {
     case stringValue: String => stringValue >= min && stringValue <= max
     case other if other == null && hasNull => true
+    case other => false
+  }
+
+  override def isLessThan(value: Any): Boolean = value match {
+    case stringValue: String => max < stringValue
+    case other => false
+  }
+
+  override def isLessThanOrEqual(value: Any): Boolean = value match {
+    case stringValue: String => max < stringValue || max == stringValue
+    case other => false
+  }
+
+  override def isGreaterThan(value: Any): Boolean = value match {
+    case stringValue: String => min > stringValue
+    case other => false
+  }
+
+  override def isGreaterThanOrEqual(value: Any): Boolean = value match {
+    case stringValue: String => min > stringValue || min == stringValue
     case other => false
   }
 

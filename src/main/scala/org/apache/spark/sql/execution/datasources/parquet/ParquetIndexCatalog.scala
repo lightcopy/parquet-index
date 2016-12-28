@@ -131,7 +131,7 @@ class ParquetIndexCatalog(
     val conf = metastore.session.sessionState.newHadoopConf()
     require(status.blocks.nonEmpty,
       "Parquet file status has empty blocks, required at least one block metadata")
-    ParquetIndexCatalog.foldFilter(filter, conf, status.blocks)
+    ParquetIndexFilters(conf, status.blocks).foldFilter(filter)
   }
 
   private[parquet] def pruneIndexedPartitions(
@@ -154,67 +154,6 @@ class ParquetIndexCatalog(
       } else {
         Some(ParquetPartition(partition.values, filteredStatuses))
       }
-    }
-  }
-}
-
-private[parquet] object ParquetIndexCatalog {
-  /**
-   * Recursively fold provided index filters to trivial,
-   * blocks are always non-empty
-   */
-  def foldFilter(
-      filter: Filter,
-      conf: Configuration,
-      blocks: Array[ParquetBlockMetadata]): Filter = {
-    filter match {
-      case eq @ EqualTo(attribute: String, value: Any) =>
-        val references = blocks.map { block =>
-          // find relevant column and resolve based on statistics
-          // if column metadata is not found, return 'true' to scan everything
-          block.indexedColumns.get(attribute) match {
-            case Some(columnMetadata) =>
-              val stats = columnMetadata.stats
-              Trivial(stats.contains(value)) match {
-                case isin @ Trivial(true) =>
-                  // check if there is a filter available
-                  if (columnMetadata.filter.isDefined) {
-                    val columnFilter = columnMetadata.filter.get
-                    columnFilter.init(conf)
-                    Trivial(columnFilter.mightContain(value))
-                  } else {
-                    isin
-                  }
-                case not @ Trivial(false) => not
-              }
-            case None =>
-              // Attribute is not indexed, return trivial filter to scan file
-              Trivial(true)
-          }
-        }
-        // all filters must be resolved at this point
-        foldFilter(references.reduceLeft(Or), conf, blocks)
-      case And(left: Filter, right: Filter) =>
-        And(foldFilter(left, conf, blocks), foldFilter(right, conf, blocks)) match {
-          case And(Trivial(false), _) => Trivial(false)
-          case And(_, Trivial(false)) => Trivial(false)
-          case And(Trivial(true), right) => right
-          case And(left, Trivial(true)) => left
-          case other => other
-        }
-      case Or(left: Filter, right: Filter) =>
-        Or(foldFilter(left, conf, blocks), foldFilter(right, conf, blocks)) match {
-          case Or(Trivial(false), right) => right
-          case Or(left, Trivial(false)) => left
-          case Or(Trivial(true), _) => Trivial(true)
-          case Or(_, Trivial(true)) => Trivial(true)
-          case other => other
-        }
-      case trivial: Trivial =>
-        trivial
-      case unsupportedFilter =>
-        // return 'true' to scan all partitions
-        Trivial(true)
     }
   }
 }
