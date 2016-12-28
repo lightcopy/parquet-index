@@ -70,6 +70,12 @@ private[spark] object IndexConf {
     doc("When set to true writes bloom filters for indexed columns when creating table index").
     booleanConf.
     createWithDefault(false)
+
+  // If index does not exist in metastore, will create it before querying
+  val CREATE_IF_NOT_EXISTS = IndexConfigBuilder("spark.sql.index.createIfNotExists").
+    doc("When set to true creates index if one does not exist in metastore for the table").
+    booleanConf.
+    createWithDefault(false)
 }
 
 private[spark] class IndexConf extends Serializable {
@@ -86,6 +92,8 @@ private[spark] class IndexConf extends Serializable {
   def metastoreLocation: String = getConf(METASTORE_LOCATION)
 
   def parquetBloomFilterEnabled: Boolean = getConf(PARQUET_BLOOM_FILTER_ENABLED)
+
+  def createIfNotExists: Boolean = getConf(CREATE_IF_NOT_EXISTS)
 
   //////////////////////////////////////////////////////////////
   // == Configuration functionality methods ==

@@ -81,7 +81,6 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
     val columnNames = columns.map(_.toString)
     // make sure that columns are not part of partition columns
     val fieldNames = partitionSpec.partitionColumns.fieldNames.toSet
-
     for (name <- columnNames) {
       if (fieldNames.contains(name)) {
         throw new IllegalArgumentException(s"Found column $name in partitioning schema. " +
@@ -96,6 +95,7 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
       throw new UnsupportedOperationException("Index schema must have at least one column, " +
         s"found $indexSchema, make sure that specified columns are part of table schema")
     }
+    logInfo(s"Resolved index schema ${indexSchema.simpleString}")
 
     // serialized file statuses for Parquet table
     val files = partitions.flatMap { partition =>
@@ -153,10 +153,13 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
     }
   }
 
-  /** Infer schema by requesting provided set of columns from a single partition */
-  private def inferIndexSchema(
+  /**
+   * Infer schema by requesting provided set of columns from a single partition.
+   * If list of column names is empty, infer all available columns in schema.
+   */
+  private[parquet] def inferIndexSchema(
       metastore: Metastore, partitions: Seq[Partition], columns: Seq[String]): StructType = {
-    val conf = metastore.session.sparkContext.hadoopConfiguration
+    val conf = metastore.session.sessionState.newHadoopConf()
     val status = partitions.head.files.head
 
     // read footer and extract schema into struct type
@@ -165,20 +168,27 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
     val schema = footer.getParquetMetadata.getFileMetaData.getSchema
     val fileStruct = new ParquetSchemaConverter().convert(schema)
 
-    // fetch specified columns
-    val fields = fileStruct.filter { field => columns.contains(field.name) }
-    val inferredSchema = StructType(fields)
+    // if no columns provided prune struct type and return only valid columns, otherwise do
+    // normal column check
+    if (columns.isEmpty) {
+      // TODO: consolidate schema validation and pruning under `ParquetMetastoreSupport`
+      ParquetStatisticsRDD.pruneStructType(fileStruct)
+    } else {
+      // fetch specified columns
+      val fields = fileStruct.filter { field => columns.contains(field.name) }
+      val inferredSchema = StructType(fields)
 
-    // inferred fields should be the same as requested columns
-    columns.foreach { name =>
-      val containsField = inferredSchema.exists { _.name == name }
-      if (!containsField) {
-        throw new IllegalArgumentException(s"Failed to select indexed columns. Column $name does " +
-          s"not exist in inferred schema ${inferredSchema.simpleString}")
+      // inferred fields should be the same as requested columns
+      columns.foreach { name =>
+        val containsField = inferredSchema.exists { _.name == name }
+        if (!containsField) {
+          throw new IllegalArgumentException("Failed to select indexed columns. " +
+            s"Column $name does not exist in inferred schema ${inferredSchema.simpleString}")
+        }
       }
-    }
 
-    inferredSchema
+      inferredSchema
+    }
   }
 
   private def tableMetadataLocation(root: Path): Path = {

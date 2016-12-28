@@ -167,6 +167,9 @@ class ParquetStatisticsRDD(
 }
 
 private[parquet] object ParquetStatisticsRDD {
+  // Supported top-level Spark SQL data types
+  val SUPPORTED_TYPES: Set[DataType] = Set(IntegerType, LongType, StringType)
+
   /** Partition data into sequence of buckets with values based on provided number of partitions */
   def partitionData[T: ClassTag](data: Seq[T], numSlices: Int): Seq[Seq[T]] = {
     require(numSlices >= 1, s"Positive number of slices required, found $numSlices")
@@ -190,18 +193,27 @@ private[parquet] object ParquetStatisticsRDD {
    * this is used in statistics conversion, so when adding new type, one should update statistics.
    */
   def validateStructType(schema: StructType): Unit = {
-    // supported data types from Spark SQL
-    val supportedTypes: Set[DataType] = Set(IntegerType, LongType, StringType)
     if (schema.isEmpty) {
       throw new UnsupportedOperationException(s"Empty schema $schema is not supported, please " +
-        s"provide at least one column of a type ${supportedTypes.mkString("[", ", ", "]")}")
+        s"provide at least one column of a type ${SUPPORTED_TYPES.mkString("[", ", ", "]")}")
     }
     schema.fields.foreach { field =>
-      if (!supportedTypes.contains(field.dataType)) {
+      if (!SUPPORTED_TYPES.contains(field.dataType)) {
         throw new UnsupportedOperationException("Schema contains unsupported type, " +
-          s"field=$field, supported types=${supportedTypes.mkString("[", ", ", "]")}")
+          s"field=$field, supported types=${SUPPORTED_TYPES.mkString("[", ", ", "]")}")
       }
     }
+  }
+
+  /**
+   * Prune invalid columns from StructType leaving only supported data types. Only works for
+   * top-level columns at this point.
+   */
+  def pruneStructType(schema: StructType): StructType = {
+    val updatedFields = schema.fields.filter { field =>
+      SUPPORTED_TYPES.contains(field.dataType)
+    }
+    StructType(updatedFields)
   }
 
   /**

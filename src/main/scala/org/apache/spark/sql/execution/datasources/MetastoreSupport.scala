@@ -18,12 +18,13 @@ package org.apache.spark.sql.execution.datasources
 
 import org.apache.hadoop.fs.FileStatus
 
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.Column
 
 /**
  * Interface [[MetastoreSupport]] to describe how index metadata should be saved or loaded.
  */
-trait MetastoreSupport {
+trait MetastoreSupport extends Logging {
   /**
    * Index path suffix to identify file format to load index.
    * Must be lowercase alpha-numeric characters only.
@@ -45,7 +46,8 @@ trait MetastoreSupport {
    * @param isAppend flag indicates whether or not data should be appended to existing files
    * @param partitionSpec partition spec for table
    * @param partitions all partitions for table (include file status and partition as row)
-   * @param columns sequence of columns to index
+   * @param columns sequence of columns to index, if list is empty, infer all available columns
+   * that can be indexed in the table
    */
   def createIndex(
       metastore: Metastore,

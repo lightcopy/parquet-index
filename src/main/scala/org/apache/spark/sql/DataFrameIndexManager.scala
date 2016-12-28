@@ -165,6 +165,13 @@ private[sql] case class CreateIndexCommand(
     indexBy(col(columnName), columnNames.map(col): _*)
   }
 
+  /** Index all available columns that can be indexed */
+  def indexByAll(): CreateIndexCommand = {
+    // assign empty list, will infer all columns, see `MetastoreSupport` API for more info
+    this.columns = Nil
+    this
+  }
+
   /**
    * Path to the table to build index for, can be local file system or HDFS.
    * @param path
