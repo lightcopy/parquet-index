@@ -60,11 +60,11 @@ Change to `lightcopy:parquet-index:0.1.0-s_2.11` for Scala 2.11.x
 Currently supported options, use `--conf key=value` on a command line to provide options similar to
 other Spark configuration or add them to `spark-defaults.conf` file.
 
-| Name | Since | Example | Description |
-|------|:-----:|:-------:|-------------|
-| `spark.sql.index.metastore` | `0.1.0` | _file:/folder, hdfs://host:port/folder_ | Index metastore location, by default uses current working directory; created if does not exist
-| `spark.sql.index.parquet.bloom.enabled` | `0.1.0` | _true, false_ | When set to true, writes bloom filters for indexed columns when creating table index; by default is `false`
-| `spark.sql.index.createIfNotExists` | `0.2.0` | _true, false_ | When set to true, creates index if one does not exist in metastore for the table (will use all available columns for indexing)
+| Name | Since | Example | Description | Default |
+|------|:-----:|:-------:|-------------|---------|
+| `spark.sql.index.metastore` | `0.1.0` | _file:/folder, hdfs://host:port/folder_ | Index metastore location, created if does not exist | _working directory_
+| `spark.sql.index.parquet.bloom.enabled` | `0.1.0` | _true, false_ | When set to true, writes bloom filters for indexed columns when creating table index | _false_
+| `spark.sql.index.createIfNotExists` | `0.2.0` | _true, false_ | When set to true, creates index if one does not exist in metastore for the table (will use all available columns for indexing) | _false_
 
 ## Example
 
