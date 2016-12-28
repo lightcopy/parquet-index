@@ -26,6 +26,7 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.parquet.schema.MessageTypeParser
 
+import org.apache.spark.internal.Logging
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.{Column, SparkSession}
 import org.apache.spark.sql.execution.datasources._
@@ -33,7 +34,7 @@ import org.apache.spark.sql.types.StructType
 
 import com.github.lightcopy.util.{SerializableFileStatus, IOUtils}
 
-case class ParquetMetastoreSupport() extends MetastoreSupport {
+case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
   override def identifier: String = "parquet"
 
   override def fileFormat: FileFormat = new ParquetFileFormat()
@@ -167,14 +168,10 @@ case class ParquetMetastoreSupport() extends MetastoreSupport {
     // if no columns provided prune struct type and return only valid columns, otherwise do
     // normal column check
     if (columns.isEmpty) {
-      // TODO: consolidate schema validation and pruning under `ParquetMetastoreSupport`
-      ParquetStatisticsRDD.pruneStructType(fileStruct)
+      ParquetSchemaUtils.pruneStructType(fileStruct)
     } else {
-      // fetch specified columns
-      val fields = fileStruct.filter { field => columns.contains(field.name) }
-      val inferredSchema = StructType(fields)
-
-      // inferred fields should be the same as requested columns
+      // fetch specified columns, inferred fields should be the same as requested columns
+      val inferredSchema = StructType(fileStruct.filter { field => columns.contains(field.name) })
       columns.foreach { name =>
         val containsField = inferredSchema.exists { _.name == name }
         if (!containsField) {

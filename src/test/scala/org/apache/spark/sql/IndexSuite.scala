@@ -29,6 +29,8 @@ import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
 import com.github.lightcopy.testutil.implicits._
 
 class IndexSuite extends UnitTestSuite with SparkLocal {
+  // Reset SparkSession for every test, because Metastore caches instance per session, and we
+  // do not reset options per metastore configuration.
   before {
     startSparkSession()
   }

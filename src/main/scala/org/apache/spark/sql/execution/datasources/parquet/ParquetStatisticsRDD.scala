@@ -83,7 +83,7 @@ class ParquetStatisticsRDD(
 
   // validate Spark SQL schema, schema should be subset of Parquet file message type and be one of
   // supported types
-  ParquetStatisticsRDD.validateStructType(schema)
+  ParquetSchemaUtils.validateStructType(schema)
 
   def hadoopConfiguration: Configuration = confBroadcast.value.value
 
@@ -188,35 +188,6 @@ private[parquet] object ParquetStatisticsRDD {
   }
 
   /**
-   * Validate input schema as `StructType` and throw exception if schema does not match expected
-   * column types. Currently only IntegerType, LongType, and StringType are supported. Note that
-   * this is used in statistics conversion, so when adding new type, one should update statistics.
-   */
-  def validateStructType(schema: StructType): Unit = {
-    if (schema.isEmpty) {
-      throw new UnsupportedOperationException(s"Empty schema $schema is not supported, please " +
-        s"provide at least one column of a type ${SUPPORTED_TYPES.mkString("[", ", ", "]")}")
-    }
-    schema.fields.foreach { field =>
-      if (!SUPPORTED_TYPES.contains(field.dataType)) {
-        throw new UnsupportedOperationException("Schema contains unsupported type, " +
-          s"field=$field, supported types=${SUPPORTED_TYPES.mkString("[", ", ", "]")}")
-      }
-    }
-  }
-
-  /**
-   * Prune invalid columns from StructType leaving only supported data types. Only works for
-   * top-level columns at this point.
-   */
-  def pruneStructType(schema: StructType): StructType = {
-    val updatedFields = schema.fields.filter { field =>
-      SUPPORTED_TYPES.contains(field.dataType)
-    }
-    StructType(updatedFields)
-  }
-
-  /**
    * Extract statistics from Parquet file metadata for requested schema, returns array of block
    * metadata (for each row group).
    */
@@ -247,11 +218,6 @@ private[parquet] object ParquetStatisticsRDD {
         // normalize path as "a.b.c"
         val dotString = column.getPath.toDotString
         val fieldIndex = schema.getFieldIndex(dotString)
-        // original type for column, can be null in case of INT64
-        val originalType = Option(schema.getType(fieldIndex).getOriginalType) match {
-          case Some(tpe) => tpe.name
-          case None => null
-        }
         // convert min-max statistics into internal format
         val columnMinMaxStats = convertStatistics(column.getStatistics)
         Some(ParquetColumnMetadata(dotString, column.getValueCount, columnMinMaxStats, None))

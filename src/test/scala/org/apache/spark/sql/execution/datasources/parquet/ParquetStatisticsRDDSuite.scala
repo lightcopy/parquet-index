@@ -88,46 +88,6 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     seq should be (Seq(Seq(1), Seq(2), Seq(3)))
   }
 
-  test("ParquetStatisticsRDD - pruneStructType, empty schema") {
-    val schema = StructType(Nil)
-    ParquetStatisticsRDD.pruneStructType(schema) should be (schema)
-  }
-
-  test("ParquetStatisticsRDD - pruneStructType, all scalar types") {
-    val schema = StructType(
-      StructField("a", IntegerType) ::
-      StructField("b", LongType) ::
-      StructField("c", StringType) :: Nil)
-    ParquetStatisticsRDD.pruneStructType(schema) should be (schema)
-  }
-
-  test("ParquetStatisticsRDD - pruneStructType, mix of supported and not supported types") {
-    val schema = StructType(
-      StructField("a", IntegerType) ::
-      StructField("b", LongType) ::
-      StructField("c", StringType) ::
-      StructField("d", BooleanType) ::
-      StructField("e", ArrayType(LongType)) :: Nil)
-
-    val expected = StructType(
-      StructField("a", IntegerType) ::
-      StructField("b", LongType) ::
-      StructField("c", StringType) :: Nil)
-
-    ParquetStatisticsRDD.pruneStructType(schema) should be (expected)
-  }
-
-  test("ParquetStatisticsRDD - pruneStructType, all not supported types") {
-    val schema = StructType(
-      StructField("a", ArrayType(IntegerType)) ::
-      StructField("b", StructType(
-        StructField("c", LongType) ::
-        StructField("d", StringType) :: Nil)
-      ) :: Nil)
-
-    ParquetStatisticsRDD.pruneStructType(schema) should be (StructType(Nil))
-  }
-
   test("ParquetStatisticsRDD - convertStatistics, integer stats") {
     val stats = new IntStatistics()
     stats.setMinMax(1, 2)
