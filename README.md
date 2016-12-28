@@ -28,7 +28,6 @@ Currently only these types are supported for indexed columns:
 - `StringType`
 
 ### Limitations
-- At least one indexed column should be provided, package does not store just schema
 - Indexed columns must be top level primitive columns with types above
 - Indexed columns cannot be the same as partitioning columns (which kind of makes sense)
 - Append mode is not supported for Parquet table when creating index
@@ -65,10 +64,14 @@ other Spark configuration or add them to `spark-defaults.conf` file.
 |------|:-----:|:-------:|-------------|
 | `spark.sql.index.metastore` | `0.1.0` | _file:/folder, hdfs://host:port/folder_ | Index metastore location, by default uses current working directory; created if does not exist
 | `spark.sql.index.parquet.bloom.enabled` | `0.1.0` | _true, false_ | When set to true, writes bloom filters for indexed columns when creating table index; by default is `false`
+| `spark.sql.index.createIfNotExists` | `0.2.0` | _true, false_ | When set to true, creates index if one does not exist in metastore for the table (will use all available columns for indexing)
 
 ## Example
 
 ### Scala API
+Most of the API is defined in [DataFrameIndexManager](./src/main/scala/org/apache/spark/sql/DataFrameIndexManager.scala).
+Usage is similar to Spark's `DataFrameReader`, but for `spark.index`.
+
 ```scala
 // Create dummy table "codes.parquet", use repartition to create more or less generic
 // situation with value distribution
@@ -82,6 +85,7 @@ spark.range(0, 10000).
 import com.github.lightcopy.implicits._
 
 // All Spark SQL modes are available (append, overwrite, ignore, error)
+// You can also use `.indexByAll` to index by all inferred columns
 spark.index.create.
   mode("overwrite").indexBy($"id", $"code").parquet("temp/codes.parquet")
 
