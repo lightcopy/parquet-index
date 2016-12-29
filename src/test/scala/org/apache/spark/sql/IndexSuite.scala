@@ -252,6 +252,25 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
+  test("read correctness for Parquet table (bloom filters) with In filter") {
+    withTempDir { dir =>
+      withSQLConf(
+          METASTORE_LOCATION.key -> dir.toString / "metastore",
+          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
+          (id, s"$id") }.toDF("id", "str")
+        df.write.parquet(dir.toString / "test")
+
+        spark.index.create.indexBy("id", "str").parquet(dir.toString / "test")
+        val df1 = spark.index.parquet(dir.toString / "test").filter(col("id").isin(1, 3))
+        val df2 = spark.read.parquet(dir.toString / "test").filter(col("id").isin(1, 3))
+        checkAnswer(df1, df2)
+      }
+    }
+  }
+
   test("read correctness for Parquet table (bloom filters) with 'And' filter") {
     withTempDir { dir =>
       withSQLConf(

@@ -12,14 +12,22 @@ change frequently, but is used for queries often, e.g. using Thrift JDBC/ODBC se
 schema and list of files (including partitioning) will be automatically resolved from index
 metastore instead of inferring schema every time datasource is created.
 
+### Metastore
 Metastore keeps information about all indexed tables and can be created on local file system or HDFS
 (see available options below). Each created index includes different statistics (min/max/null) and,
 optionally, bloom filters on indexed columns.
 
+### Filters
 Index is enabled for scan when provided predicate contains one or several filters with indexed
-columns. Filter resolution happens after partition pruning (if available) and currently applies on
+columns (if none, then normal scan is used, but with benefits of already resolved partitions and
+schema). Filter resolution happens after partition pruning (if available) and currently applies on
 column metadata level only (per file). Note that performance also depends on values distribution and
 predicate selectivity. Spark Parquet reader is used to read data.
+
+Most of the Spark SQL predicates are supported to use statistics and/or column filter
+(`EqualTo`, `In`, `GreaterThan`, `LessThan`, and others). Note that predicates work best for
+equality or `isin` conditions and logical operators (`And`, `Or`, `Not`),
+e.g. `$"a" === 1 && $"b" === "abc"` or `$"a".isin("a", "b", "c")`.
 
 ### Supported Spark SQL types
 Currently only these types are supported for indexed columns:
@@ -33,7 +41,6 @@ Currently only these types are supported for indexed columns:
 - Append mode is not supported for Parquet table when creating index
 - Bucketing is not supported, meaning that package does not take advantage of bucketing, so
 bucketed table would be processed and indexed like standard partitioned table
-- Only equality and logical (`And`, `Or`) predicates are supported, e.g. `col("a") === 1 && col("b") === "str"`
 - Certain Spark versions are supported (see table below)
 
 Project is **experimental and is in active development at the moment**. We are working to remove
