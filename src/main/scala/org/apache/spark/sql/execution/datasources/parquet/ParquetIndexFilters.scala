@@ -75,32 +75,27 @@ private[parquet] case class ParquetIndexFilters(
         transformFilter(attribute) { case (stats, _) =>
           Trivial(stats.hasNull)
         }
-      case IsNotNull(attribute: String) =>
-        // in case of this filter, we scan entire file
-        // TODO: check statistics when all columns are null
-        Trivial(true)
       case GreaterThan(attribute: String, value: Any) =>
         transformFilter(attribute) { case (stats, _) =>
-          // max is less than or equal to value, so there are no occuriences of value in column
-          // we do not check filter here, but certain filter implementations might allow better
-          // check on this predicate
-          Trivial(!stats.isLessThanOrEqual(value))
+          // we check if value is greateer than max - definitely not in range, or value is equal to
+          // max, but since we want everything greater than that, this will still yield false
+          Trivial(!(stats.isGreaterThanMax(value) || stats.isEqualToMax(value)))
         }
       case GreaterThanOrEqual(attribute: String, value: Any) =>
         transformFilter(attribute) { case (stats, _) =>
-          // max is less than value, so there are no occuriences of value in column
-          Trivial(!stats.isLessThan(value))
+          // equaity value == max is valid and is in range
+          Trivial(!stats.isGreaterThanMax(value))
         }
       case LessThan(attribute: String, value: Any) =>
         transformFilter(attribute) { case (stats, _) =>
-          // similar to GreaterThan predicate,
-          // we return false, if min is greater than or equal to value
-          Trivial(!stats.isGreaterThanOrEqual(value))
+          // similar to GreaterThan, we check if value is less than min or is equal to min,
+          // otherwise is considered in range
+          Trivial(!(stats.isLessThanMin(value) || stats.isEqualToMin(value)))
         }
       case LessThanOrEqual(attribute: String, value: Any) =>
         transformFilter(attribute) { case (stats, _) =>
-          // min is greater than value, return false - no such values in column
-          Trivial(!stats.isGreaterThan(value))
+          // if value is equal to min, we still have to scan file
+          Trivial(!stats.isLessThanMin(value))
         }
       case And(left: Filter, right: Filter) =>
         And(foldFilter(left), foldFilter(right)) match {
@@ -129,6 +124,7 @@ private[parquet] case class ParquetIndexFilters(
       case unsupportedFilter =>
         // return 'true' to scan all partitions
         // currently unsupported filters are:
+        // - IsNotNull
         // - StringStartsWith
         // - StringEndsWith
         // - StringContains

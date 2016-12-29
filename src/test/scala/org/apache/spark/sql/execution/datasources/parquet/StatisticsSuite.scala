@@ -79,72 +79,74 @@ class StatisticsSuite extends UnitTestSuite {
     ParquetIntStatistics(7, 128, 200L).contains(false) should be (false)
   }
 
-  test("ParquetIntStatistics - isLessThan") {
-    ParquetIntStatistics(7, 128, 200L).isLessThan(129) should be (true)
-    ParquetIntStatistics(7, 128, 200L).isLessThan(128) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isLessThan(10) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isLessThan(1) should be (false)
+  // integer statistics - isLessThanMin
+
+  test("ParquetIntStatistics - isLessThanMin") {
+    ParquetIntStatistics(10, 20, 1L).isLessThanMin(9) should be (true)
+    ParquetIntStatistics(10, 20, 1L).isLessThanMin(10) should be (false)
+    ParquetIntStatistics(10, 20, 1L).isLessThanMin(20) should be (false)
   }
 
-  test("ParquetIntStatistics - isLessThan, null") {
-    ParquetIntStatistics(7, 128, 200L).isLessThan(null) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isLessThan(null) should be (false)
+  test("ParquetIntStatistics - isLessThanMin, null") {
+    ParquetIntStatistics(10, 20, 1L).isLessThanMin(null) should be (false)
+    ParquetIntStatistics(10, 20, 0L).isLessThanMin(null) should be (false)
   }
 
-  test("ParquetIntStatistics - isLessThan, other types") {
-    ParquetIntStatistics(7, 128, 200L).isLessThan("abc") should be (false)
-    ParquetIntStatistics(7, 128, 200L).isLessThan(Array(1, 2, 3)) should be (false)
+  test("ParquetIntStatistics - isLessThanMin, other types") {
+    ParquetIntStatistics(10, 20, 1L).isLessThanMin("abc") should be (false)
+    ParquetIntStatistics(10, 20, 1L).isLessThanMin(Array(1, 2, 3)) should be (false)
   }
 
-  test("ParquetIntStatistics - isLessThanOrEqual") {
-    ParquetIntStatistics(7, 128, 200L).isLessThanOrEqual(129) should be (true)
-    ParquetIntStatistics(7, 128, 200L).isLessThanOrEqual(128) should be (true)
-    ParquetIntStatistics(7, 128, 200L).isLessThanOrEqual(10) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isLessThanOrEqual(1) should be (false)
+  // integer statistics - isEqualToMin
+
+  test("ParquetIntStatistics - isEqualToMin") {
+    ParquetIntStatistics(10, 20, 1L).isEqualToMin(10) should be (true)
+    ParquetIntStatistics(10, 20, 1L).isEqualToMin(20) should be (false)
   }
 
-  test("ParquetIntStatistics - isLessThanOrEqual, null") {
-    ParquetIntStatistics(7, 128, 200L).isLessThanOrEqual(null) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isLessThanOrEqual(null) should be (false)
+  test("ParquetIntStatistics - isEqualToMin, null") {
+    ParquetIntStatistics(10, 20, 1L).isEqualToMin(null) should be (false)
+    ParquetIntStatistics(10, 20, 0L).isEqualToMin(null) should be (false)
   }
 
-  test("ParquetIntStatistics - isLessThanOrEqual, other types") {
-    ParquetIntStatistics(7, 128, 200L).isLessThanOrEqual("abc") should be (false)
-    ParquetIntStatistics(7, 128, 200L).isLessThanOrEqual(Array(1, 2, 3)) should be (false)
+  test("ParquetIntStatistics - isEqualToMin, other types") {
+    ParquetIntStatistics(10, 20, 1L).isEqualToMin("abc") should be (false)
+    ParquetIntStatistics(10, 20, 1L).isEqualToMin(Array(1, 2, 3)) should be (false)
   }
 
-  test("ParquetIntStatistics - isGreaterThan") {
-    ParquetIntStatistics(7, 128, 200L).isGreaterThan(129) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isGreaterThan(128) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isGreaterThan(7) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isGreaterThan(1) should be (true)
+  // integer statistics - isGreaterThanMax
+
+  test("ParquetIntStatistics - isGreaterThanMax") {
+    ParquetIntStatistics(10, 20, 1L).isGreaterThanMax(10) should be (false)
+    ParquetIntStatistics(10, 20, 1L).isGreaterThanMax(20) should be (false)
+    ParquetIntStatistics(10, 20, 1L).isGreaterThanMax(21) should be (true)
   }
 
-  test("ParquetIntStatistics - isGreaterThan, null") {
-    ParquetIntStatistics(7, 128, 200L).isGreaterThan(null) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isGreaterThan(null) should be (false)
+  test("ParquetIntStatistics - isGreaterThanMax, null") {
+    ParquetIntStatistics(10, 20, 1L).isGreaterThanMax(null) should be (false)
+    ParquetIntStatistics(10, 20, 0L).isGreaterThanMax(null) should be (false)
   }
 
-  test("ParquetIntStatistics - isGreaterThan, other types") {
-    ParquetIntStatistics(7, 128, 200L).isGreaterThan("abc") should be (false)
-    ParquetIntStatistics(7, 128, 200L).isGreaterThan(Array(1, 2, 3)) should be (false)
+  test("ParquetIntStatistics - isGreaterThanMax, other types") {
+    ParquetIntStatistics(10, 20, 1L).isGreaterThanMax("abc") should be (false)
+    ParquetIntStatistics(10, 20, 1L).isGreaterThanMax(Array(1, 2, 3)) should be (false)
   }
 
-  test("ParquetIntStatistics - isGreaterThanOrEqual") {
-    ParquetIntStatistics(7, 128, 200L).isGreaterThanOrEqual(129) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isGreaterThanOrEqual(128) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isGreaterThanOrEqual(7) should be (true)
-    ParquetIntStatistics(7, 128, 200L).isGreaterThanOrEqual(1) should be (true)
+  // integer statistics - isEqualToMax
+
+  test("ParquetIntStatistics - isEqualToMax") {
+    ParquetIntStatistics(10, 20, 1L).isEqualToMax(10) should be (false)
+    ParquetIntStatistics(10, 20, 1L).isEqualToMax(20) should be (true)
   }
 
-  test("ParquetIntStatistics - isGreaterThanOrEqual, null") {
-    ParquetIntStatistics(7, 128, 200L).isGreaterThanOrEqual(null) should be (false)
-    ParquetIntStatistics(7, 128, 200L).isGreaterThanOrEqual(null) should be (false)
+  test("ParquetIntStatistics - isEqualToMax, null") {
+    ParquetIntStatistics(10, 20, 1L).isEqualToMax(null) should be (false)
+    ParquetIntStatistics(10, 20, 0L).isEqualToMax(null) should be (false)
   }
 
-  test("ParquetIntStatistics - isGreaterThanOrEqual, other types") {
-    ParquetIntStatistics(7, 128, 200L).isGreaterThanOrEqual("abc") should be (false)
-    ParquetIntStatistics(7, 128, 200L).isGreaterThanOrEqual(Array(1, 2, 3)) should be (false)
+  test("ParquetIntStatistics - isEqualToMax, other types") {
+    ParquetIntStatistics(10, 20, 1L).isEqualToMax("abc") should be (false)
+    ParquetIntStatistics(10, 20, 1L).isEqualToMax(Array(1, 2, 3)) should be (false)
   }
 
   // == Long statistics ==
@@ -205,70 +207,74 @@ class StatisticsSuite extends UnitTestSuite {
     ParquetLongStatistics(1L, 2L, 200L).contains(Int.MaxValue) should be (false)
   }
 
-  test("ParquetLongStatistics - isLessThan") {
-    ParquetLongStatistics(100L, 128L, 200L).isLessThan(129L) should be (true)
-    ParquetLongStatistics(100L, 128L, 200L).isLessThan(128L) should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isLessThan(100L) should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isLessThan(1L) should be (false)
+  // long statistics - isLessThanMin
+
+  test("ParquetLongStatistics - isLessThanMin") {
+    ParquetLongStatistics(10L, 20L, 1L).isLessThanMin(9L) should be (true)
+    ParquetLongStatistics(10L, 20L, 1L).isLessThanMin(10L) should be (false)
+    ParquetLongStatistics(10L, 20L, 1L).isLessThanMin(20L) should be (false)
   }
 
-  test("ParquetLongStatistics - isLessThan, null") {
-    ParquetLongStatistics(100L, 128L, 200L).isLessThan(null) should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isLessThan(null) should be (false)
+  test("ParquetLongStatistics - isLessThanMin, null") {
+    ParquetLongStatistics(10L, 20L, 1L).isLessThanMin(null) should be (false)
+    ParquetLongStatistics(10L, 20L, 0L).isLessThanMin(null) should be (false)
   }
 
-  test("ParquetLongStatistics - isLessThan, other types") {
-    ParquetLongStatistics(100L, 128L, 200L).isLessThan("abc") should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isLessThan(Array(1, 2, 3)) should be (false)
+  test("ParquetLongStatistics - isLessThanMin, other types") {
+    ParquetLongStatistics(10L, 20L, 1L).isLessThanMin("abc") should be (false)
+    ParquetLongStatistics(10L, 20L, 1L).isLessThanMin(Array(1, 2, 3)) should be (false)
   }
 
-  test("ParquetLongStatistics - isLessThanOrEqual") {
-    ParquetLongStatistics(100L, 128L, 200L).isLessThanOrEqual(129L) should be (true)
-    ParquetLongStatistics(100L, 128L, 200L).isLessThanOrEqual(128L) should be (true)
-    ParquetLongStatistics(100L, 128L, 200L).isLessThanOrEqual(100L) should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isLessThanOrEqual(1L) should be (false)
+  // long statistics - isEqualToMin
+
+  test("ParquetLongStatistics - isEqualToMin") {
+    ParquetLongStatistics(10L, 20L, 1L).isEqualToMin(10L) should be (true)
+    ParquetLongStatistics(10L, 20L, 1L).isEqualToMin(20L) should be (false)
   }
 
-  test("ParquetLongStatistics - isLessThanOrEqual, null") {
-    ParquetLongStatistics(100L, 128L, 200L).isLessThanOrEqual(null) should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isLessThanOrEqual(null) should be (false)
+  test("ParquetLongStatistics - isEqualToMin, null") {
+    ParquetLongStatistics(10L, 20L, 1L).isEqualToMin(null) should be (false)
+    ParquetLongStatistics(10L, 20L, 0L).isEqualToMin(null) should be (false)
   }
 
-  test("ParquetLongStatistics - isLessThanOrEqual, other types") {
-    ParquetLongStatistics(100L, 128L, 200L).isLessThanOrEqual("abc") should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isLessThanOrEqual(Array(1, 2, 3)) should be (false)
+  test("ParquetLongStatistics - isEqualToMin, other types") {
+    ParquetLongStatistics(10L, 20L, 1L).isEqualToMin("abc") should be (false)
+    ParquetLongStatistics(10L, 20L, 1L).isEqualToMin(Array(1, 2, 3)) should be (false)
   }
 
-  test("ParquetLongStatistics - isGreaterThan") {
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThan(99L) should be (true)
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThan(100L) should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThan(128L) should be (false)
+  // long statistics - isGreaterThanMax
+
+  test("ParquetLongStatistics - isGreaterThanMax") {
+    ParquetLongStatistics(10L, 20L, 1L).isGreaterThanMax(10L) should be (false)
+    ParquetLongStatistics(10L, 20L, 1L).isGreaterThanMax(20L) should be (false)
+    ParquetLongStatistics(10L, 20L, 1L).isGreaterThanMax(21L) should be (true)
   }
 
-  test("ParquetLongStatistics - isGreaterThan, null") {
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThan(null) should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThan(null) should be (false)
+  test("ParquetLongStatistics - isGreaterThanMax, null") {
+    ParquetLongStatistics(10L, 20L, 1L).isGreaterThanMax(null) should be (false)
+    ParquetLongStatistics(10L, 20L, 0L).isGreaterThanMax(null) should be (false)
   }
 
-  test("ParquetLongStatistics - isGreaterThan, other types") {
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThan("abc") should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThan(Array(1, 2, 3)) should be (false)
+  test("ParquetLongStatistics - isGreaterThanMax, other types") {
+    ParquetLongStatistics(10L, 20L, 1L).isGreaterThanMax("abc") should be (false)
+    ParquetLongStatistics(10L, 20L, 1L).isGreaterThanMax(Array(1, 2, 3)) should be (false)
   }
 
-  test("ParquetLongStatistics - isGreaterThanOrEqual") {
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThanOrEqual(99L) should be (true)
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThanOrEqual(100L) should be (true)
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThanOrEqual(128L) should be (false)
+  // long statistics - isEqualToMax
+
+  test("ParquetLongStatistics - isEqualToMax") {
+    ParquetLongStatistics(10L, 20L, 1L).isEqualToMax(10L) should be (false)
+    ParquetLongStatistics(10L, 20L, 1L).isEqualToMax(20L) should be (true)
   }
 
-  test("ParquetLongStatistics - isGreaterThanOrEqual, null") {
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThanOrEqual(null) should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThanOrEqual(null) should be (false)
+  test("ParquetLongStatistics - isEqualToMax, null") {
+    ParquetLongStatistics(10L, 20L, 1L).isEqualToMax(null) should be (false)
+    ParquetLongStatistics(10L, 20L, 0L).isEqualToMax(null) should be (false)
   }
 
-  test("ParquetLongStatistics - isGreaterThanOrEqual, other types") {
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThanOrEqual("abc") should be (false)
-    ParquetLongStatistics(100L, 128L, 200L).isGreaterThanOrEqual(Array(1, 2, 3)) should be (false)
+  test("ParquetLongStatistics - isEqualToMax, other types") {
+    ParquetLongStatistics(10L, 20L, 1L).isEqualToMax("abc") should be (false)
+    ParquetLongStatistics(10L, 20L, 1L).isEqualToMax(Array(1, 2, 3)) should be (false)
   }
 
   // == String statistics ==
@@ -342,78 +348,78 @@ class StatisticsSuite extends UnitTestSuite {
     ParquetStringStatistics("a", "b", 200L).contains(false) should be (false)
   }
 
-  test("ParquetStringStatistics - isLessThan") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThan("dddd") should be (true)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThan("e") should be (true)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThan("ddd") should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThan("aaa") should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThan("abc") should be (false)
+  // string statistics - isLessThanMin
+
+  test("ParquetStringStatistics - isLessThanMin") {
+    ParquetStringStatistics("b", "d", 1L).isLessThanMin("a") should be (true)
+    ParquetStringStatistics("b", "d", 1L).isLessThanMin("aaaaaa") should be (true)
+    ParquetStringStatistics("b", "d", 1L).isLessThanMin("b") should be (false)
+    ParquetStringStatistics("b", "d", 1L).isLessThanMin("bbbbbb") should be (false)
+    ParquetStringStatistics("b", "d", 1L).isLessThanMin("d") should be (false)
   }
 
-  test("ParquetStringStatistics - isLessThan, null") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThan(null) should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThan(null) should be (false)
+  test("ParquetStringStatistics - isLessThanMin, null") {
+    ParquetStringStatistics("b", "d", 1L).isLessThanMin(null) should be (false)
+    ParquetStringStatistics("b", "d", 0L).isLessThanMin(null) should be (false)
   }
 
-  test("ParquetStringStatistics - isLessThan, other types") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThan("abc") should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThan(Array(1, 2, 3)) should be (false)
+  test("ParquetStringStatistics - isLessThanMin, other types") {
+    ParquetStringStatistics("b", "d", 1L).isLessThanMin(1L) should be (false)
+    ParquetStringStatistics("b", "d", 1L).isLessThanMin(Array(1, 2, 3)) should be (false)
   }
 
-  test("ParquetStringStatistics - isLessThanOrEqual") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThanOrEqual("dddd") should be (true)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThanOrEqual("e") should be (true)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThanOrEqual("ddd") should be (true)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThanOrEqual("aaa") should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThanOrEqual("abc") should be (false)
+  // string statistics - isEqualToMin
+
+  test("ParquetStringStatistics - isEqualToMin") {
+    ParquetStringStatistics("b", "d", 1L).isEqualToMin("b") should be (true)
+    ParquetStringStatistics("b", "d", 1L).isEqualToMin("bb") should be (false)
+    ParquetStringStatistics("b", "d", 1L).isEqualToMin("d") should be (false)
   }
 
-  test("ParquetStringStatistics - isLessThanOrEqual, null") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThanOrEqual(null) should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThanOrEqual(null) should be (false)
+  test("ParquetStringStatistics - isEqualToMin, null") {
+    ParquetStringStatistics("b", "d", 1L).isEqualToMin(null) should be (false)
+    ParquetStringStatistics("b", "d", 0L).isEqualToMin(null) should be (false)
   }
 
-  test("ParquetStringStatistics - isLessThanOrEqual, other types") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThanOrEqual("abc") should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isLessThanOrEqual(Array(1, 2, 3)) should be (false)
+  test("ParquetStringStatistics - isEqualToMin, other types") {
+    ParquetStringStatistics("b", "d", 1L).isEqualToMin(1L) should be (false)
+    ParquetStringStatistics("b", "d", 1L).isEqualToMin(Array(1, 2, 3)) should be (false)
   }
 
-  test("ParquetStringStatistics - isGreaterThan") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThan("123") should be (true)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThan("aa") should be (true)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThan("aaa") should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThan("ddd") should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThan("abc") should be (false)
+  // string statistics - isGreaterThanMax
+
+  test("ParquetStringStatistics - isGreaterThanMax") {
+    ParquetStringStatistics("b", "d", 1L).isGreaterThanMax("a") should be (false)
+    ParquetStringStatistics("b", "d", 1L).isGreaterThanMax("d") should be (false)
+    ParquetStringStatistics("b", "d", 1L).isGreaterThanMax("dd") should be (true)
   }
 
-  test("ParquetStringStatistics - isGreaterThan, null") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThan(null) should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThan(null) should be (false)
+  test("ParquetStringStatistics - isGreaterThanMax, null") {
+    ParquetStringStatistics("b", "d", 1L).isGreaterThanMax(null) should be (false)
+    ParquetStringStatistics("b", "d", 0L).isGreaterThanMax(null) should be (false)
   }
 
-  test("ParquetStringStatistics - isGreaterThan, other types") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThan("abc") should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThan(Array(1, 2, 3)) should be (false)
+  test("ParquetStringStatistics - isGreaterThanMax, other types") {
+    ParquetStringStatistics("b", "d", 1L).isGreaterThanMax(1L) should be (false)
+    ParquetStringStatistics("b", "d", 1L).isGreaterThanMax(Array(1, 2, 3)) should be (false)
   }
 
-  test("ParquetStringStatistics - isGreaterThanOrEqual") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThanOrEqual("123") should be (true)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThanOrEqual("aa") should be (true)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThanOrEqual("aaa") should be (true)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThanOrEqual("ddd") should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThanOrEqual("abc") should be (false)
+  // string statistics - isEqualToMax
+
+  test("ParquetStringStatistics - isEqualToMax") {
+    ParquetStringStatistics("b", "d", 1L).isEqualToMax("b") should be (false)
+    ParquetStringStatistics("b", "d", 1L).isEqualToMax("d") should be (true)
+    ParquetStringStatistics("b", "d", 1L).isEqualToMax("dd") should be (false)
   }
 
-  test("ParquetStringStatistics - isGreaterThanOrEqual, null") {
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThanOrEqual(null) should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).isGreaterThanOrEqual(null) should be (false)
+  test("ParquetStringStatistics - isEqualToMax, null") {
+    ParquetStringStatistics("b", "d", 1L).isEqualToMax(null) should be (false)
+    ParquetStringStatistics("b", "d", 0L).isEqualToMax(null) should be (false)
   }
 
-  test("ParquetStringStatistics - isGreaterThanOrEqual, other types") {
-    ParquetStringStatistics("aaa", "ddd", 200L).
-      isGreaterThanOrEqual("abc") should be (false)
-    ParquetStringStatistics("aaa", "ddd", 200L).
-      isGreaterThanOrEqual(Array(1, 2, 3)) should be (false)
+  test("ParquetStringStatistics - isEqualToMax, other types") {
+    ParquetStringStatistics("b", "d", 1L).isEqualToMax(1L) should be (false)
+    ParquetStringStatistics("b", "d", 1L).isEqualToMax(Array(1, 2, 3)) should be (false)
   }
 
   // == Filters ==
