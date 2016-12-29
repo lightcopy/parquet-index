@@ -107,10 +107,10 @@ private[parquet] case class ParquetIndexFilters(
         }
       case Or(left: Filter, right: Filter) =>
         Or(foldFilter(left), foldFilter(right)) match {
-          case Or(Trivial(false), right) => right
-          case Or(left, Trivial(false)) => left
           case Or(Trivial(true), _) => Trivial(true)
           case Or(_, Trivial(true)) => Trivial(true)
+          case Or(Trivial(false), right) => right
+          case Or(left, Trivial(false)) => left
           case other => other
         }
       case Not(child: Filter) =>
