@@ -24,8 +24,9 @@ schema). Filter resolution happens after partition pruning (if available) and cu
 column metadata level only (per file). Note that performance also depends on values distribution and
 predicate selectivity. Spark Parquet reader is used to read data.
 
-Most of the Spark SQL predicates are supported to use statistics and/or column filter. Note that
-predicates work best for equality or `isin` conditions and logical operators (`And`, `Or`, `Not`),
+Most of the Spark SQL predicates are supported to use statistics and/or column filter
+(`EqualTo`, `In`, `GreaterThan`, `LessThan`, and others). Note that predicates work best for
+equality or `isin` conditions and logical operators (`And`, `Or`, `Not`),
 e.g. `$"a" === 1 && $"b" === "abc"` or `$"a".isin("a", "b", "c")`.
 
 ### Supported Spark SQL types
