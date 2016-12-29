@@ -422,6 +422,58 @@ class StatisticsSuite extends UnitTestSuite {
     ParquetStringStatistics("b", "d", 1L).isEqualToMax(Array(1, 2, 3)) should be (false)
   }
 
+  // == Null statistics ==
+
+  test("ParquetNullStatistics - invalid statistics") {
+    val err = intercept[IllegalArgumentException] {
+      ParquetNullStatistics(-1)
+    }
+    assert(err.getMessage.contains("Number of nulls -1 is negative"))
+  }
+
+  test("ParquetNullStatistics - valid statistics") {
+    val stats = ParquetNullStatistics(123)
+    stats.hasNull should be (true)
+    stats.getNumNulls should be (123)
+    assert(stats.getMin === null)
+    assert(stats.getMax === null)
+    stats.toString should be ("ParquetNullStatistics(min=null, max=null, nulls=123)")
+  }
+
+  test("ParquetNullStatistics - contains") {
+    val stats = ParquetNullStatistics(123L)
+    stats.contains(null) should be (true)
+    stats.contains("null") should be (false)
+    stats.contains(1) should be (false)
+    stats.contains(Array(1, 2, 3)) should be (false)
+    stats.contains(stats) should be (false)
+  }
+
+  test("ParquetNullStatistics - isLessThanMin") {
+    val stats = ParquetNullStatistics(123L)
+    stats.isLessThanMin(null) should be (false)
+    stats.isLessThanMin(1) should be (false)
+    stats.isLessThanMin("null") should be (false)
+  }
+
+  test("ParquetNullStatistics - isEqualToMin") {
+    val stats = ParquetNullStatistics(123L)
+    stats.isEqualToMin(null) should be (false)
+    stats.isEqualToMin("null") should be (false)
+  }
+
+  test("ParquetNullStatistics - isGreaterThanMax") {
+    val stats = ParquetNullStatistics(123L)
+    stats.isGreaterThanMax(null) should be (false)
+    stats.isGreaterThanMax("null") should be (false)
+  }
+
+  test("ParquetNullStatistics - isEqualToMax") {
+    val stats = ParquetNullStatistics(123L)
+    stats.isEqualToMax(null) should be (false)
+    stats.isEqualToMax("null") should be (false)
+  }
+
   // == Filters ==
 
   test("ParquetBloomFilter - fail to check if not initialized") {

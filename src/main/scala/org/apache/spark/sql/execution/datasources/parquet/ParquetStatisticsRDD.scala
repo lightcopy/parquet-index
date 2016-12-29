@@ -228,15 +228,18 @@ private[parquet] object ParquetStatisticsRDD {
 
   def convertStatistics(parquetStatistics: Statistics[_]): ParquetColumnStatistics = {
     parquetStatistics match {
-      case stats: IntStatistics =>
+      case stats: IntStatistics if stats.hasNonNullValue =>
         ParquetIntStatistics(stats.getMin, stats.getMax, stats.getNumNulls)
-      case stats: LongStatistics =>
+      case stats: LongStatistics if stats.hasNonNullValue =>
         ParquetLongStatistics(stats.getMin, stats.getMax, stats.getNumNulls)
-      case stats: BinaryStatistics =>
+      case stats: BinaryStatistics if stats.hasNonNullValue =>
         // we assume that binary statistics is always string, this check is done for StructType
         // columns before running RDD, see `validateStructType(...)`
         ParquetStringStatistics(stats.getMin.toStringUsingUTF8, stats.getMax.toStringUsingUTF8,
           stats.getNumNulls)
+      case stats if !stats.hasNonNullValue =>
+        // statistics for all-nulls column with undefined min/max
+        ParquetNullStatistics(stats.getNumNulls)
       case other =>
         throw new UnsupportedOperationException(s"Statistics $other is not supported, see " +
           "information on what types are supported by index")

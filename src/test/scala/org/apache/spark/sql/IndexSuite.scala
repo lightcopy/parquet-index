@@ -252,6 +252,18 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
+  test("read correctness for Parquet table with equality filter that returns 0 rows") {
+    withTempDir { dir =>
+      withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        spark.range(0, 9).withColumn("str", lit("abc")).write.parquet(dir.toString / "test")
+        spark.index.create.indexBy("id", "str").parquet(dir.toString / "test")
+        val df1 = spark.index.parquet(dir.toString / "test").filter(col("id") === 999)
+        val df2 = spark.read.parquet(dir.toString / "test").filter(col("id") === 999)
+        checkAnswer(df1, df2)
+      }
+    }
+  }
+
   test("read correctness for Parquet table (bloom filters) with In filter") {
     withTempDir { dir =>
       withSQLConf(
@@ -402,6 +414,23 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
           spark.index.create.indexBy("c1", "c2").parquet(dir.toString / "test")
         }
         assert(err.getMessage.contains("Schema contains unsupported type"))
+      }
+    }
+  }
+
+  test("create and query index for table with all-nulls columns") {
+    withTempDir { dir =>
+      withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = spark.range(16).withColumn("nl", lit(null).cast("string"))
+        df.write.parquet(dir.toString / "test")
+
+        spark.index.create.indexBy("id", "nl").parquet(dir.toString / "test")
+        val df1 = spark.index.parquet(dir.toString / "test").filter(col("nl") === "a")
+        df1.count should be (0)
+        val df2 = spark.index.parquet(dir.toString / "test").filter(col("nl").isNull)
+        df2.count should be (16)
       }
     }
   }
