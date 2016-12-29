@@ -204,6 +204,35 @@ case class ParquetStringStatistics(min: String, max: String, numNulls: Long)
   override def getNumNulls(): Long  = numNulls
 }
 
+/**
+ * [[ParquetNullStatistics]] store information for all-nulls column. Statistics is considered
+ * invalid and returns `false` for most of the methods, should be used for filters like
+ * `IsNull` or `IsNotNull`.
+ */
+case class ParquetNullStatistics(numNulls: Long) extends ParquetColumnStatistics {
+
+  require(numNulls >= 0, s"Number of nulls $numNulls is negative")
+
+  override def contains(value: Any): Boolean = value match {
+    case nullValue if nullValue == null && hasNull => true
+    case other => false
+  }
+
+  override def isLessThanMin(value: Any): Boolean = false
+
+  override def isGreaterThanMax(value: Any): Boolean = false
+
+  override def isEqualToMin(value: Any): Boolean = false
+
+  override def isEqualToMax(value: Any): Boolean = false
+
+  override def getMin(): Any = null
+
+  override def getMax(): Any = null
+
+  override def getNumNulls(): Long = numNulls
+}
+
 ////////////////////////////////////////////////////////////////
 // == Supported column filters for Parquet ==
 ////////////////////////////////////////////////////////////////

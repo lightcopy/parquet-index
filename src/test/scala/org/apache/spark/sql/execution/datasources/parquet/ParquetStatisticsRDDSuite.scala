@@ -111,10 +111,24 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
 
   test("ParquetStatisticsRDD - convertStatistics, unsupported stats") {
     val stats = new BooleanStatistics()
+    // non-initialized statistics are converted into null statistics
+    stats.initializeStats(false, true)
     val err = intercept[UnsupportedOperationException] {
       ParquetStatisticsRDD.convertStatistics(stats)
     }
-    assert(err.getMessage.contains("Statistics no stats for this column is not supported"))
+    assert(err.getMessage.
+      contains("Statistics min: false, max: true, num_nulls: 0 is not supported"))
+  }
+
+  test("ParquetStatisticsRDD - convertStatistics, undefined min/max") {
+    val stats = new IntStatistics()
+    stats.setNumNulls(5)
+    ParquetStatisticsRDD.convertStatistics(stats) should be (ParquetNullStatistics(5))
+  }
+
+  test("ParquetStatisticsRDD - convertStatistics, undefined min/max, with 0 nulls") {
+    val stats = new BinaryStatistics()
+    ParquetStatisticsRDD.convertStatistics(stats) should be (ParquetNullStatistics(0))
   }
 
   test("ParquetStatisticsRDD - prepareBloomFilter, empty blocks array") {
