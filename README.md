@@ -45,14 +45,16 @@ bucketed table would be processed and indexed like standard partitioned table
 
 Project is **experimental and is in active development at the moment**. We are working to remove
 limitations and add support for different versions. Any feedback, issues or PRs are welcome.
+> Documentation reflects changes in `master` branch, for specific version documentation, please
+> select version tag or branch.
 
 ## Requirements
 | Spark version | `parquet-index` latest version |
 |---------------|--------------------------------|
 | 1.6.x | Not supported |
-| 2.0.0 | Not supported |
-| 2.0.1 | [0.1.0](http://spark-packages.org/package/lightcopy/parquet-index) |
-| 2.0.2 | [0.1.0](http://spark-packages.org/package/lightcopy/parquet-index) |
+| 2.0.0 | [0.2.0](http://spark-packages.org/package/lightcopy/parquet-index) |
+| 2.0.1 | [0.2.0](http://spark-packages.org/package/lightcopy/parquet-index) |
+| 2.0.2 | [0.2.0](http://spark-packages.org/package/lightcopy/parquet-index) |
 | 2.1.x | Not supported |
 
 ## Linking
