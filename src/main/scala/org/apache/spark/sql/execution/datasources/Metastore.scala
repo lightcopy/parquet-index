@@ -50,10 +50,10 @@ private[sql] class Metastore(
   logInfo(s"Resolved metastore directory to $metastore")
   logInfo(s"Registered file system $fs")
 
-  // cache for index catalog
+  // cache of index catalogs per metastore
   val onRemovalAction = new RemovalListener[Path, MetastoreIndexCatalog] {
     override def onRemoval(rm: RemovalNotification[Path, MetastoreIndexCatalog]): Unit = {
-      logInfo(s"Evicting key ${rm.getKey}")
+      logInfo(s"Evicting index ${rm.getKey}")
     }
   }
 

@@ -38,7 +38,7 @@ libraryDependencies ++= Seq(
 
 libraryDependencies ++= Seq(
   "io.netty" % "netty" % "3.6.2.Final" % "provided",
-  "com.google.guava" % "guava" % "14.0.1"
+  "com.google.guava" % "guava" % "14.0.1" % "provided"
 )
 
 // Check deprecation without manual restart
