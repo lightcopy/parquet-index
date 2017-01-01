@@ -61,13 +61,14 @@ case class IndexedDataSource(
           s.loadIndex(metastore, status)
         }
 
-        HadoopFsRelation(
+        IndexedDataSource.newHadoopRelation(
+          metastore.session,
           location = indexCatalog,
           partitionSchema = indexCatalog.partitionSpec().partitionColumns,
           dataSchema = indexCatalog.dataSchema().asNullable,
           bucketSpec = bucketSpec,
           fileFormat = s.fileFormat,
-          options = caseInsensitiveOptions)(metastore.session)
+          options = caseInsensitiveOptions)
       case other =>
         throw new UnsupportedOperationException(s"Index is not supported by $other")
     }
@@ -117,6 +118,7 @@ case class IndexedDataSource(
 
 object IndexedDataSource {
   val parquet = classOf[ParquetMetastoreSupport].getCanonicalName
+  val hadoopFsRelation = classOf[HadoopFsRelation].getCanonicalName
 
   /**
    * Resolve class name into fully-qualified class path if available. If no match found, return
@@ -146,5 +148,56 @@ object IndexedDataSource {
   def resolveTablePath(path: Path, conf: Configuration): FileStatus = {
     val fs = path.getFileSystem(conf)
     fs.getFileStatus(path)
+  }
+
+  /**
+   * Load `HadoopFsRelation` depending on Spark version.
+   * Class in Spark 2.0.0 does not have second list of parameters and SparkSession is passed along
+   * with other parameters for HadoopFsRelation. In contrast Spark 2.0.1 and onwards Spark session
+   * is passed in second parameter list as part of currying. Here we make it loadable so consumers
+   * do not need to worry about compatibility.
+   * This is very different from Spark 1.x where HadoopFsRelation resides in `sources` interfaces.
+   */
+  def newHadoopRelation(
+      sparkSession: SparkSession,
+      location: FileCatalog,
+      partitionSchema: StructType,
+      dataSchema: StructType,
+      bucketSpec: Option[BucketSpec],
+      fileFormat: FileFormat,
+      options: Map[String, String]): HadoopFsRelation = {
+    // choose constructor depending on Spark version
+    val loader = Utils.getContextOrSparkClassLoader
+    val clazz = Try(loader.loadClass(hadoopFsRelation)) match {
+      case Success(relation) =>
+        relation
+      case Failure(error) =>
+        throw new ClassNotFoundException(s"Failed to find $hadoopFsRelation", error)
+    }
+
+    if (sparkSession.version == "2.0.0") {
+      val constructor = clazz.getConstructor(
+        classOf[SparkSession],
+        classOf[FileCatalog],
+        classOf[StructType],
+        classOf[StructType],
+        classOf[Option[BucketSpec]],
+        classOf[FileFormat],
+        classOf[Map[String, String]])
+      constructor.newInstance(sparkSession, location, partitionSchema, dataSchema, bucketSpec,
+        fileFormat, options).asInstanceOf[HadoopFsRelation]
+    } else {
+      // loading constructor for 2.0.1 and onwards including 2.1.x
+      val constructor = clazz.getConstructor(
+        classOf[FileCatalog],
+        classOf[StructType],
+        classOf[StructType],
+        classOf[Option[BucketSpec]],
+        classOf[FileFormat],
+        classOf[Map[String, String]],
+        classOf[SparkSession])
+      constructor.newInstance(location, partitionSchema, dataSchema, bucketSpec, fileFormat,
+        options, sparkSession).asInstanceOf[HadoopFsRelation]
+    }
   }
 }
