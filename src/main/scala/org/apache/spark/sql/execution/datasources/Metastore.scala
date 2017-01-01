@@ -53,7 +53,7 @@ private[sql] class Metastore(
   // cache for index catalog
   val onRemovalAction = new RemovalListener[Path, MetastoreIndexCatalog] {
     override def onRemoval(rm: RemovalNotification[Path, MetastoreIndexCatalog]): Unit = {
-      logInfo(s"Evicting key ${rm.getKey} from $this")
+      logInfo(s"Evicting key ${rm.getKey}")
     }
   }
 

@@ -62,6 +62,14 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     }
   }
 
+  test("create metastore and verify cache") {
+    withTempDir { dir =>
+      val metastore = testMetastore(spark, dir.toString / "test_metastore")
+      assert(metastore.cache != null)
+      metastore.cache.asMap.size should be (0)
+    }
+  }
+
   test("use existing directory for metastore") {
     withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
       val metastore = testMetastore(spark, dir)
@@ -335,6 +343,20 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     }
   }
 
+  test("create - invalidate cache before creating index") {
+    withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
+      val metastore = testMetastore(spark, dir)
+      val path = metastore.location("identifier", new Path("/tmp/table"))
+      metastore.cache.put(path, new TestIndexCatalog())
+      metastore.cache.asMap.size should be (1)
+
+      metastore.create("identifier", new Path("/tmp/table"), SaveMode.ErrorIfExists) {
+        case (status, isAppend) => // no-op
+      }
+      metastore.cache.asMap.size should be (0)
+    }
+  }
+
   //////////////////////////////////////////////////////////////
   // == Delete index directory ==
   //////////////////////////////////////////////////////////////
@@ -366,6 +388,37 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     }
   }
 
+  test("delete - invalidate cache before deleting index") {
+    withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
+      val metastore = testMetastore(spark, dir)
+      val path = metastore.location("identifier", new Path("/tmp/table"))
+      metastore.cache.put(path, new TestIndexCatalog())
+      metastore.cache.asMap.size should be (1)
+
+      mkdirs(path.toString)
+      metastore.delete("identifier", new Path("/tmp/table")) {
+        case status => // no-op
+      }
+      metastore.fs.exists(path) should be (false)
+      metastore.cache.asMap.size should be (0)
+    }
+  }
+
+  // this situation should not happen with normal workflow, because all operations will be done
+  // using metastore API
+  test("delete - do not invalidate cache if index does not exist") {
+    withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
+      val metastore = testMetastore(spark, dir)
+      val path = metastore.location("identifier", new Path("/tmp/table"))
+      metastore.cache.put(path, new TestIndexCatalog())
+      metastore.delete("identifier", new Path("/tmp/table")) {
+        case status => // no-op
+      }
+      // metastore cache should still contain above entry
+      assert(metastore.cache.getIfPresent(path) != null)
+    }
+  }
+
   //////////////////////////////////////////////////////////////
   // == Load index directory ==
   //////////////////////////////////////////////////////////////
@@ -376,7 +429,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       val metastore = testMetastore(spark, dir)
       val err = intercept[IOException] {
         metastore.load("identifier", new Path("/tmp/table")) {
-          case status => null
+          case status => new TestIndexCatalog()
         }
       }
       assert(err.getMessage.contains("Index does not exist"))
@@ -386,14 +439,36 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
   test("load - existing directory") {
     withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
       val metastore = testMetastore(spark, dir)
+      val location = metastore.location("identifier", new Path("/tmp/table"))
+      mkdirs(location.toString)
       var triggered = false
-      mkdirs(metastore.location("identifier", new Path("/tmp/table")).toString)
       metastore.load("identifier", new Path("/tmp/table")) {
         case status =>
           triggered = true
-          null
+          new TestIndexCatalog()
       }
       triggered should be (true)
+      // check that cache also contains entry
+      assert(metastore.cache.getIfPresent(location) != null)
+    }
+  }
+
+  test("load - use cache instead of reading from disk") {
+    withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
+      val metastore = testMetastore(spark, dir)
+      val path = new Path("/tmp/table")
+      mkdirs(metastore.location("identifier", path).toString)
+
+      val catalog1 = metastore.load("identifier", path) {
+        case status => new TestIndexCatalog()
+      }
+      val catalog2 = metastore.load("identifier", path) {
+        case status =>
+          throw new IllegalStateException("Expected to use cache, failed to load entry")
+      }
+
+      catalog2 should be (catalog1)
+      metastore.cache.asMap.size should be (1)
     }
   }
 
