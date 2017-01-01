@@ -233,6 +233,19 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
+  test("read correctness for Parquet table with single equality filter using cached catalog") {
+    withTempDir { dir =>
+      withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        spark.range(0, 9).withColumn("str", lit("abc")).write.parquet(dir.toString / "test")
+        spark.index.create.indexBy("id", "str").parquet(dir.toString / "test")
+        val df1 = spark.index.parquet(dir.toString / "test").filter(col("id") === 1)
+        // cache will already contain entry, result should be the same as using fresh loading
+        val df2 = spark.index.parquet(dir.toString / "test").filter(col("id") === 1)
+        checkAnswer(df1, df2)
+      }
+    }
+  }
+
   test("read correctness for Parquet table (bloom filters) with single equality filter") {
     withTempDir { dir =>
       withSQLConf(

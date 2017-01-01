@@ -17,8 +17,11 @@
 package org.apache.spark.sql.execution.datasources
 
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 import scala.util.control.NonFatal
+
+import com.google.common.cache.{CacheBuilder, Cache, RemovalListener, RemovalNotification}
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path, PathFilter}
@@ -41,12 +44,27 @@ private[sql] class Metastore(
   private val hadoopConf = session.sparkContext.hadoopConfiguration
   // Metastore location to use
   private val metastore = resolveMetastore(getMetastorePath, hadoopConf)
-
   // Publicly available file system that is used to metastore
   val fs = metastore.getFileSystem(hadoopConf)
 
   logInfo(s"Resolved metastore directory to $metastore")
   logInfo(s"Registered file system $fs")
+
+  // cache of index catalogs per metastore
+  val onRemovalAction = new RemovalListener[Path, MetastoreIndexCatalog] {
+    override def onRemoval(rm: RemovalNotification[Path, MetastoreIndexCatalog]): Unit = {
+      logInfo(s"Evicting index ${rm.getKey}")
+    }
+  }
+
+  val cache: Cache[Path, MetastoreIndexCatalog] =
+    CacheBuilder.newBuilder().
+      maximumSize(16).
+      expireAfterWrite(12, TimeUnit.HOURS).
+      removalListener(onRemovalAction).
+      build()
+
+  logInfo(s"Registered cache $cache")
 
   /** Resolve metastore path as raw string */
   private[sql] def getMetastorePath: Option[String] = {
@@ -102,15 +120,19 @@ private[sql] class Metastore(
    * Create target directory for specific table path and index identifier. If index fails to create
    * target directory is deleted. Method also supports save mode, and propagates boolean flag based
    * on mode to the closure.
+   *
    * Closure provides two parameters:
    * - path, file status to the index directory, exists when closure is called
    * - isAppend, boolean flag indicating that directory already contains files for current index and
    * format needs to append new data to the existing files
+   *
+   * Cache is invalidated for index every time `create` method is called for that index.
    */
   def create(identifier: String, path: Path, mode: SaveMode)
       (func: (FileStatus, Boolean) => Unit): Unit = {
     // reconstruct path with metastore path as root directory
     val resolvedPath = location(identifier, path)
+    cache.invalidate(resolvedPath)
     val pathExists = fs.exists(resolvedPath)
     val (continue, isAppend) = mode match {
       case SaveMode.Append =>
@@ -154,25 +176,41 @@ private[sql] class Metastore(
     }
   }
 
-  /** Load index directory if exists, fail if none found for identifier */
+  /**
+   * Load index directory if exists, fail if none found for identifier.
+   * If resolved path exists in memory, load from metastore cache, otherwise read from disk and
+   * update cache. It still works in situation when flag is enabled to create index if one does not
+   * exist, because if index exists, we just load it from cache, otherwise we create fresh index
+   * that is definitely not in the cache yet.
+   * Note that is this behaviour changes, cache should be updated accordingly.
+   */
   def load(identifier: String, path: Path)
       (func: FileStatus => MetastoreIndexCatalog): MetastoreIndexCatalog = {
     val resolvedPath = location(identifier, path)
-    if (!fs.exists(resolvedPath)) {
-      throw new IOException(s"Index does not exist for $identifier and path $path")
+    Option(cache.getIfPresent(resolvedPath)) match {
+      case Some(cachedValue) =>
+        logInfo(s"Loading $identifier[$resolvedPath] from cache")
+        cachedValue
+      case None =>
+        if (!fs.exists(resolvedPath)) {
+          throw new IOException(s"Index does not exist for $identifier and path $path")
+        }
+        val loadedValue = func(fs.getFileStatus(resolvedPath))
+        cache.put(resolvedPath, loadedValue)
+        loadedValue
     }
-    func(fs.getFileStatus(resolvedPath))
   }
 
   /**
    * Delete index directory, exposes function to clean up directory when special handling of files
-   * in that directory is required.
+   * in that directory is required. Cache is invalidated only if index already exists for resolved
+   * path, otherwise no-op.
    */
   def delete(identifier: String, path: Path)(func: FileStatus => Unit): Unit = {
     val resolvedPath = location(identifier, path)
-    val pathExists = fs.exists(resolvedPath)
-    if (pathExists) {
+    if (fs.exists(resolvedPath)) {
       try {
+        cache.invalidate(resolvedPath)
         func(fs.getFileStatus(resolvedPath))
       } finally {
         try {
@@ -186,7 +224,11 @@ private[sql] class Metastore(
     }
   }
 
-  /** Check whether or not path exists for given identifier and path */
+  /**
+   * Check whether or not location exists for given identifier and path.
+   * This method should bypass cache, because we check directly in metastore if index exists, and
+   * do not invalidate cache otherwise.
+   */
   def exists(identifier: String, path: Path): Boolean = {
     val resolvedPath = location(identifier, path)
     fs.exists(resolvedPath)
