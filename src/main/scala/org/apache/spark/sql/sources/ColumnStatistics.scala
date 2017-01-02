@@ -153,7 +153,7 @@ case class IntColumnStatistics() extends ColumnStatistics {
   private var isSet: Boolean = false
 
   override protected def updateMinMaxFunc: PartialFunction[Any, Unit] = {
-    case intValue: Int =>
+    case intValue: Int => {
       if (!isSet) {
         min = intValue
         max = intValue
@@ -162,6 +162,7 @@ case class IntColumnStatistics() extends ColumnStatistics {
         if (min > intValue) min = intValue
         if (max < intValue) max = intValue
       }
+    }
   }
 
   override protected def containsFunc: PartialFunction[Any, Boolean] = {
@@ -199,7 +200,7 @@ case class LongColumnStatistics() extends ColumnStatistics {
   private var isSet: Boolean = false
 
   override protected def updateMinMaxFunc: PartialFunction[Any, Unit] = {
-    case longValue: Long =>
+    case longValue: Long => {
       if (!isSet) {
         min = longValue
         max = longValue
@@ -208,6 +209,7 @@ case class LongColumnStatistics() extends ColumnStatistics {
         if (min > longValue) min = longValue
         if (max < longValue) max = longValue
       }
+    }
   }
 
   override protected def containsFunc: PartialFunction[Any, Boolean] = {
@@ -245,7 +247,7 @@ case class StringColumnStatistics() extends ColumnStatistics {
   private var isSet: Boolean = false
 
   override protected def updateMinMaxFunc: PartialFunction[Any, Unit] = {
-    case strValue: String =>
+    case strValue: String => {
       if (!isSet) {
         min = strValue
         max = strValue
@@ -254,6 +256,7 @@ case class StringColumnStatistics() extends ColumnStatistics {
         if (min > strValue) min = strValue
         if (max < strValue) max = strValue
       }
+    }
   }
 
   override protected def containsFunc: PartialFunction[Any, Boolean] = {
