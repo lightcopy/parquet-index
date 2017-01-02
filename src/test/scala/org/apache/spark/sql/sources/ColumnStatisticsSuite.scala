@@ -110,6 +110,13 @@ class ColumnStatisticsSuite extends UnitTestSuite {
     stats.contains(null) should be (true)
   }
 
+  test("IntColumnStatistics - contains nulls when not initialized") {
+    val stats = IntColumnStatistics()
+    stats.contains(null) should be (false)
+    stats.incrementNumNulls()
+    stats.contains(null) should be (true)
+  }
+
   test("IntColumnStatistics - contains other types") {
     val stats = IntColumnStatistics()
     stats.updateMinMax(7)
@@ -346,6 +353,13 @@ class ColumnStatisticsSuite extends UnitTestSuite {
     stats.contains(null) should be (true)
   }
 
+  test("LongColumnStatistics - contains nulls when not initialized") {
+    val stats = LongColumnStatistics()
+    stats.contains(null) should be (false)
+    stats.incrementNumNulls()
+    stats.contains(null) should be (true)
+  }
+
   test("LongColumnStatistics - contains other types") {
     val stats = LongColumnStatistics()
     stats.updateMinMax(1L)
@@ -576,6 +590,13 @@ class ColumnStatisticsSuite extends UnitTestSuite {
     stats.updateMinMax("a")
     stats.updateMinMax("b")
 
+    stats.contains(null) should be (false)
+    stats.incrementNumNulls()
+    stats.contains(null) should be (true)
+  }
+
+  test("StringColumnStatistics - contains nulls when not initialized") {
+    val stats = StringColumnStatistics()
     stats.contains(null) should be (false)
     stats.incrementNumNulls()
     stats.contains(null) should be (true)
