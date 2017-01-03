@@ -21,6 +21,7 @@ import org.apache.hadoop.fs.Path
 
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions.lit
+import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 
 import com.github.lightcopy.util.SerializableFileStatus
@@ -149,8 +150,127 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
+  test("ParquetStatisticsRDD - convertBlocks, empty sequence") {
+    ParquetStatisticsRDD.convertBlocks(Seq.empty) should be (Array.empty)
+  }
+
+  test("ParquetStatisticsRDD - convertBlocks, filter is None") {
+    val blocks = Seq(
+      (123L, Map[Int, (String, ColumnStatistics, Option[ColumnFilterStatistics])](
+        0 -> ("a", IntColumnStatistics(), None),
+        1 -> ("b", LongColumnStatistics(), None)
+      ))
+    )
+    val res = ParquetStatisticsRDD.convertBlocks(blocks)
+    res should be (Array(
+      ParquetBlockMetadata(123L, Map(
+        "a" -> ParquetColumnMetadata("a", 123L, IntColumnStatistics(), None),
+        "b" -> ParquetColumnMetadata("b", 123L, LongColumnStatistics(), None)
+      ))
+    ))
+  }
+
+  test("ParquetStatisticsRDD - convertBlocks, valueCount is the same as rowCount") {
+    val stats = IntColumnStatistics()
+    stats.updateMinMax(11)
+    stats.incrementNumNulls()
+    val blocks = Seq(
+      (123L, Map[Int, (String, ColumnStatistics, Option[ColumnFilterStatistics])](
+        0 -> ("a", stats, None),
+        1 -> ("b", stats, None)
+      ))
+    )
+    val res = ParquetStatisticsRDD.convertBlocks(blocks)
+    res should be (Array(
+      ParquetBlockMetadata(123L, Map(
+        "a" -> ParquetColumnMetadata("a", 123L, stats, None),
+        "b" -> ParquetColumnMetadata("b", 123L, stats, None)
+      ))
+    ))
+  }
+
+  // This test does not happen in real world schenario, because we ensure that columns are unique
+  // But we do not handle this case explicitly, hence test to verify the edge case
+  test("ParquetStatisticsRDD - convertBlocks, different index, same column name") {
+    // can be different column type
+    val blocks = Seq(
+      (123L, Map[Int, (String, ColumnStatistics, Option[ColumnFilterStatistics])](
+        0 -> ("a", IntColumnStatistics(), None),
+        1 -> ("a", IntColumnStatistics(), None)
+      ))
+    )
+    val res = ParquetStatisticsRDD.convertBlocks(blocks)
+    res should be (Array(
+      ParquetBlockMetadata(123L, Map(
+        "a" -> ParquetColumnMetadata("a", 123L, IntColumnStatistics(), None)
+      ))
+    ))
+  }
+
+  test("ParquetStatisticsRDD - collect statistics for empty file") {
+    withTempDir { dir =>
+      // all values are in single file
+      spark.range(0, 1).filter("id > 2").withColumn("str", lit("abc")).coalesce(1).
+        write.parquet(dir.toString / "table")
+      val status = fs.listStatus(new Path(dir.toString / "table")).
+        filter(_.getPath.getName.contains("parquet"))
+
+      val rdd = new ParquetStatisticsRDD(
+        spark.sparkContext,
+        spark.sessionState.newHadoopConf(),
+        schema = StructType(
+          StructField("id", LongType, false) ::
+          StructField("str", StringType, false) :: Nil),
+        data = status.map(SerializableFileStatus.fromFileStatus).toSeq,
+        numPartitions = 4)
+
+      val res = rdd.collect
+      res.head.blocks.isEmpty should be (true)
+    }
+  }
+
   test("ParquetStatisticsRDD - collect partial-null and full-null fields") {
-    // throw new RuntimeException()
+    val sqlContext = spark.sqlContext
+    import sqlContext.implicits._
+    withTempDir { dir =>
+      Seq[(Int, String, String)](
+        (0, "a", null),
+        (1, "b", null),
+        (2, null, null),
+        (3, null, null),
+        (4, "c", null)
+      ).toDF("col1", "col2", "col3").coalesce(1).write.parquet(dir.toString / "table")
+      val status = fs.listStatus(new Path(dir.toString / "table")).
+        filter(_.getPath.getName.contains("parquet"))
+
+      val rdd = new ParquetStatisticsRDD(
+        spark.sparkContext,
+        spark.sessionState.newHadoopConf(),
+        schema = StructType(
+          StructField("col1", IntegerType, false) ::
+          StructField("col2", StringType, true) ::
+          StructField("col3", StringType, true) :: Nil),
+        data = status.map(SerializableFileStatus.fromFileStatus).toSeq,
+        numPartitions = 4)
+
+      val res = rdd.collect
+      val cols = res.head.blocks.head.indexedColumns
+
+      val stats1 = cols("col1").stats
+      assert(stats1.getMin === 0)
+      assert(stats1.getMax === 4)
+      assert(stats1.getNumNulls === 0)
+
+      val stats2 = cols("col2").stats
+      assert(stats2.getMin === "a")
+      assert(stats2.getMax === "c")
+      assert(stats2.getNumNulls === 2)
+
+      val stats3 = cols("col3").stats
+      assert(stats3.getMin === null)
+      assert(stats3.getMax === null)
+      assert(stats3.getNumNulls === 5)
+    }
   }
 
   test("ParquetStatisticsRDD - field order is irrelevant when collecting stats/filters") {
@@ -171,7 +291,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
           StructField("str", StringType, false) ::
           StructField("id", LongType, false) :: Nil),
         data = status.map(SerializableFileStatus.fromFileStatus).toSeq,
-        numPartitions = 8)
+        numPartitions = 4)
 
       val res = rdd.collect
       val cols = res.head.blocks.head.indexedColumns

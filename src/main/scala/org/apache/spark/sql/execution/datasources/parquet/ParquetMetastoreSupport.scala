@@ -117,10 +117,8 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
         // search status filepath in collected statistics and replace
         // assume that there is only one path per partition
         val maybeStats = statistics.find { stats => stats.status.path == status.getPath.toString }
-        if (maybeStats.isEmpty) {
-          throw new IllegalStateException(
-            s"No match found when converting statistics to partitions, failed status = $status")
-        }
+        assert(maybeStats.nonEmpty, "No match found when converting statistics to partitions, " +
+          s"failed status = $status")
         maybeStats.get
       })
     }
