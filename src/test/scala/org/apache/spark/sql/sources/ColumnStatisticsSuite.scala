@@ -16,10 +16,54 @@
 
 package org.apache.spark.sql.sources
 
+import org.apache.spark.sql.types._
+
 import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
 
 class ColumnStatisticsSuite extends UnitTestSuite {
+  test("ColumnStatistics - getStatisticsForType") {
+    ColumnStatistics.getStatisticsForType(IntegerType) should be (IntColumnStatistics())
+    ColumnStatistics.getStatisticsForType(LongType) should be (LongColumnStatistics())
+    ColumnStatistics.getStatisticsForType(StringType) should be (StringColumnStatistics())
+  }
+
+  test("ColumnStatistics - getStatisticsForType, fail for invalid numeric type") {
+    var err = intercept[UnsupportedOperationException] {
+      ColumnStatistics.getStatisticsForType(ShortType)
+    }
+    assert(err.getMessage.contains("Column statistics do not exist for type"))
+
+    err = intercept[UnsupportedOperationException] {
+      ColumnStatistics.getStatisticsForType(ByteType)
+    }
+    assert(err.getMessage.contains("Column statistics do not exist for type"))
+  }
+
+  test("ColumnStatistics - getStatisticsForType, fail for date type") {
+    var err = intercept[UnsupportedOperationException] {
+      ColumnStatistics.getStatisticsForType(DateType)
+    }
+    assert(err.getMessage.contains("Column statistics do not exist for type"))
+
+    err = intercept[UnsupportedOperationException] {
+      ColumnStatistics.getStatisticsForType(TimestampType)
+    }
+    assert(err.getMessage.contains("Column statistics do not exist for type"))
+  }
+
+  test("ColumnStatistics - getStatisticsForType, fail for other type") {
+    var err = intercept[UnsupportedOperationException] {
+      ColumnStatistics.getStatisticsForType(BooleanType)
+    }
+    assert(err.getMessage.contains("Column statistics do not exist for type"))
+
+    err = intercept[UnsupportedOperationException] {
+      ColumnStatistics.getStatisticsForType(BinaryType)
+    }
+    assert(err.getMessage.contains("Column statistics do not exist for type"))
+  }
+
   // == IntColumnStatistics ==
   test("IntColumnStatistics - initialize nulls") {
     val stats = IntColumnStatistics()

@@ -145,12 +145,14 @@ class ParquetStatisticsRDD(
           // prepare statistics-filter map, this adds column filter to each statistics, if available
           val statFilterMap = statisticsMap.map { case (columnName, statistics) =>
             val columnIndex = topLevelColumns.getOrElse(columnName,
-              sys.error(s"Failed to look up $columnName"))
+              sys.error(s"Failed to look up $columnName, top-level columns = $topLevelColumns"))
             filterDirectory match {
               case Some(filterStatus) =>
-                val columnFilter = BloomFilterStatistics(block.getRowCount)
+                // filename must uniquely identify filter file (file -> block -> column)
                 val filename = s"${attemptContext.getTaskAttemptID.getTaskID}-" +
                   s"block$blockIndex-$columnName-filter"
+                val columnFilter = BloomFilterStatistics(block.getRowCount)
+
                 columnFilter.setPath(filterStatus.getPath.suffix(s"${Path.SEPARATOR}$filename"))
                 (columnIndex, (columnName, statistics, Some(columnFilter)))
               case None =>
@@ -202,8 +204,16 @@ class ParquetStatisticsRDD(
               rowCount -= 1
             }
 
+            // Situation when reader still contains values, even when all blocks' row counts are
+            // exhausted; or when there are unread blocks left, but reader is already finished; or
+            // when block still lists more records after reader is finished
             if (reader.nextKeyValue || currentBlockIndex < blocks.length - 1 || rowCount != 0) {
-              throw new IllegalStateException()
+              throw new IllegalStateException(s"""
+                | Failed to collect statistics, Parquet reader and block metadata are misaligned,
+                | which indicates corrupt metadata:
+                |   currentBlockIndex=$currentBlockIndex
+                |   blocks=${blocks.length}
+                |   rowCount=$rowCount""".stripMargin)
             }
 
             // write filter data on disk (if filter supports it) after all write checks

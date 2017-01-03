@@ -72,9 +72,11 @@ object ParquetSchemaUtils {
     val uniqueColumns = mutable.HashSet[String]()
     schema.getFields.asScala.map { field =>
       if (uniqueColumns.contains(field.getName)) {
-        throw new IllegalArgumentException(s"Found field $field with duplicate column name " +
-          s"${field.getName} in schema $schema. This situation is currently not supported, " +
-          "ensure that names of all top level columns in schema are unique")
+        throw new IllegalArgumentException(s"""
+          | Found field [$field] with duplicate column name ${field.getName}.
+          | Schema $schema
+          | This situation is currently not supported, ensure that names of all top level columns
+          | in schema are unique""".stripMargin)
       }
       uniqueColumns.add(field.getName)
       val index = schema.getFieldIndex(field.getName)

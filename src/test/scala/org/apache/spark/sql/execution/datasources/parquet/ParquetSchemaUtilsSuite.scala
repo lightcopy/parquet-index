@@ -16,6 +16,8 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import org.apache.parquet.schema.MessageTypeParser
+
 import org.apache.spark.sql.types._
 
 import com.github.lightcopy.testutil.UnitTestSuite
@@ -89,5 +91,63 @@ class ParquetSchemaUtilsSuite extends UnitTestSuite {
       ) :: Nil)
 
     ParquetSchemaUtils.pruneStructType(schema) should be (StructType(Nil))
+  }
+
+  test("topLevelUniqueColumns - extract primitive columns for unique fields") {
+    val schema = MessageTypeParser.parseMessageType(
+      """
+      | message spark_schema {
+      |   required boolean flag;
+      |   required int64 id;
+      |   required int32 index;
+      |   required binary str (UTF8);
+      | }
+      """.stripMargin)
+    ParquetSchemaUtils.topLevelUniqueColumns(schema) should be (
+      ("flag", 0) :: ("id", 1) :: ("index", 2) :: ("str", 3) :: Nil)
+  }
+
+  test("topLevelUniqueColumns - extract mixed columns for unique fields") {
+    val schema = MessageTypeParser.parseMessageType(
+      """
+      | message spark_schema {
+      |   required int64 id;
+      |   required binary str (UTF8);
+      |   optional group b {
+      |     optional binary _1 (UTF8);
+      |     required boolean _2;
+      |   }
+      |   optional group c (LIST) {
+      |     repeated group list {
+      |       required int32 element;
+      |     }
+      |   }
+      | }
+      """.stripMargin)
+    ParquetSchemaUtils.topLevelUniqueColumns(schema) should be (
+      ("id", 0) :: ("str", 1) :: ("b", 2) :: ("c", 3) :: Nil)
+  }
+
+  test("topLevelUniqueColumns - empty schema") {
+    val schema = MessageTypeParser.parseMessageType(
+      """
+      | message spark_schema { }
+      """.stripMargin)
+    ParquetSchemaUtils.topLevelUniqueColumns(schema) should be (Nil)
+  }
+
+  test("topLevelUniqueColumns - duplicate column names") {
+    val schema = MessageTypeParser.parseMessageType(
+      """
+      | message spark_schema {
+      |   required int64 id;
+      |   required int32 id;
+      |   required binary str (UTF8);
+      | }
+      """.stripMargin)
+    val err = intercept[IllegalArgumentException] {
+      ParquetSchemaUtils.topLevelUniqueColumns(schema)
+    }
+    assert(err.getMessage.contains("[required int32 id] with duplicate column name id"))
   }
 }
