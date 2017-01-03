@@ -28,7 +28,7 @@ import org.apache.spark.util.sketch.BloomFilter
  * to read and write data, update/contains methods. Superclass keeps reference to the path to load
  * serialized data from, so subclasses do not need to implement that. Subclass must be serializable.
  */
-abstract class ColumnFilterStatistics {
+abstract class ColumnFilterStatistics extends Serializable {
   // path to the serialized data for filter
   private var path: String = null
 

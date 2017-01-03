@@ -88,164 +88,6 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     seq should be (Seq(Seq(1), Seq(2), Seq(3)))
   }
 
-  test("ParquetStatisticsRDD - convertStatistics, integer stats") {
-    val stats = new IntStatistics()
-    stats.setMinMax(1, 2)
-    stats.setNumNulls(5)
-    ParquetStatisticsRDD.convertStatistics(stats) should be (ParquetIntStatistics(1, 2, 5))
-  }
-
-  test("ParquetStatisticsRDD - convertStatistics, long stats") {
-    val stats = new LongStatistics()
-    stats.setMinMax(1L, 2L)
-    stats.setNumNulls(5)
-    ParquetStatisticsRDD.convertStatistics(stats) should be (ParquetLongStatistics(1L, 2L, 5))
-  }
-
-  test("ParquetStatisticsRDD - convertStatistics, string stats") {
-    val stats = new BinaryStatistics()
-    stats.setMinMaxFromBytes("a".getBytes(), "b".getBytes())
-    stats.setNumNulls(5)
-    ParquetStatisticsRDD.convertStatistics(stats) should be (ParquetStringStatistics("a", "b", 5))
-  }
-
-  test("ParquetStatisticsRDD - convertStatistics, unsupported stats") {
-    val stats = new BooleanStatistics()
-    // non-initialized statistics are converted into null statistics
-    stats.initializeStats(false, true)
-    val err = intercept[UnsupportedOperationException] {
-      ParquetStatisticsRDD.convertStatistics(stats)
-    }
-    assert(err.getMessage.
-      contains("Statistics min: false, max: true, num_nulls: 0 is not supported"))
-  }
-
-  test("ParquetStatisticsRDD - convertStatistics, undefined min/max") {
-    val stats = new IntStatistics()
-    stats.setNumNulls(5)
-    ParquetStatisticsRDD.convertStatistics(stats) should be (ParquetNullStatistics(5))
-  }
-
-  test("ParquetStatisticsRDD - convertStatistics, undefined min/max, with 0 nulls") {
-    val stats = new BinaryStatistics()
-    ParquetStatisticsRDD.convertStatistics(stats) should be (ParquetNullStatistics(0))
-  }
-
-  test("ParquetStatisticsRDD - prepareBloomFilter, empty blocks array") {
-    val schema = MessageTypeParser.parseMessageType(
-      """
-      | message spark_schema {
-      |   required int64 id;
-      |   required binary str (UTF8);
-      | }
-      """.stripMargin)
-    ParquetStatisticsRDD.prepareBloomFilter(schema, Array.empty) should be (Map.empty)
-  }
-
-  test("ParquetStatisticsRDD - prepareBloomFilter, non-empty blocks") {
-    val schema = MessageTypeParser.parseMessageType(
-      """
-      | message spark_schema {
-      |   required int64 id;
-      |   required binary str (UTF8);
-      | }
-      """.stripMargin)
-    val blocks = Array(
-      ParquetBlockMetadata(100, Map(
-        "id" -> ParquetColumnMetadata("id", 100, null, None),
-        "str" -> ParquetColumnMetadata("str", 100, null, None))
-      )
-    )
-    val res = ParquetStatisticsRDD.prepareBloomFilter(schema, blocks)
-    res.size should be (2)
-    res(0)._1 should be ("id")
-    res(0)._2.isInstanceOf[BloomFilter] should be (true)
-    res(1)._1 should be ("str")
-    res(1)._2.isInstanceOf[BloomFilter] should be (true)
-  }
-
-  test("ParquetStatisticsRDD - prepareBloomFilter, schema is larger than indexed columns") {
-    val schema = MessageTypeParser.parseMessageType(
-      """
-      | message spark_schema {
-      |   required int64 id;
-      |   required int64 index;
-      |   required binary str (UTF8);
-      | }
-      """.stripMargin)
-    val blocks = Array(
-      ParquetBlockMetadata(100, Map(
-        "id" -> ParquetColumnMetadata("id", 100, null, None),
-        "str" -> ParquetColumnMetadata("str", 100, null, None))
-      )
-    )
-
-    val res = ParquetStatisticsRDD.prepareBloomFilter(schema, blocks)
-    res.size should be (2)
-    res(0)._1 should be ("id")
-    res(2)._1 should be ("str")
-  }
-
-  test("ParquetStatisticsRDD - withBloomFilters, create bloom filter") {
-    withTempDir { dir =>
-      spark.range(0, 10).withColumn("str", lit("abc")).coalesce(1).
-        write.parquet(dir.toString / "table")
-
-      val status = fs.listStatus(new Path(dir.toString / "table")).
-        filter(_.getPath.getName.contains("parquet")).head
-
-      val schema = MessageTypeParser.parseMessageType(
-        """
-        | message spark_schema {
-        |   required int64 id;
-        |   required binary str (UTF8);
-        | }
-        """.stripMargin)
-
-      val blocks = Array(
-        ParquetBlockMetadata(10, Map(
-          "id" -> ParquetColumnMetadata("id", 10, null, None),
-          "str" -> ParquetColumnMetadata("str", 10, null, None))
-        )
-      )
-
-      val filterDir = fs.getFileStatus(dir)
-      val context = ParquetStatisticsRDD.taskAttemptContext(new Configuration(false), 1)
-      val res = ParquetStatisticsRDD.withBloomFilters(schema, context, blocks, status, filterDir)
-
-      res.length should be (1)
-      val cols = res.head.indexedColumns
-      cols.size should be (2)
-
-      cols("id").fieldName should be ("id")
-      cols("id").filter.isDefined should be (true)
-      val filter1 = cols("id").filter.get
-      filter1.init(new Configuration(false))
-      for (i <- 0 until 10) {
-        filter1.mightContain(i.toLong) should be (true)
-      }
-
-      cols("str").fieldName should be ("str")
-      cols("str").filter.isDefined should be (true)
-      val filter2 = cols("str").filter.get
-      filter2.init(new Configuration(false))
-      filter2.mightContain("abc") should be (true)
-    }
-  }
-
-  test("ParquetStatisticsRDD - withBloomFilters, fail when cannot create directory") {
-    withTempDir(new FsPermission("444")) { dir =>
-      val context = ParquetStatisticsRDD.taskAttemptContext(new Configuration(false), 1)
-      val schema = MessageTypeParser.parseMessageType(
-        "message spark_schema { required boolean bool; }")
-      val err = intercept[IOException] {
-        ParquetStatisticsRDD.withBloomFilters(schema, context, Array.empty, fs.getFileStatus(dir),
-          fs.getFileStatus(dir))
-      }
-      assert(err.getMessage.contains("Failed to create target directory"))
-    }
-  }
-
   test("ParquetStatisticsRDD - validate empty index schema") {
     val err = intercept[UnsupportedOperationException] {
       new ParquetStatisticsRDD(
@@ -314,7 +156,11 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
-  test("ParquetStatisticsRDD - field order is irrelevant when collecting stats (bloom filters)") {
+  test("ParquetStatisticsRDD - collect partial-null and full-null fields") {
+    throw new RuntimeException()
+  }
+
+  test("ParquetStatisticsRDD - field order is irrelevant when collecting stats/filters") {
     withTempDir { dir =>
       // all values are in single file
       spark.range(0, 10).withColumn("str", lit("abc")).coalesce(1).
@@ -337,15 +183,25 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       val res = rdd.collect
       val cols = res.head.blocks.head.indexedColumns
 
+      val stats1 = cols("id").stats
+      assert(stats1.getMin === 0)
+      assert(stats1.getMax === 9)
+      assert(stats1.getNumNulls === 0)
+
+      val stats2 = cols("str").stats
+      assert(stats2.getMin === "abc")
+      assert(stats2.getMax === "abc")
+      assert(stats2.getNumNulls === 0)
+
       val filter1 = cols("id").filter.get
-      filter1.init(new Configuration(false))
+      filter1.readData(fs, new Configuration(false))
       filter1.mightContain("abc") should be (false)
       for (i <- 0L until 10L) {
         filter1.mightContain(i) should be (true)
       }
 
       val filter2 = cols("str").filter.get
-      filter2.init(new Configuration(false))
+      filter2.readData(fs, new Configuration(false))
       filter2.mightContain(1L) should be (false)
       filter2.mightContain(9L) should be (false)
       filter2.mightContain("abc") should be (true)

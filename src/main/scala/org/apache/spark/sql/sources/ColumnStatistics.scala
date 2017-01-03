@@ -21,9 +21,9 @@ import org.apache.spark.sql.types._
 /**
  * [[ColumnStatistics]] class provides generic implementation for null-tolerant statistics, and
  * holds information about nulls already. Subclasses need to implement partial functions to handle
- * their data types only. Note that statistics should be kryo-serializable.
+ * their data types only. Note that statistics should be serializable.
  */
-abstract class ColumnStatistics {
+abstract class ColumnStatistics extends Serializable {
   // number of nulls collected for statistics
   private var numNulls: Long = 0
 

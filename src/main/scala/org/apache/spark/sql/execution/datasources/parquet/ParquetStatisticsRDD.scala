@@ -149,8 +149,8 @@ class ParquetStatisticsRDD(
             filterDirectory match {
               case Some(filterStatus) =>
                 val columnFilter = BloomFilterStatistics(block.getRowCount)
-                val filename =
-                  s"${attemptContext.getTaskAttemptID.getTaskID}-$blockIndex-$columnName-filter"
+                val filename = s"${attemptContext.getTaskAttemptID.getTaskID}-" +
+                  s"block$blockIndex-$columnName-filter"
                 columnFilter.setPath(filterStatus.getPath.suffix(s"${Path.SEPARATOR}$filename"))
                 (columnIndex, (columnName, statistics, Some(columnFilter)))
               case None =>
