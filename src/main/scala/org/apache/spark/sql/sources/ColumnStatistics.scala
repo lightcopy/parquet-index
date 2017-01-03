@@ -16,6 +16,8 @@
 
 package org.apache.spark.sql.sources
 
+import org.apache.spark.sql.types._
+
 /**
  * [[ColumnStatistics]] class provides generic implementation for null-tolerant statistics, and
  * holds information about nulls already. Subclasses need to implement partial functions to handle
@@ -141,6 +143,17 @@ abstract class ColumnStatistics {
 
   override def toString(): String = {
     s"${getClass.getSimpleName}[min=${getMin}, max=${getMax}, nulls=${getNumNulls}]"
+  }
+}
+
+object ColumnStatistics {
+  /** Get statistics for Spark SQL data type */
+  def getStatisticsForType(tpe: DataType): ColumnStatistics = tpe match {
+    case IntegerType => IntColumnStatistics()
+    case LongType => LongColumnStatistics()
+    case StringType => StringColumnStatistics()
+    case other => throw new UnsupportedOperationException(
+      s"Column statistics do not exist for type $other")
   }
 }
 

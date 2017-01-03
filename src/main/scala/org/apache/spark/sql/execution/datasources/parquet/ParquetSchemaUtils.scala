@@ -16,6 +16,11 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+
+import org.apache.parquet.schema.MessageType
+
 import org.apache.spark.sql.types._
 
 /**
@@ -55,5 +60,25 @@ object ParquetSchemaUtils {
       SUPPORTED_TYPES.contains(field.dataType)
     }
     StructType(updatedFields)
+  }
+
+  /**
+   * Extract top level columns from schema and return them as (field name - field index) pairs.
+   * This does not contain duplicate pairs, neither pairs with different index but the same column
+   * name.
+   */
+  def topLevelUniqueColumns(schema: MessageType): Seq[(String, Int)] = {
+    // make sure that names are unique for top level columns
+    val uniqueColumns = mutable.HashSet[String]()
+    schema.getFields.asScala.map { field =>
+      if (uniqueColumns.contains(field.getName)) {
+        throw new IllegalArgumentException(s"Found field $field with duplicate column name " +
+          s"${field.getName} in schema $schema. This situation is currently not supported, " +
+          "ensure that names of all top level columns in schema are unique")
+      }
+      uniqueColumns.add(field.getName)
+      val index = schema.getFieldIndex(field.getName)
+      (field.getName, index)
+    }
   }
 }

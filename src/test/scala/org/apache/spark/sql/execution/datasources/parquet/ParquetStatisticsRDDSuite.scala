@@ -322,7 +322,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       val status = fs.listStatus(new Path(dir.toString / "table")).
         filter(_.getPath.getName.contains("parquet"))
       val hadoopConf = spark.sessionState.newHadoopConf()
-      hadoopConf.set(ParquetMetastoreSupport.BLOOM_FILTER_DIR, dir.toString)
+      hadoopConf.set(ParquetMetastoreSupport.FILTER_DIR, dir.toString)
 
       val rdd = new ParquetStatisticsRDD(
         spark.sparkContext,

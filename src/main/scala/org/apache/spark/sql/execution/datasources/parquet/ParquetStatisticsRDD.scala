@@ -16,27 +16,25 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
-import java.io.IOException
-import java.util.{Arrays, UUID}
+import java.util.UUID
 
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 import org.apache.hadoop.mapreduce._
 import org.apache.hadoop.mapreduce.lib.input.FileSplit
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl
 
-import org.apache.parquet.column.statistics._
+import org.apache.parquet.format.converter.ParquetMetadataConverter.NO_FILTER
 import org.apache.parquet.hadoop.{ParquetFileReader, ParquetInputSplit, ParquetRecordReader}
-import org.apache.parquet.hadoop.metadata.{ColumnChunkMetaData, ParquetMetadata}
 import org.apache.parquet.schema.MessageType
 
 import org.apache.spark.{SparkContext, Partition, TaskContext}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types._
-import org.apache.spark.util.sketch.BloomFilter
+import org.apache.spark.sql.sources.{BloomFilterStatistics, ColumnFilterStatistics, ColumnStatistics}
+import org.apache.spark.sql.types.StructType
 
 import com.github.lightcopy.util.{SerializableConfiguration, SerializableFileStatus}
 
@@ -96,11 +94,30 @@ class ParquetStatisticsRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[ParquetFileStatus] = {
     val configuration = hadoopConfiguration
+    val fs = FileSystem.get(configuration)
     val partition = split.asInstanceOf[ParquetStatisticsPartition]
     // convert schema of struct type into Parquet schema
-    val partitionIndex = partition.index
-    val requestedSchema = new ParquetSchemaConverter().convert(schema)
-    logInfo(s"Indexed schema ${schema.prettyJson}, parquet schema $requestedSchema")
+    val indexSchema: MessageType = new ParquetSchemaConverter().convert(schema)
+    logInfo(s"""
+      | == Indexed schema ==
+      | ${schema.simpleString}
+      | == Converted Parquet schema ==
+      | $indexSchema
+      """.stripMargin)
+    // resolve filter directory as root for all column filter statistics. If path is defined,
+    // then use it to store serialized filter data, otherwise it is assumed that filter
+    // statistics are disabled.
+    // we reconstruct filter directory, and create it, if does not exist, this is different from
+    // previous behaviour, where it expected valid path
+    val filterDirectory = Option(configuration.get(ParquetMetastoreSupport.FILTER_DIR)).
+      map { path =>
+        val partitionFileName = String.format("%05d", partition.index.asInstanceOf[Object])
+        val filterPath = new Path(path).suffix(s"${Path.SEPARATOR}part-f-$partitionFileName")
+        fs.mkdirs(filterPath)
+        fs.getFileStatus(filterPath)
+      }
+    log.info(s"Filter directory enabled: ${filterDirectory.isDefined}")
+    // files iterator
     val iter = partition.iterator
 
     new Iterator[ParquetFileStatus]() {
@@ -110,57 +127,104 @@ class ParquetStatisticsRDD(
 
       override def next(): ParquetFileStatus = {
         val serdeStatus = iter.next
-        val status = SerializableFileStatus.toFileStatus(serdeStatus)
-        logDebug(s"Reading file ${status.getPath}")
-        // read metadata for the file, we always extract one footer
-        val footer = ParquetFileReader.readAllFootersInParallelUsingSummaryFiles(
-          configuration, Arrays.asList(status), false).get(0)
-        val metadata = footer.getParquetMetadata
-        val schema = metadata.getFileMetaData.getSchema
+        val parquetStatus = SerializableFileStatus.toFileStatus(serdeStatus)
+        logDebug(s"Reading file ${parquetStatus.getPath}")
+        val attemptContext = ParquetStatisticsRDD.taskAttemptContext(configuration)
+        // read metadata from the file footer
+        val metadata = ParquetFileReader.readFooter(configuration, parquetStatus, NO_FILTER)
+        val fileSchema = metadata.getFileMetaData.getSchema
         // check that requested schema is part of the file schema
-        schema.checkContains(requestedSchema)
+        fileSchema.checkContains(indexSchema)
+        // extract unique map of top level columns
+        val topLevelColumns = ParquetSchemaUtils.topLevelUniqueColumns(indexSchema).toMap
+        // blocks map one-to-one to the Parquet block metadata, filters and statistics are
+        // maintained per block
+        val blocks = metadata.getBlocks.asScala.zipWithIndex.map { case (block, blockIndex) =>
+          // prepare statistics map
+          val statisticsMap = ParquetStatisticsRDD.schemaBasedStatistics(schema)
+          // prepare statistics-filter map, this adds column filter to each statistics, if available
+          val statFilterMap = statisticsMap.map { case (columnName, statistics) =>
+            val columnIndex = topLevelColumns.getOrElse(columnName,
+              sys.error(s"Failed to look up $columnName"))
+            filterDirectory match {
+              case Some(filterStatus) =>
+                val columnFilter = BloomFilterStatistics(block.getRowCount)
+                val filename =
+                  s"${attemptContext.getTaskAttemptID.getTaskID}-$blockIndex-$columnName-filter"
+                columnFilter.setPath(filterStatus.getPath.suffix(s"${Path.SEPARATOR}$filename"))
+                (columnIndex, (columnName, statistics, Some(columnFilter)))
+              case None =>
+                (columnIndex, (columnName, statistics, None))
+            }
+          }.toMap
 
-        logDebug(s"""
-          | Collect statistics for Parquet file:
-          | ${status.getPath}
-          | == Schema ==
-          | $schema
-          | == Requested schema ==
-          | $requestedSchema
-          """.stripMargin)
+          (block.getRowCount, statFilterMap)
+        }
 
-        // check if we need to compute bloom filters for each index column, currently there is no
-        // selection on different index on a column, as well as no subset indexing. If path is
-        // is not defined then bloom filter is disabled
-        val bloomFilterDir = Option(configuration.get(ParquetMetastoreSupport.BLOOM_FILTER_DIR)).
-          map { path =>
-            val filterPath = new Path(path)
-            filterPath.getFileSystem(configuration).getFileStatus(filterPath)
+        // blocks can be empty for empty Parquet file, in this case we just skip the reader step
+        val blockMetadata: Array[ParquetBlockMetadata] = if (blocks.nonEmpty) {
+          // create reader and run statistics using blocks
+          // TODO: pass locations from file status, currently it is an empty array
+          val split = new FileSplit(parquetStatus.getPath, 0, parquetStatus.getLen, Array.empty)
+          val parquetSplit = new ParquetInputSplit(split.getPath, split.getStart,
+            split.getStart + split.getLength, split.getLength, split.getLocations, null)
+          // make index schema to be available for record reader
+          attemptContext.getConfiguration.set(ParquetMetastoreSupport.READ_SCHEMA,
+            indexSchema.toString)
+
+          val reader = new ParquetRecordReader[Container](new ParquetIndexReadSupport())
+          try {
+            reader.initialize(parquetSplit, attemptContext)
+            // current block index, when row count > record count we select next block
+            var currentBlockIndex = -1
+            // total record count to select next block
+            var rowCount: Long = 0
+
+            while (reader.nextKeyValue && currentBlockIndex < blocks.length) {
+              val container = reader.getCurrentValue()
+              if (rowCount == 0) {
+                // select next block
+                currentBlockIndex += 1
+                rowCount = blocks(currentBlockIndex)._1
+              }
+              val statFilterMap = blocks(currentBlockIndex)._2
+              // update statistics and column filter with current value
+              statFilterMap.foreach { case (columnIndex, (columnName, statistics, columnFilter)) =>
+                if (container.getByIndex(columnIndex) != null) {
+                  statistics.updateMinMax(container.getByIndex(columnIndex))
+                  if (columnFilter.isDefined) {
+                    columnFilter.get.update(container.getByIndex(columnIndex))
+                  }
+                } else {
+                  statistics.incrementNumNulls()
+                }
+              }
+              rowCount -= 1
+            }
+
+            if (reader.nextKeyValue || currentBlockIndex < blocks.length - 1 || rowCount != 0) {
+              throw new IllegalStateException()
+            }
+
+            // write filter data on disk (if filter supports it) after all write checks
+            blocks.foreach { case (rowCount, map) =>
+              map.foreach { case (_, (_, _, filter)) =>
+                if (filter.isDefined) {
+                  filter.get.writeData(fs, configuration)
+                }
+              }
+            }
+          } finally {
+            reader.close()
           }
-
-        // convert current file metadata with requested columns into Parquet statistics as list of
-        // blocks with already resolved filter (if any).
+          ParquetStatisticsRDD.convertBlocks(blocks)
+        } else {
+          Array.empty
+        }
         // currently global Parquet schema is merged and inferred on a driver, which is suboptimal
         // since we can reduce schema during metadata collection.
         // TODO: Partially merge schema during each task
-        // TODO: Currently partition index is hacky way of specifying unique output file name,
-        // should replace it or inject in a better way
-        val blocks = ParquetStatisticsRDD.convertBlocks(metadata, requestedSchema)
-
-        val updatedBlocks = if (bloomFilterDir.isDefined) {
-          logDebug(s"Bloom filter root status: $bloomFilterDir, requested schema: $requestedSchema")
-          ParquetStatisticsRDD.withBloomFilters(
-            requestedSchema,
-            ParquetStatisticsRDD.taskAttemptContext(configuration, partitionIndex),
-            blocks,
-            status,
-            bloomFilterDir.get)
-        } else {
-          logDebug(s"Bloom filter is disabled")
-          blocks
-        }
-
-        ParquetFileStatus(serdeStatus, schema.toString, updatedBlocks)
+        ParquetFileStatus(serdeStatus, fileSchema.toString, blockMetadata)
       }
     }
   }
@@ -185,158 +249,37 @@ private[parquet] object ParquetStatisticsRDD {
   }
 
   /**
-   * Extract statistics from Parquet file metadata for requested schema, returns array of block
-   * metadata (for each row group).
-   */
-  def convertBlocks(metadata: ParquetMetadata, schema: MessageType): Array[ParquetBlockMetadata] = {
-    val blocks = metadata.getBlocks().asScala.map { block =>
-      ParquetBlockMetadata(block.getRowCount,
-        convertColumns(block.getColumns().asScala, schema))
-    }
-    blocks.toArray
-  }
-
-  /**
-   * Get task context based on hadoop configuration and partition index.
+   * Get task context based on hadoop configuration.
    * Essentially a shortcut that is used in tests too.
    */
-  def taskAttemptContext(conf: Configuration, partitionIndex: Int): TaskAttemptContext = {
+  def taskAttemptContext(conf: Configuration): TaskAttemptContext = {
     val attemptId = new TaskAttemptID(new TaskID(new JobID(UUID.randomUUID.toString, 0),
-      TaskType.MAP, partitionIndex), 0)
+      TaskType.MAP, 0), 0)
     new TaskAttemptContextImpl(conf, attemptId)
   }
 
-  def convertColumns(
-      columns: Seq[ColumnChunkMetaData],
-      schema: MessageType): Map[String, ParquetColumnMetadata] = {
-    val seq = columns.flatMap { column =>
-      // process column metadata if column is a part of the schema
-      if (schema.containsPath(column.getPath.toArray)) {
-        // normalize path as "a.b.c"
-        val dotString = column.getPath.toDotString
-        val fieldIndex = schema.getFieldIndex(dotString)
-        // convert min-max statistics into internal format
-        val columnMinMaxStats = convertStatistics(column.getStatistics)
-        Some(ParquetColumnMetadata(dotString, column.getValueCount, columnMinMaxStats, None))
-      } else {
-        None
-      }
-    }
-
-    seq.map { meta => (meta.fieldName, meta) }.toMap
-  }
-
-  def convertStatistics(parquetStatistics: Statistics[_]): ParquetColumnStatistics = {
-    parquetStatistics match {
-      case stats: IntStatistics if stats.hasNonNullValue =>
-        ParquetIntStatistics(stats.getMin, stats.getMax, stats.getNumNulls)
-      case stats: LongStatistics if stats.hasNonNullValue =>
-        ParquetLongStatistics(stats.getMin, stats.getMax, stats.getNumNulls)
-      case stats: BinaryStatistics if stats.hasNonNullValue =>
-        // we assume that binary statistics is always string, this check is done for StructType
-        // columns before running RDD, see `validateStructType(...)`
-        ParquetStringStatistics(stats.getMin.toStringUsingUTF8, stats.getMax.toStringUsingUTF8,
-          stats.getNumNulls)
-      case stats if !stats.hasNonNullValue =>
-        // statistics for all-nulls column with undefined min/max
-        ParquetNullStatistics(stats.getNumNulls)
-      case other =>
-        throw new UnsupportedOperationException(s"Statistics $other is not supported, see " +
-          "information on what types are supported by index")
-    }
+  /**
+   * Parse schema into map of column names and column statistics.
+   * Method does not verify if schema has duplicate fields.
+   */
+  def schemaBasedStatistics(schema: StructType): Map[String, ColumnStatistics] = {
+    schema.fields.map { field =>
+      (field.name, ColumnStatistics.getStatisticsForType(field.dataType))
+    }.toMap
   }
 
   /**
-   * Update each block metadata in array by creating bloom filters. Bloom filter is collected for
-   * a file and does not account for file blocks.
+   * Convert blocks into array of [[ParquetBlockMetadata]].
    */
-  def withBloomFilters(
-      indexSchema: MessageType,
-      context: TaskAttemptContext,
-      blocks: Array[ParquetBlockMetadata],
-      status: FileStatus,
-      filterDirStatus: FileStatus): Array[ParquetBlockMetadata] = {
-    val filters = prepareBloomFilter(indexSchema, blocks)
-    // creating split for reading
-    val fs = filterDirStatus.getPath.getFileSystem(context.getConfiguration)
-    val targetDir =
-      filterDirStatus.getPath.suffix(s"${Path.SEPARATOR}${context.getTaskAttemptID.getTaskID}")
-    if (!fs.mkdirs(targetDir)) {
-      throw new IOException(s"Failed to create target directory $targetDir to store filters")
-    }
-
-    // TODO: pass locations from file status, currently it is an empty array
-    val split = new FileSplit(status.getPath, 0, status.getLen, Array.empty)
-    val parquetSplit = new ParquetInputSplit(split.getPath, split.getStart,
-      split.getStart + split.getLength, split.getLength, split.getLocations, null)
-    // make requested schema to be available for record reader
-    context.getConfiguration.set(ParquetMetastoreSupport.READ_SCHEMA, indexSchema.toString)
-
-    val reader = new ParquetRecordReader[Container](new ParquetIndexReadSupport())
-    try {
-      reader.initialize(parquetSplit, context)
-      // read container and update bloom filters for every column
-      while (reader.nextKeyValue) {
-        val container = reader.getCurrentValue()
-        filters.foreach { case (index, (columnName, bloomFilter)) =>
-          if (container.getByIndex(index) != null) {
-            bloomFilter.put(container.getByIndex(index))
-          }
-        }
+  def convertBlocks(
+      blocks: Seq[(Long, Map[Int, (String, ColumnStatistics,
+        Option[ColumnFilterStatistics])])]): Array[ParquetBlockMetadata] = {
+    blocks.map { case (rowCount, statFilterMap) =>
+      val indexedColumns = statFilterMap.map { case (index, (columnName, stats, filter)) =>
+        // for value count we include all records in block metadata, including null values
+        (columnName, ParquetColumnMetadata(columnName, rowCount, stats, filter))
       }
-
-      // done collecting filter statistics, store them on disk and update stats
-      // TODO: currently bloom filter is collected across all blocks, e.g. sequence of blocks will
-      // have reference to the same bloom filter, this should be fixed
-      val updatedFilters = filters.map { case (index, (columnName, bloomFilter)) =>
-        val fileName = s"bloom.$index"
-        val filePath = targetDir.suffix(s"${Path.SEPARATOR}$fileName")
-        val out = fs.create(filePath, false)
-        try {
-          bloomFilter.writeTo(out)
-        } finally {
-          out.close()
-        }
-
-        (columnName, Some(ParquetBloomFilter(filePath.toString)))
-      }
-
-      blocks.map { block =>
-        ParquetBlockMetadata(
-          block.rowCount,
-          block.indexedColumns.map { case (columnName, metadata) =>
-            val filter = updatedFilters.getOrElse(columnName, None)
-            (columnName, metadata.withFilter(filter))
-          }
-        )
-      }
-    } finally {
-      reader.close()
-    }
-  }
-
-  /**
-   * Prepare bloom filter per column, blocks are used to get total number of records for fpp
-   * estimation.
-   */
-  private[parquet] def prepareBloomFilter(
-      schema: MessageType,
-      blocks: Array[ParquetBlockMetadata]): Map[Int, (String, BloomFilter)] = {
-    // all columns should have the same index across blocks
-    if (blocks.nonEmpty) {
-      val numRows = blocks.map(_.rowCount).sum
-      val columns = blocks.head.indexedColumns
-      schema.getFields.asScala.flatMap { field =>
-        val index = schema.getFieldIndex(field.getName)
-        if (columns.contains(field.getName)) {
-          // create bloom filter with fpp of 3%
-          Some((index, (field.getName, BloomFilter.create(numRows, 0.03))))
-        } else {
-          None
-        }
-      }.toMap
-    } else {
-      Map.empty
-    }
+      ParquetBlockMetadata(rowCount, indexedColumns)
+    }.toArray
   }
 }
