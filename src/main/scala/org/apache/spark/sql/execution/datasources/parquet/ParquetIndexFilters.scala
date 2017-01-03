@@ -17,17 +17,19 @@
 package org.apache.spark.sql.execution.datasources.parquet
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.FileSystem
 
 import org.apache.spark.sql.sources._
 
 private[parquet] case class ParquetIndexFilters(
+    fs: FileSystem,
     conf: Configuration,
     blocks: Array[ParquetBlockMetadata]) {
   /**
    * Transform filter with provided statistics and filter.
    */
   private def transformFilter(attribute: String)
-      (func: (ParquetColumnStatistics, Option[ParquetColumnFilter]) => Filter): Filter = {
+      (func: (ColumnStatistics, Option[ColumnFilterStatistics]) => Filter): Filter = {
     val references = blocks.map { block =>
       block.indexedColumns.get(attribute) match {
         case Some(columnMetadata) =>
@@ -54,7 +56,7 @@ private[parquet] case class ParquetIndexFilters(
           val foundInStats = stats.contains(value)
           if (foundInStats && filter.isDefined) {
             val columnFilter = filter.get
-            columnFilter.init(conf)
+            columnFilter.readData(fs, conf)
             Trivial(columnFilter.mightContain(value))
           } else {
             Trivial(foundInStats)
@@ -65,7 +67,7 @@ private[parquet] case class ParquetIndexFilters(
           val foundInStats = values.exists(stats.contains)
           if (foundInStats && filter.isDefined) {
             val columnFilter = filter.get
-            columnFilter.init(conf)
+            columnFilter.readData(fs, conf)
             Trivial(values.exists(columnFilter.mightContain))
           } else {
             Trivial(foundInStats)
