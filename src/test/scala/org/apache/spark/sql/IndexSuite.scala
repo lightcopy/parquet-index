@@ -451,6 +451,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
   test("#25 - create index for UTF-8 statistics, where min > max in Parquet stats") {
     withTempDir { dir =>
       withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        // scalastyle:off
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
         val df = Seq("a", "é").toDF("name").coalesce(1).write.parquet(dir.toString /"utf")
@@ -458,6 +459,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         spark.index.create.indexBy("name").parquet(dir.toString / "utf")
         val df1 = spark.index.parquet(dir.toString / "utf").filter("name > 'a'")
         df1.collect should be (Array(Row("é")))
+        // scalastyle:on
       }
     }
   }
@@ -465,6 +467,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
   test("#25 - create index for UTF-8 statistics, where min and max are ascii") {
     withTempDir { dir =>
       withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        // scalastyle:off
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
         val df = Seq("aa", "bé", "bb").toDF("name").coalesce(1).write.parquet(dir.toString /"utf")
@@ -472,6 +475,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         spark.index.create.indexBy("name").parquet(dir.toString / "utf")
         val df1 = spark.index.parquet(dir.toString / "utf").filter("name > 'bb'")
         df1.collect should be (Array(Row("bé")))
+        // scalastyle:on
       }
     }
   }
