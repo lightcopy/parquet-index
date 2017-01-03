@@ -259,8 +259,7 @@ private[parquet] object ParquetStatisticsRDD {
 
   /**
    * Generate new unique filter filename to store filter data, e.g. for bloom filters, based on
-   * block index and column name. All non-ASCII characters or special characters are replaced
-   * with '_'.
+   * block index and column name. All special characters are replaced with '_'.
    */
   def newFilterFile(block: Int, columnName: String): String = {
     val blockSuffix = String.format("%05d", block.asInstanceOf[Object])
