@@ -207,6 +207,30 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     ))
   }
 
+  test("ParquetStatisticsRDD - newFilterFile, correct column name 1") {
+    val name = ParquetStatisticsRDD.newFilterFile(1, "abc")
+    assert(name.contains("block00001"))
+    assert(name.contains("col_abc"))
+  }
+
+  test("ParquetStatisticsRDD - newFilterFile, correct column name 2") {
+    val name = ParquetStatisticsRDD.newFilterFile(1, "a.b.c")
+    assert(name.contains("block00001"))
+    assert(name.contains("col_a.b.c"))
+  }
+
+  test("ParquetStatisticsRDD - newFilterFile, block exceeds digits format") {
+    val name = ParquetStatisticsRDD.newFilterFile(12345678, "a.b.c")
+    assert(name.contains("block12345678"))
+    assert(name.contains("col_a.b.c"))
+  }
+
+  test("ParquetStatisticsRDD - newFilterFile, column name contains invalid characters") {
+    val name = ParquetStatisticsRDD.newFilterFile(123, "a/b/c\\d   e")
+    assert(name.contains("block00123"))
+    assert(name.contains("col_a_b_c_d___e"))
+  }
+
   test("ParquetStatisticsRDD - collect statistics for empty file") {
     withTempDir { dir =>
       // all values are in single file

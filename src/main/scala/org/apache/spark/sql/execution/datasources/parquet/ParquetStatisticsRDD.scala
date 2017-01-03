@@ -149,8 +149,7 @@ class ParquetStatisticsRDD(
             filterDirectory match {
               case Some(filterStatus) =>
                 // filename must uniquely identify filter file (file -> block -> column)
-                val filename = s"${attemptContext.getTaskAttemptID.getTaskID}-" +
-                  s"block$blockIndex-$columnName-filter"
+                val filename = ParquetStatisticsRDD.newFilterFile(blockIndex, columnName)
                 val columnFilter = BloomFilterStatistics(block.getRowCount)
 
                 columnFilter.setPath(filterStatus.getPath.suffix(s"${Path.SEPARATOR}$filename"))
@@ -256,6 +255,19 @@ private[parquet] object ParquetStatisticsRDD {
     val array = data.toArray
     positions(array.length, numSlices).map { case (start, end) =>
       array.slice(start, end).toSeq }.toSeq
+  }
+
+  /**
+   * Generate new unique filter filename to store filter data, e.g. for bloom filters, based on
+   * block index and column name. All non-ASCII characters or special characters are replaced
+   * with '_'.
+   */
+  def newFilterFile(block: Int, columnName: String): String = {
+    val blockSuffix = String.format("%05d", block.asInstanceOf[Object])
+    val colSuffix = columnName.map { t =>
+      if (t == '/' || t == '\\' || Character.isWhitespace(t)) '_' else t
+    }
+    s"filter_${UUID.randomUUID}_block${blockSuffix}_col_${colSuffix}"
   }
 
   /**
