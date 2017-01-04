@@ -120,6 +120,22 @@ abstract class ColumnFilterStatistics extends Serializable {
   }
 }
 
+object ColumnFilterStatistics {
+  // Registered classes of filter statistics, key is a short name used in configuration
+  val REGISTERED_FILTERS = Map("bloom" -> classOf[BloomFilterStatistics])
+
+  /**
+   * Get [[ColumnFilterStatistics]] class for short name, used for selecting filter type in
+   * configuration. If short name is not found, throws runtime exception; note that name string is
+   * not modified to find a match (compared as is).
+   */
+  def classForName(name: String): Class[_] = {
+    REGISTERED_FILTERS.getOrElse(name, sys.error(
+      s"Unsupported filter statistics type $name, must be one of " +
+      s"${REGISTERED_FILTERS.keys.mkString("[", ", ", "]")}"))
+  }
+}
+
 /**
  * [[BloomFilterStatistics]] provides filter statistics based on bloom filter per column.
  * Number of expected records `numRows` should only be set when updating records. For read-contains

@@ -103,8 +103,9 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
 
     val sc = metastore.session.sparkContext
     val hadoopConf = metastore.session.sessionState.newHadoopConf()
-    if (metastore.conf.parquetBloomFilterEnabled) {
+    if (metastore.conf.parquetFilterEnabled) {
       hadoopConf.set(ParquetMetastoreSupport.FILTER_DIR, indexDirectory.getPath.toString)
+      hadoopConf.set(ParquetMetastoreSupport.FILTER_TYPE, metastore.conf.parquetFilterType)
     }
 
     val numPartitions = Math.min(sc.defaultParallelism * 2,
@@ -189,9 +190,11 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
 
 object ParquetMetastoreSupport {
   // internal Hadoop configuration option to set schema for Parquet reader
-  private[sql] val READ_SCHEMA = "spark.sql.index.parquet.read.schema"
-  // internal Hadoop configuration option to specify bloom filters directory
-  private[sql] val FILTER_DIR = "spark.sql.index.parquet.filter.dir"
+  private[sql] val READ_SCHEMA = "spark.sql.hadoop.index.parquet.read.schema"
+  // internal Hadoop configuration option to specify filter directory
+  private[sql] val FILTER_DIR = "spark.sql.hadoop.index.parquet.filter.dir"
+  // internal Hadoop configuration option to specify filter name/type
+  private[sql] val FILTER_TYPE = "spark.sql.hadoop.index.parquet.filter.type"
   // metadata name
   val TABLE_METADATA = "_table_metadata"
 

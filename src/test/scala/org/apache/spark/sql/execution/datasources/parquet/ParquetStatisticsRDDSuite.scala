@@ -19,6 +19,8 @@ package org.apache.spark.sql.execution.datasources.parquet
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 
+import org.apache.parquet.hadoop.metadata.BlockMetaData
+
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.sources._
@@ -231,6 +233,26 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     assert(name.contains("col_a_b_c_d___e"))
   }
 
+  test("ParquetStatisticsRDD - newFilter, fail to extract statistics class") {
+    var err = intercept[RuntimeException] {
+      ParquetStatisticsRDD.newFilter("abc", null)
+    }
+    assert(err.getMessage.contains("Unsupported filter statistics type abc"))
+
+    err = intercept[RuntimeException] {
+      ParquetStatisticsRDD.newFilter(null, null)
+    }
+    assert(err.getMessage.contains("Unsupported filter statistics type null"))
+  }
+
+  test("ParquetStatisticsRDD - newFilter, select BloomFilterStatistics") {
+    val metadata = new BlockMetaData()
+    metadata.setRowCount(123L)
+    val filter = ParquetStatisticsRDD.newFilter("bloom", metadata)
+    filter.isInstanceOf[BloomFilterStatistics] should be (true)
+    filter.asInstanceOf[BloomFilterStatistics].numRows should be (123L)
+  }
+
   test("ParquetStatisticsRDD - collect statistics for empty file") {
     withTempDir { dir =>
       // all values are in single file
@@ -305,7 +327,9 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       val status = fs.listStatus(new Path(dir.toString / "table")).
         filter(_.getPath.getName.contains("parquet"))
       val hadoopConf = spark.sessionState.newHadoopConf()
+      // enable filter statistics
       hadoopConf.set(ParquetMetastoreSupport.FILTER_DIR, dir.toString)
+      hadoopConf.set(ParquetMetastoreSupport.FILTER_TYPE, "bloom")
 
       val rdd = new ParquetStatisticsRDD(
         spark.sparkContext,

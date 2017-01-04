@@ -23,6 +23,27 @@ import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
 
 class ColumnFilterStatisticsSuite extends UnitTestSuite {
+  test("ColumnFilterStatistics - classForName, select BloomFilterStatistics") {
+    ColumnFilterStatistics.classForName("bloom") should be (classOf[BloomFilterStatistics])
+  }
+
+  test("ColumnFilterStatistics - classForName, throw error if name is not registered") {
+    var err = intercept[RuntimeException] {
+      ColumnFilterStatistics.classForName("BLOOM")
+    }
+    assert(err.getMessage.contains("Unsupported filter statistics type BLOOM"))
+
+    err = intercept[RuntimeException] {
+      ColumnFilterStatistics.classForName("dict")
+    }
+    assert(err.getMessage.contains("Unsupported filter statistics type dict"))
+
+    err = intercept[RuntimeException] {
+      ColumnFilterStatistics.classForName("")
+    }
+    assert(err.getMessage.contains("Unsupported filter statistics type "))
+  }
+
   test("BloomFilterStatistics - initialize") {
     val filter = BloomFilterStatistics()
     filter.getNumRows should be (1024)
