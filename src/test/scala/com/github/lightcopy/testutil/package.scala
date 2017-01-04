@@ -30,4 +30,4 @@ package object implicits {
 
 /** abstract general testing class */
 abstract class UnitTestSuite extends FunSuite with Matchers with OptionValues with Inside
-  with Inspectors with TestBase with BeforeAndAfterAll with BeforeAndAfter
+  with Inspectors with TestBase with ParquetLogging with BeforeAndAfterAll with BeforeAndAfter

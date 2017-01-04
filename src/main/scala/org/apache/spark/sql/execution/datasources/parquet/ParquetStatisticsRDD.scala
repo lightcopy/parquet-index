@@ -98,7 +98,7 @@ class ParquetStatisticsRDD(
     val partition = split.asInstanceOf[ParquetStatisticsPartition]
     // convert schema of struct type into Parquet schema
     val indexSchema: MessageType = new ParquetSchemaConverter().convert(schema)
-    logInfo(s"""
+    logDebug(s"""
       | == Indexed schema ==
       | ${schema.simpleString}
       | == Converted Parquet schema ==
@@ -116,7 +116,7 @@ class ParquetStatisticsRDD(
         fs.mkdirs(filterPath)
         fs.getFileStatus(filterPath)
       }
-    log.info(s"Filter directory enabled: ${filterDirectory.isDefined}")
+    logDebug(s"Filter directory enabled: ${filterDirectory.isDefined}")
     // files iterator
     val iter = partition.iterator
 
