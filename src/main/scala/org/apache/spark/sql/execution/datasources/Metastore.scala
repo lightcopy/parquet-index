@@ -160,6 +160,8 @@ private[sql] class Metastore(
       try {
         fs.mkdirs(resolvedPath, Metastore.METASTORE_PERMISSION)
         func(fs.getFileStatus(resolvedPath), isAppend)
+        // create success file to indicate correct index write
+        Metastore.markSuccess(fs, resolvedPath)
       } catch {
         case NonFatal(err) =>
           // delete path only if it is not append
@@ -195,6 +197,10 @@ private[sql] class Metastore(
         if (!fs.exists(resolvedPath)) {
           throw new IOException(s"Index does not exist for $identifier and path $path")
         }
+        if (!Metastore.checkSuccessFile(fs, resolvedPath)) {
+          throw new IOException("Possibly corrupt index, could not find success mark for " +
+            s"index directory $resolvedPath, try creating index with overwrite mode")
+        }
         val loadedValue = func(fs.getFileStatus(resolvedPath))
         cache.put(resolvedPath, loadedValue)
         loadedValue
@@ -214,6 +220,7 @@ private[sql] class Metastore(
         func(fs.getFileStatus(resolvedPath))
       } finally {
         try {
+          // this should delete success file and index metadata
           fs.delete(resolvedPath, true)
           logInfo(s"Deleted index path $resolvedPath for $identifier")
         } catch {
@@ -231,7 +238,12 @@ private[sql] class Metastore(
    */
   def exists(identifier: String, path: Path): Boolean = {
     val resolvedPath = location(identifier, path)
-    fs.exists(resolvedPath)
+    val directoryExists = fs.exists(resolvedPath)
+    val hasSuccessFile = Metastore.checkSuccessFile(fs, resolvedPath)
+    if (directoryExists && !hasSuccessFile) {
+      logWarning("Index directory is not marked as SUCCESS, possibly corrupt index")
+    }
+    directoryExists && hasSuccessFile
   }
 
   /**
@@ -258,6 +270,8 @@ object Metastore {
   // permission mode "rwxrw-rw-"
   val METASTORE_PERMISSION =
     new FsPermission(FsAction.ALL, FsAction.READ_WRITE, FsAction.READ_WRITE)
+  // default success mark for index directory
+  val METASTORE_SUCCESS_FILE = "_SUCCESS"
 
   private val stores = scala.collection.mutable.HashMap[SparkSession, Metastore]()
 
@@ -276,5 +290,20 @@ object Metastore {
       require(ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'z', s"Invalid character $ch in " +
         s"identifier $identifier. Only lowercase alpha-numeric characters are supported")
     }
+  }
+
+  /**
+   * Mark directory as SUCCESS after creating index. If success file already exists, then no-op.
+   */
+  def markSuccess(fs: FileSystem, dir: Path): Unit = {
+    fs.createNewFile(dir.suffix(s"${Path.SEPARATOR}$METASTORE_SUCCESS_FILE"))
+  }
+
+  /**
+   * Check if directory has success file. If directory does not exist or success file is not
+   * present returns false, otherwise true.
+   */
+  def checkSuccessFile(fs: FileSystem, dir: Path): Boolean = {
+    fs.exists(dir.suffix(s"${Path.SEPARATOR}$METASTORE_SUCCESS_FILE"))
   }
 }
