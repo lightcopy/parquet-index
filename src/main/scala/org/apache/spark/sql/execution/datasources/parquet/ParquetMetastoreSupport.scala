@@ -66,7 +66,7 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
     }
 
     // if eager loading is enabled, load all filter statistics
-    // this operation is done once, catalog will be cached
+    // this operation is done once, catalog will be cached in metastore
     if (metastore.conf.parquetFilterEagerLoading && indexMetadata != null) {
       logInfo("Loading all filter statistics for catalog")
       val startTime = System.nanoTime()

@@ -168,4 +168,38 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
       }
     }
   }
+
+  // Test should not throw any exceptions if table index does not have any filter statistics
+  test("invoke loadIndex with eager loading on index without filter statistics") {
+    withTempDir { dir =>
+      val options = Map(
+        METASTORE_LOCATION.key -> dir.toString / "test_metastore",
+        PARQUET_FILTER_STATISTICS_ENABLED.key -> "false",
+        PARQUET_FILTER_STATISTICS_EAGER_LOADING.key -> "true")
+      withSQLConf(options.toSeq: _*) {
+        val metastore = testMetastore(spark, options)
+        spark.range(0, 9).withColumn("str", lit("abc")).write.parquet(dir.toString / "table")
+        spark.index.create.indexBy("id", "str").parquet(dir.toString / "table")
+
+        val support = new ParquetMetastoreSupport()
+        val location = metastore.location(support.identifier, new Path(dir.toString / "table"))
+
+        val catalog = support.loadIndex(metastore, fs.getFileStatus(location)).
+          asInstanceOf[ParquetIndexCatalog]
+        catalog.indexMetadata.partitions.nonEmpty should be (true)
+        catalog.indexMetadata.partitions.foreach { partition =>
+          partition.files.nonEmpty should be (true)
+          partition.files.foreach { status =>
+            status.blocks.nonEmpty should be (true)
+            status.blocks.foreach { block =>
+              block.indexedColumns.values.foreach { metadata =>
+                // metadata should not contain any filter statistics
+                metadata.filter.isDefined should be (false)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
