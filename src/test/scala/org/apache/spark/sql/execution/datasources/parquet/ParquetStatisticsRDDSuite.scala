@@ -16,7 +16,6 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
-import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 
 import org.apache.parquet.hadoop.metadata.BlockMetaData
@@ -355,14 +354,14 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       assert(stats2.getNumNulls === 0)
 
       val filter1 = cols("id").filter.get
-      filter1.readData(fs, new Configuration(false))
+      filter1.readData(fs)
       filter1.mightContain("abc") should be (false)
       for (i <- 0L until 10L) {
         filter1.mightContain(i) should be (true)
       }
 
       val filter2 = cols("str").filter.get
-      filter2.readData(fs, new Configuration(false))
+      filter2.readData(fs)
       filter2.mightContain(1L) should be (false)
       filter2.mightContain(9L) should be (false)
       filter2.mightContain("abc") should be (true)

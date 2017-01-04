@@ -41,6 +41,15 @@ private[datasources] trait TestMetastore {
     conf.setConf(IndexConf.METASTORE_LOCATION, location)
     new Metastore(spark, conf)
   }
+
+  /** Load metastore with set of provided options */
+  def testMetastore(spark: SparkSession, options: Map[String, String]): Metastore = {
+    val conf = IndexConf.newConf(spark)
+    options.foreach { case (key, value) =>
+      conf.setConfString(key, value)
+    }
+    new Metastore(spark, conf)
+  }
 }
 
 class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {

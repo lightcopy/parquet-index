@@ -221,7 +221,7 @@ class ParquetStatisticsRDD(
             blocks.foreach { case (rowCount, map) =>
               map.foreach { case (_, (_, _, filter)) =>
                 if (filter.isDefined) {
-                  filter.get.writeData(fs, configuration)
+                  filter.get.writeData(fs)
                 }
               }
             }

@@ -62,6 +62,28 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
       }
     }
 
+    // if eager loading is enabled, load all filter statistics
+    // this operation is done once, catalog will be cached
+    // TODO: load filters in parallel
+    if (metastore.conf.parquetFilterEagerLoading && indexMetadata != null) {
+      logInfo("Loading all filter statistics for catalog")
+      val startTime = System.nanoTime()
+      indexMetadata.partitions.foreach { partition =>
+        partition.files.foreach { status =>
+          status.blocks.foreach { block =>
+            block.indexedColumns.values.foreach { metadata =>
+              if (metadata.filter.isDefined) {
+                metadata.filter.get.readData(metastore.fs)
+              }
+            }
+          }
+        }
+      }
+      val endTime = System.nanoTime()
+      def timeMs: Double = (endTime - startTime).toDouble / 1000000
+      logInfo(s"Loaded all filter statistics for catalog in $timeMs ms")
+    }
+
     new ParquetIndexCatalog(metastore, indexMetadata)
   }
 

@@ -16,7 +16,6 @@
 
 package org.apache.spark.sql.sources
 
-import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 
 import com.github.lightcopy.testutil.UnitTestSuite
@@ -117,13 +116,14 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
         filter.update(i)
       }
       filter.setPath(new Path(dir.toString / "filter"))
-      filter.writeData(fs, new Configuration(false))
+      filter.writeData(fs)
 
       fs.exists(filter.getPath) should be (true)
 
       val filter2 = BloomFilterStatistics()
       filter2.setPath(new Path(dir.toString / "filter"))
-      filter2.readData(fs, new Configuration(false))
+      filter2.readData(fs)
+      filter2.isLoaded should be (true)
 
       filter2.mightContain(1) should be (true)
       filter2.mightContain(1024) should be (true)
@@ -134,14 +134,14 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
   test("BloomFilterStatistics - fail to write data for null path, do not close null stream") {
     val filter = BloomFilterStatistics()
     intercept[IllegalArgumentException] {
-      filter.writeData(fs, new Configuration(false))
+      filter.writeData(fs)
     }
   }
 
   test("BloomFilterStatistics - fail to read data for null path, do not close null stream") {
     val filter = BloomFilterStatistics()
     intercept[IllegalArgumentException] {
-      filter.readData(fs, new Configuration(false))
+      filter.readData(fs)
     }
   }
 
@@ -152,18 +152,20 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
         filter.update(i)
       }
       filter.setPath(new Path(dir.toString / "filter"))
-      filter.writeData(fs, new Configuration(false))
+      filter.writeData(fs)
 
       val filter2 = BloomFilterStatistics()
       filter2.setPath(new Path(dir.toString / "filter"))
-      filter2.readData(fs, new Configuration(false))
+      filter2.readData(fs)
+      filter2.isLoaded should be (true)
 
       filter2.mightContain(1) should be (true)
 
       // delete path
       fs.delete(filter2.getPath, true) should be (true)
       // this call should result in no-op and use already instantiated filter
-      filter2.readData(fs, new Configuration(false))
+      filter2.readData(fs)
+      filter2.isLoaded should be (true)
       filter2.mightContain(1) should be (true)
     }
   }
