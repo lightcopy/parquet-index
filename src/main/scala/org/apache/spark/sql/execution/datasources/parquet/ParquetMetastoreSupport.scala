@@ -20,6 +20,9 @@ import java.io.IOException
 import java.util.Arrays
 
 import scala.util.control.NonFatal
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 
@@ -64,21 +67,24 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
 
     // if eager loading is enabled, load all filter statistics
     // this operation is done once, catalog will be cached
-    // TODO: load filters in parallel
     if (metastore.conf.parquetFilterEagerLoading && indexMetadata != null) {
       logInfo("Loading all filter statistics for catalog")
       val startTime = System.nanoTime()
-      indexMetadata.partitions.foreach { partition =>
-        partition.files.foreach { status =>
-          status.blocks.foreach { block =>
-            block.indexedColumns.values.foreach { metadata =>
-              if (metadata.filter.isDefined) {
-                metadata.filter.get.readData(metastore.fs)
+      implicit val executorContext = ExecutionContext.global
+      val futures: Seq[Future[Unit]] = indexMetadata.partitions.flatMap { partition =>
+        partition.files.flatMap { status =>
+          status.blocks.flatMap { block =>
+            block.indexedColumns.values.flatMap { metadata =>
+              metadata.filter match {
+                case Some(filter) => Some(Future[Unit] {
+                  filter.readData(metastore.fs) }(executorContext))
+                case None => None
               }
             }
           }
         }
       }
+      Await.ready(Future.sequence(futures), Duration.Inf)
       val endTime = System.nanoTime()
       def timeMs: Double = (endTime - startTime).toDouble / 1000000
       logInfo(s"Loaded all filter statistics for catalog in $timeMs ms")
