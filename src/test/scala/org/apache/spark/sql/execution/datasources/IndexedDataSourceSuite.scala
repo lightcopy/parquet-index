@@ -16,7 +16,7 @@
 
 package org.apache.spark.sql.execution.datasources
 
-import java.io.FileNotFoundException
+import java.io.{FileNotFoundException, IOException}
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
@@ -127,10 +127,28 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
     }
   }
 
-  test("resolveRelation - return HadoopFsRelation for metastore support") {
+  test("resolveRelation - fail if index directory does not contain SUCCESS file") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir.toString / "test")
       mkdirs(metastore.location("test", dir).toString)
+      val source = IndexedDataSource(
+        metastore,
+        classOf[TestMetastoreSupport].getCanonicalName,
+        options = Map("path" -> dir.toString))
+      // relation should be HadoopFsRelation
+      val err = intercept[IOException] {
+        source.resolveRelation()
+      }
+      assert(err.getMessage.contains("Possibly corrupt index, could not find success mark"))
+    }
+  }
+
+  test("resolveRelation - return HadoopFsRelation for metastore support") {
+    withTempDir { dir =>
+      val metastore = testMetastore(spark, dir.toString / "test")
+      val location = metastore.location("test", dir)
+      mkdirs(location.toString)
+      Metastore.markSuccess(fs, location)
       val source = IndexedDataSource(
         metastore,
         classOf[TestMetastoreSupport].getCanonicalName,
@@ -191,12 +209,40 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
     }
   }
 
+  test("existsIndex - return false if index directory does not contain SUCCESS file") {
+    withTempDir { dir =>
+      val metastore = testMetastore(spark, dir.toString / "test")
+      val path = metastore.location("test", dir)
+      // create directory in index metastore, do not mark it as success
+      mkdirs(path.toString)
+      val source = IndexedDataSource(
+        metastore,
+        classOf[TestMetastoreSupport].getCanonicalName,
+        options = Map("path" -> dir.toString))
+      source.existsIndex() should be (false)
+    }
+  }
+
+  test("existsIndex - return false if table path does not exist") {
+    withTempDir { dir =>
+      val metastore = testMetastore(spark, dir.toString / "test")
+      val path = metastore.location("test", dir)
+      // check index existince for non-existent table path
+      val source = IndexedDataSource(
+        metastore,
+        classOf[TestMetastoreSupport].getCanonicalName,
+        options = Map("path" -> dir.toString))
+      source.existsIndex() should be (false)
+    }
+  }
+
   test("existsIndex - invoke metastore support method") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir.toString / "test")
       val path = metastore.location("test", dir)
-      // create directory in index metastore, to check index existence
+      // create directory in index metastore and mark it as success to check index existence
       mkdirs(path.toString)
+      Metastore.markSuccess(fs, path)
       val source = IndexedDataSource(
         metastore,
         classOf[TestMetastoreSupport].getCanonicalName,

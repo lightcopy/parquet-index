@@ -176,6 +176,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
       val metastore = testMetastore(spark, dir)
       var triggered = false
+      val location = metastore.location("identifier", new Path("/tmp/table"))
       metastore.create("identifier", new Path("/tmp/table"), SaveMode.Append) {
         case (status, isAppend) =>
           triggered = true
@@ -184,6 +185,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
           isAppend should be (false)
       }
       triggered should be (true)
+      Metastore.checkSuccessFile(fs, location) should be (true)
     }
   }
 
@@ -191,6 +193,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
       val metastore = testMetastore(spark, dir)
       var triggered = false
+      val location = metastore.location("identifier", new Path("/tmp/table"))
       metastore.create("identifier", new Path("/tmp/table"), SaveMode.Overwrite) {
         case (status, isAppend) =>
           triggered = true
@@ -199,6 +202,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
           isAppend should be (false)
       }
       triggered should be (true)
+      Metastore.checkSuccessFile(fs, location) should be (true)
     }
   }
 
@@ -206,6 +210,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
       val metastore = testMetastore(spark, dir)
       var triggered = false
+      val location = metastore.location("identifier", new Path("/tmp/table"))
       metastore.create("identifier", new Path("/tmp/table"), SaveMode.ErrorIfExists) {
         case (status, isAppend) =>
           triggered = true
@@ -214,6 +219,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
           isAppend should be (false)
       }
       triggered should be (true)
+      Metastore.checkSuccessFile(fs, location) should be (true)
     }
   }
 
@@ -221,6 +227,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
       val metastore = testMetastore(spark, dir)
       var triggered = false
+      val location = metastore.location("identifier", new Path("/tmp/table"))
       metastore.create("identifier", new Path("/tmp/table"), SaveMode.Ignore) {
         case (status, isAppend) =>
           triggered = true
@@ -229,6 +236,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
           isAppend should be (false)
       }
       triggered should be (true)
+      Metastore.checkSuccessFile(fs, location) should be (true)
     }
   }
 
@@ -250,6 +258,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
           metastore.fs.exists(path.suffix(s"${Path.SEPARATOR}metadata")) should be (true)
       }
       triggered should be (true)
+      Metastore.checkSuccessFile(fs, path) should be (true)
     }
   }
 
@@ -271,6 +280,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
           metastore.fs.exists(path.suffix(s"${Path.SEPARATOR}metadata")) should be (false)
       }
       triggered should be (true)
+      Metastore.checkSuccessFile(fs, path) should be (true)
     }
   }
 
@@ -436,11 +446,26 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     }
   }
 
+  test("load - existing directory without SUCCESS file") {
+    withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
+      val metastore = testMetastore(spark, dir)
+      val location = metastore.location("identifier", new Path("/tmp/table"))
+      mkdirs(location.toString)
+      val err = intercept[IOException] {
+        metastore.load("identifier", new Path("/tmp/table")) {
+          case status => new TestIndexCatalog()
+        }
+      }
+      assert(err.getMessage.contains("Possibly corrupt index, could not find success mark"))
+    }
+  }
+
   test("load - existing directory") {
     withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
       val metastore = testMetastore(spark, dir)
       val location = metastore.location("identifier", new Path("/tmp/table"))
       mkdirs(location.toString)
+      Metastore.markSuccess(fs, location)
       var triggered = false
       metastore.load("identifier", new Path("/tmp/table")) {
         case status =>
@@ -457,7 +482,9 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
       val metastore = testMetastore(spark, dir)
       val path = new Path("/tmp/table")
-      mkdirs(metastore.location("identifier", path).toString)
+      val location = metastore.location("identifier", path)
+      mkdirs(location.toString)
+      Metastore.markSuccess(fs, location)
 
       val catalog1 = metastore.load("identifier", path) {
         case status => new TestIndexCatalog()
@@ -469,6 +496,39 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
 
       catalog2 should be (catalog1)
       metastore.cache.asMap.size should be (1)
+    }
+  }
+
+  //////////////////////////////////////////////////////////////
+  // == Exists index directory ==
+  //////////////////////////////////////////////////////////////
+
+  test("exists - index path does not exist") {
+    withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
+      val metastore = testMetastore(spark, dir)
+      val path = new Path("/tmp/table")
+      metastore.exists("identifier", path) should be (false)
+    }
+  }
+
+  test("exists - directory exists, but no SUCCESS file") {
+    withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
+      val metastore = testMetastore(spark, dir)
+      val path = new Path("/tmp/table")
+      val location = metastore.location("identifier", path)
+      mkdirs(location.toString)
+      metastore.exists("identifier", path) should be (false)
+    }
+  }
+
+  test("exists - directory and SUCCESS file both exist") {
+    withTempDir(Metastore.METASTORE_PERMISSION) { dir =>
+      val metastore = testMetastore(spark, dir)
+      val path = new Path("/tmp/table")
+      val location = metastore.location("identifier", path)
+      mkdirs(location.toString)
+      Metastore.markSuccess(fs, location)
+      metastore.exists("identifier", path) should be (true)
     }
   }
 
@@ -579,5 +639,13 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     Metastore.validateSupportIdentifier("test1239")
     Metastore.validateSupportIdentifier("012345689")
     Metastore.validateSupportIdentifier("0123test")
+  }
+
+  test("markSuccess/checkSuccessFile") {
+    withTempDir { dir =>
+      Metastore.checkSuccessFile(fs, dir) should be (false)
+      Metastore.markSuccess(fs, dir)
+      Metastore.checkSuccessFile(fs, dir) should be (true)
+    }
   }
 }
