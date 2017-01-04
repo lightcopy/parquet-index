@@ -80,7 +80,7 @@ private[spark] object IndexConf {
   val PARQUET_FILTER_STATISTICS_EAGER_LOADING =
     IndexConfigBuilder("spark.sql.index.parquet.filter.eagerLoading").
     doc("When set to true, read and load all filter statistics in memory the first time catalog " +
-      "is resolved, otherwise load them lazily as they are needed when evaluating predicate. " +
+      "is resolved, otherwise load them lazily as needed when evaluating predicate. " +
       "Eager loading removes IO of reading filter data from disk, but requires extra memory").
     booleanConf.
     createWithDefault(false)
