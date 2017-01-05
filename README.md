@@ -6,7 +6,7 @@ In-memory index for Parquet tables
 [![Join the chat at https://gitter.im/lightcopy/parquet-index](https://badges.gitter.im/lightcopy/parquet-index.svg)](https://gitter.im/lightcopy/parquet-index?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 ## Overview
-Package provides means to create index for Parquet tables to reduce query latency when used for
+Package allows to create index for Parquet tables to reduce query latency when used for
 _almost interactive_ analysis or point queries. It is designed for use case when table does not
 change frequently, but is used for queries often, e.g. using Thrift JDBC/ODBC server. When indexed,
 schema and list of files (including partitioning) will be automatically resolved from index
@@ -15,14 +15,15 @@ metastore instead of inferring schema every time datasource is created.
 ### Metastore
 Metastore keeps information about all indexed tables and can be created on local file system or HDFS
 (see available options below). Each created index includes different statistics (min/max/null) and,
-optionally, bloom filters on indexed columns.
+optionally, column filters statistics (e.g. bloom filters) on indexed columns.
 
-### Filters
+### Supported predicates
 Index is enabled for scan when provided predicate contains one or several filters with indexed
-columns (if none, then normal scan is used, but with benefits of already resolved partitions and
-schema). Filter resolution happens after partition pruning (if available) and currently applies on
-column metadata level only (per file). Note that performance also depends on values distribution and
-predicate selectivity. Spark Parquet reader is used to read data.
+columns; if no filters on indexed columns are provided, then normal scan is used, but with benefits
+of already resolved partitions and schema. Applying min/max statistics and column filter statistics
+(if available) happens after partition pruning. Statistics are kept per Parquet block metadata. Note
+that performance also depends on values distribution and predicate selectivity. Spark Parquet reader
+is used to read data.
 
 Most of the Spark SQL predicates are supported to use statistics and/or column filter
 (`EqualTo`, `In`, `GreaterThan`, `LessThan`, and others). Note that predicates work best for
@@ -43,8 +44,9 @@ Currently only these types are supported for indexed columns:
 bucketed table would be processed and indexed like standard partitioned table
 - Certain Spark versions are supported (see table below)
 
-Project is **experimental and is in active development at the moment**. We are working to remove
-limitations and add support for different versions. Any feedback, issues or PRs are welcome.
+> Project is **experimental and is in active development at the moment**. We are working to remove
+> limitations and add support for different versions. Any feedback, issues or PRs are welcome.
+
 > Documentation reflects changes in `master` branch, for specific version documentation, please
 > select version tag or branch.
 
@@ -72,7 +74,7 @@ other Spark configuration or add them to `spark-defaults.conf` file.
 | Name | Since | Description | Default |
 |------|:-----:|-------------|---------|
 | `spark.sql.index.metastore` | `0.1.0` | Index metastore location, created if does not exist (_file:/folder, hdfs://host:port/folder_) | _working directory_
-| `spark.sql.index.parquet.filter.enabled` | `0.2.0` | When set to `true`, write filter statistics for indexed columns when creating table index, otherwise only min/max statistics are used. Filter statistics are always used during filtering stage, if can be applied and available (_true, false_) | _false_
+| `spark.sql.index.parquet.filter.enabled` | `0.2.0` | When set to `true`, write filter statistics for indexed columns when creating table index, otherwise only min/max statistics are used. Filter statistics are used during filtering stage, if can be applied and available (_true, false_) | _false_
 | `spark.sql.index.parquet.filter.type` | `0.2.0` | When filter statistics enabled, select type of statistics to use when creating index (_bloom_) | _bloom_
 | `spark.sql.index.parquet.filter.eagerLoading` | `0.2.0` | When set to `true`, read and load all filter statistics in memory the first time catalog is resolved, otherwise load them lazily as needed when evaluating predicate (_true, false_) | _false_
 | `spark.sql.index.createIfNotExists` | `0.2.0` | When set to true, create index if one does not exist in metastore for the table, and will use all available columns for indexing (_true, false_) | _false_
@@ -86,17 +88,16 @@ Usage is similar to Spark's `DataFrameReader`, but for `spark.index`.
 ```scala
 // Create dummy table "codes.parquet", use repartition to create more or less generic
 // situation with value distribution
-spark.range(0, 10000).
+spark.range(0, 1000000).
   select($"id", $"id".cast("string").as("code"), lit("xyz").as("name")).
-  repartition(200).
+  repartition(400).
   write.partitionBy("name").parquet("temp/codes.parquet")
 
 // Create index for table, this will create index files in index_metastore
-// see for supported types for indexed columns
 import com.github.lightcopy.implicits._
 
-// All Spark SQL modes are available (append, overwrite, ignore, error)
-// You can also use `.indexByAll` to index by all inferred columns
+// All Spark SQL modes are available ('append', 'overwrite', 'ignore', 'error')
+// You can also use `.indexByAll` instead to choose all columns in schema that can be indexed
 spark.index.create.
   mode("overwrite").indexBy($"id", $"code").parquet("temp/codes.parquet")
 
