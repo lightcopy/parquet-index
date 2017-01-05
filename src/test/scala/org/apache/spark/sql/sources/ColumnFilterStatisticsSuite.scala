@@ -16,8 +16,6 @@
 
 package org.apache.spark.sql.sources
 
-import org.apache.hadoop.fs.Path
-
 import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
 
@@ -73,9 +71,11 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
   }
 
   test("BloomFilterStatistics - setPath/getPath") {
-    val filter = BloomFilterStatistics()
-    filter.setPath(new Path("/tmp/filter"))
-    filter.getPath should be (new Path("/tmp/filter"))
+    withTempDir { dir =>
+      val filter = BloomFilterStatistics()
+      filter.setPath(dir)
+      filter.getPath should be (dir)
+    }
   }
 
   test("BloomFilterStatistics - fail to set null path") {
@@ -115,13 +115,13 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
       for (i <- 1 to 1024) {
         filter.update(i)
       }
-      filter.setPath(new Path(dir.toString / "filter"))
+      filter.setPath(dir / "filter")
       filter.writeData(fs)
 
       fs.exists(filter.getPath) should be (true)
 
       val filter2 = BloomFilterStatistics()
-      filter2.setPath(new Path(dir.toString / "filter"))
+      filter2.setPath(dir / "filter")
       filter2.readData(fs)
       filter2.isLoaded should be (true)
 
@@ -151,11 +151,11 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
       for (i <- 1 to 1024) {
         filter.update(i)
       }
-      filter.setPath(new Path(dir.toString / "filter"))
+      filter.setPath(dir / "filter")
       filter.writeData(fs)
 
       val filter2 = BloomFilterStatistics()
-      filter2.setPath(new Path(dir.toString / "filter"))
+      filter2.setPath(dir / "filter")
       filter2.readData(fs)
       filter2.isLoaded should be (true)
 

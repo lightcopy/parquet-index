@@ -38,7 +38,7 @@ trait TestBase {
   /** returns raw path of the folder where it finds resolver */
   private def getRawPath(): String = {
     if (path.isEmpty) {
-      path = getClass().getResource("/" + RESOLVER).getPath()
+      path = getClass.getResource("/" + RESOLVER).getPath()
     }
     path
   }
@@ -72,40 +72,57 @@ trait TestBase {
     baseDirectory() / "target"
   }
 
+  /** Create directories for path recursively */
   final protected def mkdirs(path: String): Boolean = {
-    val p = new HadoopPath(path)
-    fs.mkdirs(p)
+    mkdirs(new HadoopPath(path))
   }
 
-  /** create empty file, similar to "touch" shell command, but creates intermediate directories */
+  final protected def mkdirs(path: HadoopPath): Boolean = {
+    fs.mkdirs(path)
+  }
+
+  /** Create empty file, similar to "touch" shell command, but creates intermediate directories */
   final protected def touch(path: String): Boolean = {
-    val p = new HadoopPath(path)
-    fs.mkdirs(p.getParent)
-    fs.createNewFile(p)
+    touch(new HadoopPath(path))
   }
 
-  /** delete directory / file with path. Recursive must be true for directory */
+  final protected def touch(path: HadoopPath): Boolean = {
+    fs.mkdirs(path.getParent)
+    fs.createNewFile(path)
+  }
+
+  /** Delete directory / file with path. Recursive must be true for directory */
   final protected def rm(path: String, recursive: Boolean): Boolean = {
-    val p = new HadoopPath(path)
-    fs.delete(p, recursive)
+    rm(new HadoopPath(path), recursive)
   }
 
-  /** open file for a path */
+  /** Delete directory / file with path. Recursive must be true for directory */
+  final protected def rm(path: HadoopPath, recursive: Boolean): Boolean = {
+    fs.delete(path, recursive)
+  }
+
+  /** Open file for a path */
   final protected def open(path: String): InputStream = {
-    val p = new HadoopPath(path)
-    fs.open(p)
+    open(new HadoopPath(path))
   }
 
-  /** create file with a path and return output stream */
+  final protected def open(path: HadoopPath): InputStream = {
+    fs.open(path)
+  }
+
+  /** Create file with a path and return output stream */
   final protected def create(path: String): OutputStream = {
-    val p = new HadoopPath(path)
-    fs.create(p)
+    create(new HadoopPath(path))
   }
 
-  /** compare two DataFrame objects */
+  final protected def create(path: HadoopPath): OutputStream = {
+    fs.create(path)
+  }
+
+  /** Compare two DataFrame objects */
   final protected def checkAnswer(df: DataFrame, expected: DataFrame): Unit = {
-    val got = df.collect().map(_.toString()).sortWith(_ < _)
-    val exp = expected.collect().map(_.toString()).sortWith(_ < _)
+    val got = df.collect.map(_.toString).sortWith(_ < _)
+    val exp = expected.collect.map(_.toString).sortWith(_ < _)
     assert(got.sameElements(exp), s"Failed to compare DataFrame ${got.mkString("[", ", ", "]")} " +
       s"with expected input ${exp.mkString("[", ", ", "]")}")
   }
@@ -125,8 +142,8 @@ trait TestBase {
   }
 
   /** Execute block of code with temporary hadoop path and path permission */
-  private def withTempHadoopPath(
-      path: HadoopPath, permission: Option[FsPermission])(func: HadoopPath => Unit): Unit = {
+  private def withTempHadoopPath(path: HadoopPath, permission: Option[FsPermission])
+      (func: HadoopPath => Unit): Unit = {
     try {
       if (permission.isDefined) {
         fs.setPermission(path, permission.get)

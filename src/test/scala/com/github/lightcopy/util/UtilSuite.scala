@@ -19,7 +19,7 @@ package com.github.lightcopy.util
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{BlockLocation, LocatedFileStatus, Path => HadoopPath}
+import org.apache.hadoop.fs.{BlockLocation, LocatedFileStatus}
 
 import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
@@ -27,26 +27,26 @@ import com.github.lightcopy.testutil.implicits._
 class UtilSuite extends UnitTestSuite {
   test("read content from empty file") {
     withTempDir { dir =>
-      val path = dir.toString / "test"
+      val path = dir / "test"
       touch(path)
-      val content = IOUtils.readContent(fs, new HadoopPath(path))
+      val content = IOUtils.readContent(fs, path)
       content.isEmpty should be (true)
     }
   }
 
   test("read content from non-empty file") {
     withTempDir { dir =>
-      val path = dir.toString / "test"
+      val path = dir / "test"
       val out = create(path)
       out.write("test-content#".getBytes)
       out.close()
-      IOUtils.readContent(fs, new HadoopPath(path)) should be ("test-content#")
+      IOUtils.readContent(fs, path) should be ("test-content#")
     }
   }
 
   test("write content into file") {
     withTempDir { dir =>
-      val path = new HadoopPath(dir.toString / "test")
+      val path = dir / "test"
       IOUtils.writeContent(fs, path, "test-content")
       IOUtils.readContent(fs, path) should be ("test-content")
     }
@@ -54,10 +54,10 @@ class UtilSuite extends UnitTestSuite {
 
   test("read content into stream") {
     withTempDir { dir =>
-      val path = dir.toString / "test"
+      val path = dir / "test"
       touch(path)
       val bytes = new Array[Byte](128)
-      IOUtils.readContentStream(fs, new HadoopPath(path)) { in =>
+      IOUtils.readContentStream(fs, path) { in =>
         in.read(bytes)
       }
       bytes.sum should be (0)
@@ -66,12 +66,12 @@ class UtilSuite extends UnitTestSuite {
 
   test("write content into stream") {
     withTempDir { dir =>
-      val path = dir.toString / "test"
+      val path = dir / "test"
       val bytes = "test-content".getBytes()
-      IOUtils.writeContentStream(fs, new HadoopPath(path)) { out =>
+      IOUtils.writeContentStream(fs, path) { out =>
         out.write(bytes)
       }
-      IOUtils.readContent(fs, new HadoopPath(path)) should be ("test-content")
+      IOUtils.readContent(fs, path) should be ("test-content")
     }
   }
 
@@ -80,13 +80,13 @@ class UtilSuite extends UnitTestSuite {
     conf.set("test.key", "test.value")
 
     withTempDir { dir =>
-      val path = dir.toString / "obj.tmp"
-      IOUtils.writeContentStream(fs, new HadoopPath(path)) { out =>
+      val path = dir / "obj.tmp"
+      IOUtils.writeContentStream(fs, path) { out =>
         new ObjectOutputStream(out).writeObject(new SerializableConfiguration(conf))
       }
 
       // try reading object from the file and check for consistency
-      IOUtils.readContentStream(fs, new HadoopPath(path)) { in =>
+      IOUtils.readContentStream(fs, path) { in =>
         val deserial = new ObjectInputStream(in).readObject().
           asInstanceOf[SerializableConfiguration]
         deserial.value.get("test.key") should be ("test.value")

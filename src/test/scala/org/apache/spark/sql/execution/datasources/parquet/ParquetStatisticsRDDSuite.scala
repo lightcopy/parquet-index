@@ -16,8 +16,6 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
-import org.apache.hadoop.fs.Path
-
 import org.apache.parquet.hadoop.metadata.BlockMetaData
 
 import org.apache.spark.SparkException
@@ -113,8 +111,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     withTempDir { dir =>
       // all values are in single file
       spark.range(0, 10).write.parquet(dir.toString / "table")
-      val status = fs.listStatus(new Path(dir.toString / "table")).
-        filter(_.getPath.getName.contains("parquet"))
+      val status = fs.listStatus(dir / "table").filter(_.getPath.getName.contains("parquet"))
 
       val rdd = new ParquetStatisticsRDD(
         spark.sparkContext,
@@ -257,8 +254,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       // all values are in single file
       spark.range(0, 1).filter("id > 2").withColumn("str", lit("abc")).coalesce(1).
         write.parquet(dir.toString / "table")
-      val status = fs.listStatus(new Path(dir.toString / "table")).
-        filter(_.getPath.getName.contains("parquet"))
+      val status = fs.listStatus(dir / "table").filter(_.getPath.getName.contains("parquet"))
 
       val rdd = new ParquetStatisticsRDD(
         spark.sparkContext,
@@ -285,8 +281,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
         (3, null, null),
         (4, "c", null)
       ).toDF("col1", "col2", "col3").coalesce(1).write.parquet(dir.toString / "table")
-      val status = fs.listStatus(new Path(dir.toString / "table")).
-        filter(_.getPath.getName.contains("parquet"))
+      val status = fs.listStatus(dir / "table").filter(_.getPath.getName.contains("parquet"))
 
       val rdd = new ParquetStatisticsRDD(
         spark.sparkContext,
@@ -323,8 +318,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       // all values are in single file
       spark.range(0, 10).withColumn("str", lit("abc")).coalesce(1).
         write.parquet(dir.toString / "table")
-      val status = fs.listStatus(new Path(dir.toString / "table")).
-        filter(_.getPath.getName.contains("parquet"))
+      val status = fs.listStatus(dir / "table").filter(_.getPath.getName.contains("parquet"))
       val hadoopConf = spark.sessionState.newHadoopConf()
       // enable filter statistics
       hadoopConf.set(ParquetMetastoreSupport.FILTER_DIR, dir.toString)
