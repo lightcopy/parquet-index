@@ -1,5 +1,5 @@
 # parquet-index
-In-memory index for Parquet tables
+Spark SQL index for Parquet tables
 
 [![Build Status](https://travis-ci.org/lightcopy/parquet-index.svg?branch=master)](https://travis-ci.org/lightcopy/parquet-index)
 [![Coverage Status](https://coveralls.io/repos/github/lightcopy/parquet-index/badge.svg?branch=master)](https://coveralls.io/github/lightcopy/parquet-index?branch=master)
@@ -7,23 +7,24 @@ In-memory index for Parquet tables
 
 ## Overview
 Package allows to create index for Parquet tables to reduce query latency when used for
-_almost interactive_ analysis or point queries. It is designed for use case when table does not
-change frequently, but is used for queries often, e.g. using Thrift JDBC/ODBC server. When indexed,
-schema and list of files (including partitioning) will be automatically resolved from index
+_almost interactive_ analysis or point queries in Spark SQL. It is designed for use case when table
+does not change frequently, but is used for queries often, e.g. using Thrift JDBC/ODBC server. When
+indexed, schema and list of files (including partitioning) will be automatically resolved from index
 metastore instead of inferring schema every time datasource is created.
 
 ### Metastore
 Metastore keeps information about all indexed tables and can be created on local file system or HDFS
-(see available options below). Each created index includes different statistics (min/max/null) and,
-optionally, column filters statistics (e.g. bloom filters) on indexed columns.
+(see available options below) with support for in-memory cache of index (after first scan). Each
+created index includes different statistics (min/max/null) and, optionally, column filters
+statistics (e.g. bloom filters) on indexed columns.
 
 ### Supported predicates
-Index is enabled for scan when provided predicate contains one or several filters with indexed
-columns; if no filters on indexed columns are provided, then normal scan is used, but with benefits
-of already resolved partitions and schema. Applying min/max statistics and column filter statistics
-(if available) happens after partition pruning. Statistics are kept per Parquet block metadata. Note
-that performance also depends on values distribution and predicate selectivity. Spark Parquet reader
-is used to read data.
+Index is automatically enabled for scan when provided predicate contains one or several filters with
+indexed columns; if no filters on indexed columns are provided, then normal scan is used, but with
+benefits of already resolved partitions and schema. Applying min/max statistics and column filter
+statistics (if available) happens after partition pruning. Statistics are kept per Parquet block
+metadata. Note that performance also depends on values distribution and predicate selectivity.
+Spark Parquet reader is used to read data.
 
 Most of the Spark SQL predicates are supported to use statistics and/or column filter
 (`EqualTo`, `In`, `GreaterThan`, `LessThan`, and others). Note that predicates work best for
@@ -93,25 +94,31 @@ spark.range(0, 1000000).
   repartition(400).
   write.partitionBy("name").parquet("temp/codes.parquet")
 
-// Create index for table, this will create index files in index_metastore
 import com.github.lightcopy.implicits._
+// Create index for table, this will create index files in index_metastore,
+// you can configure different options - see table above
 
 // All Spark SQL modes are available ('append', 'overwrite', 'ignore', 'error')
-// You can also use `.indexByAll` instead to choose all columns in schema that can be indexed
+// You can also use `.indexByAll` instead to choose all columns in schema that
+// can be indexed
 spark.index.create.
   mode("overwrite").indexBy($"id", $"code").parquet("temp/codes.parquet")
 
 // Check if index for table exists, should return "true"
 spark.index.exists.parquet("temp/codes.parquet")
 
-// Query table using index, should return 1 record, and will scan
-// only small number of files. This example uses filters on both columns,
-// though any filters can be used, e.g. only on id or code
+// Query table using index, should return 1 record, and will scan only small
+// number of files (1 file usually if filter statistics are enabled). This
+// example uses filters on both columns, though any filters can be used,
+// e.g. only on id or code
+// Metastore will cache index catalog to reduce time for subsequent calls
 val df = spark.index.parquet("temp/codes.parquet").
   filter($"id" === 123 && $"code" === "123")
 df.collect
 
-// Delete index, no-op if there is no index for table
+// Delete index in metastore, also invalidates cache
+// no-op if there is such index does not exist
+// (does NOT delete original table)
 spark.index.delete.parquet("temp/codes.parquet")
 
 // You can compare performance with this
