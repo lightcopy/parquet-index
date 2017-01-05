@@ -16,14 +16,12 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
-import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FileSystem
 
 import org.apache.spark.sql.sources._
 
 private[parquet] case class ParquetIndexFilters(
     fs: FileSystem,
-    conf: Configuration,
     blocks: Array[ParquetBlockMetadata]) {
   /**
    * Transform filter with provided statistics and filter.
@@ -56,7 +54,7 @@ private[parquet] case class ParquetIndexFilters(
           val foundInStats = stats.contains(value)
           if (foundInStats && filter.isDefined) {
             val columnFilter = filter.get
-            columnFilter.readData(fs, conf)
+            columnFilter.readData(fs)
             Trivial(columnFilter.mightContain(value))
           } else {
             Trivial(foundInStats)
@@ -67,7 +65,7 @@ private[parquet] case class ParquetIndexFilters(
           val foundInStats = values.exists(stats.contains)
           if (foundInStats && filter.isDefined) {
             val columnFilter = filter.get
-            columnFilter.readData(fs, conf)
+            columnFilter.readData(fs)
             Trivial(values.exists(columnFilter.mightContain))
           } else {
             Trivial(foundInStats)

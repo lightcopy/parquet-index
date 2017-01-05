@@ -57,21 +57,34 @@ private[spark] object IndexConf {
     conf
   }
 
-  // metastore location (root directory in case of file system)
-  // will be created, if it does not exist
   val METASTORE_LOCATION = IndexConfigBuilder("spark.sql.index.metastore").
     doc("Metastore location or root directory to store index information, will be created " +
       "if path does not exist").
     stringConf.
     createWithDefault("")
 
-  // option to enable/disable bloom filters for Parquet index
-  val PARQUET_BLOOM_FILTER_ENABLED = IndexConfigBuilder("spark.sql.index.parquet.bloom.enabled").
-    doc("When set to true, writes bloom filters for indexed columns when creating table index").
+  val PARQUET_FILTER_STATISTICS_ENABLED =
+    IndexConfigBuilder("spark.sql.index.parquet.filter.enabled").
+    doc("When set to true, writes filter statistics for indexed columns when creating table " +
+      "index, otherwise only min/max statistics are used. Filter statistics are always used " +
+      "during filtering stage, if can be applied and available").
     booleanConf.
     createWithDefault(false)
 
-  // If index does not exist in metastore, will create it before querying
+  val PARQUET_FILTER_STATISTICS_TYPE =
+    IndexConfigBuilder("spark.sql.index.parquet.filter.type").
+    doc("When filter statistics enabled, selects type of statistics to use when creating index").
+    stringConf.
+    createWithDefault("bloom")
+
+  val PARQUET_FILTER_STATISTICS_EAGER_LOADING =
+    IndexConfigBuilder("spark.sql.index.parquet.filter.eagerLoading").
+    doc("When set to true, read and load all filter statistics in memory the first time catalog " +
+      "is resolved, otherwise load them lazily as needed when evaluating predicate. " +
+      "Eager loading removes IO of reading filter data from disk, but requires extra memory").
+    booleanConf.
+    createWithDefault(false)
+
   val CREATE_IF_NOT_EXISTS = IndexConfigBuilder("spark.sql.index.createIfNotExists").
     doc("When set to true, creates index if one does not exist in metastore for the table").
     booleanConf.
@@ -91,7 +104,11 @@ private[spark] class IndexConf extends Serializable {
 
   def metastoreLocation: String = getConf(METASTORE_LOCATION)
 
-  def parquetBloomFilterEnabled: Boolean = getConf(PARQUET_BLOOM_FILTER_ENABLED)
+  def parquetFilterEnabled: Boolean = getConf(PARQUET_FILTER_STATISTICS_ENABLED)
+
+  def parquetFilterType: String = getConf(PARQUET_FILTER_STATISTICS_TYPE)
+
+  def parquetFilterEagerLoading: Boolean = getConf(PARQUET_FILTER_STATISTICS_EAGER_LOADING)
 
   def createIfNotExists: Boolean = getConf(CREATE_IF_NOT_EXISTS)
 

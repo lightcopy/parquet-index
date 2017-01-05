@@ -20,6 +20,9 @@ import java.io.IOException
 import java.util.Arrays
 
 import scala.util.control.NonFatal
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 
@@ -60,6 +63,31 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
       } finally {
         deserializedStream.close()
       }
+    }
+
+    // if eager loading is enabled, load all filter statistics
+    // this operation is done once, catalog will be cached in metastore
+    if (metastore.conf.parquetFilterEagerLoading && indexMetadata != null) {
+      logInfo("Loading all filter statistics for catalog")
+      val startTime = System.nanoTime()
+      implicit val executorContext = ExecutionContext.global
+      val futures: Seq[Future[Unit]] = indexMetadata.partitions.flatMap { partition =>
+        partition.files.flatMap { status =>
+          status.blocks.flatMap { block =>
+            block.indexedColumns.values.flatMap { metadata =>
+              metadata.filter match {
+                case Some(filter) => Some(Future[Unit] {
+                  filter.readData(metastore.fs) }(executorContext))
+                case None => None
+              }
+            }
+          }
+        }
+      }
+      Await.ready(Future.sequence(futures), Duration.Inf)
+      val endTime = System.nanoTime()
+      def timeMs: Double = (endTime - startTime).toDouble / 1000000
+      logInfo(s"Loaded all filter statistics for catalog in $timeMs ms")
     }
 
     new ParquetIndexCatalog(metastore, indexMetadata)
@@ -103,8 +131,9 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
 
     val sc = metastore.session.sparkContext
     val hadoopConf = metastore.session.sessionState.newHadoopConf()
-    if (metastore.conf.parquetBloomFilterEnabled) {
+    if (metastore.conf.parquetFilterEnabled) {
       hadoopConf.set(ParquetMetastoreSupport.FILTER_DIR, indexDirectory.getPath.toString)
+      hadoopConf.set(ParquetMetastoreSupport.FILTER_TYPE, metastore.conf.parquetFilterType)
     }
 
     val numPartitions = Math.min(sc.defaultParallelism * 2,
@@ -189,9 +218,11 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
 
 object ParquetMetastoreSupport {
   // internal Hadoop configuration option to set schema for Parquet reader
-  private[sql] val READ_SCHEMA = "spark.sql.index.parquet.read.schema"
-  // internal Hadoop configuration option to specify bloom filters directory
-  private[sql] val FILTER_DIR = "spark.sql.index.parquet.filter.dir"
+  private[sql] val READ_SCHEMA = "spark.sql.hadoop.index.parquet.read.schema"
+  // internal Hadoop configuration option to specify filter directory
+  private[sql] val FILTER_DIR = "spark.sql.hadoop.index.parquet.filter.dir"
+  // internal Hadoop configuration option to specify filter name/type
+  private[sql] val FILTER_TYPE = "spark.sql.hadoop.index.parquet.filter.type"
   // metadata name
   val TABLE_METADATA = "_table_metadata"
 

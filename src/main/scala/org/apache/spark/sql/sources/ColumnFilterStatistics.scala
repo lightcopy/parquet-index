@@ -18,7 +18,6 @@ package org.apache.spark.sql.sources
 
 import java.io.{InputStream, OutputStream}
 
-import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 
 import org.apache.spark.util.sketch.BloomFilter
@@ -82,10 +81,18 @@ abstract class ColumnFilterStatistics extends Serializable {
   }
 
   /**
-   * Read data from disk to load filter. This method is safe to call many times, it will check if
-   * filter requires loading, otherwise will be no-op.
+   * Whether or not filter is loaded into memory, implemented as function instead of lazy val.
+   * Added for testing purposes.
    */
-  def readData(fs: FileSystem, conf: Configuration): Unit = {
+  private[sql] def isLoaded(): Boolean = {
+    !needToReadData()
+  }
+
+  /**
+   * Read data from disk to load filter. Operation is done once, so it is safe to call this method
+   * many times, it will check if filter requires loading, otherwise will be no-op.
+   */
+  def readData(fs: FileSystem): Unit = {
     if (needToReadData) {
       var in: InputStream = null
       try {
@@ -103,7 +110,7 @@ abstract class ColumnFilterStatistics extends Serializable {
    * Write filter data onto disk. Method is called only once, when filter is updated with all
    * available data.
    */
-  def writeData(fs: FileSystem, conf: Configuration): Unit = {
+  def writeData(fs: FileSystem): Unit = {
     var out: OutputStream = null
     try {
       out = fs.create(getPath, false)
@@ -117,6 +124,22 @@ abstract class ColumnFilterStatistics extends Serializable {
 
   override def toString(): String = {
     s"${getClass.getSimpleName}"
+  }
+}
+
+object ColumnFilterStatistics {
+  // Registered classes of filter statistics, key is a short name used in configuration
+  val REGISTERED_FILTERS = Map("bloom" -> classOf[BloomFilterStatistics])
+
+  /**
+   * Get [[ColumnFilterStatistics]] class for short name, used for selecting filter type in
+   * configuration. If short name is not found, throws runtime exception; note that name string is
+   * not modified to find a match (compared as is).
+   */
+  def classForName(name: String): Class[_] = {
+    REGISTERED_FILTERS.getOrElse(name, sys.error(
+      s"Unsupported filter statistics type $name, must be one of " +
+      s"${REGISTERED_FILTERS.keys.mkString("[", ", ", "]")}"))
   }
 }
 

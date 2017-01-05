@@ -250,7 +250,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     withTempDir { dir =>
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
-          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
         val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
@@ -281,7 +281,8 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     withTempDir { dir =>
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
-          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true",
+          PARQUET_FILTER_STATISTICS_TYPE.key -> "bloom") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
         val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
@@ -300,7 +301,8 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     withTempDir { dir =>
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
-          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true",
+          PARQUET_FILTER_STATISTICS_TYPE.key -> "bloom") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
         val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
@@ -321,7 +323,8 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     withTempDir { dir =>
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
-          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true",
+          PARQUET_FILTER_STATISTICS_TYPE.key -> "bloom") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
         val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
@@ -342,7 +345,8 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     withTempDir { dir =>
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
-          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true",
+          PARQUET_FILTER_STATISTICS_TYPE.key -> "bloom") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
         val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
@@ -357,30 +361,12 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
-  test("read correctness for Parquet table without index filters") {
+  test("read correctness for Parquet table (bloom filters) with non-equality filters") {
     withTempDir { dir =>
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
-          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
-        val sqlContext = spark.sqlContext
-        import sqlContext.implicits._
-        val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
-          (id, s"$id") }.toDF("id", "str")
-        df.write.parquet(dir.toString / "test")
-
-        spark.index.create.indexBy("id").parquet(dir.toString / "test")
-        val df1 = spark.index.parquet(dir.toString / "test").filter(col("str") === "999")
-        val df2 = spark.read.parquet(dir.toString / "test").filter(col("str") === "999")
-        checkAnswer(df1, df2)
-      }
-    }
-  }
-
-  test("read correctness for Parquet table with non-equality filters") {
-    withTempDir { dir =>
-      withSQLConf(
-          METASTORE_LOCATION.key -> dir.toString / "metastore",
-          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true",
+          PARQUET_FILTER_STATISTICS_TYPE.key -> "bloom") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
         val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
@@ -397,11 +383,30 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
+  test("read correctness for Parquet table with predicate not containing index filters") {
+    withTempDir { dir =>
+      withSQLConf(
+          METASTORE_LOCATION.key -> dir.toString / "metastore",
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "false") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = spark.sparkContext.parallelize(0 until 16, 16).map { id =>
+          (id, s"$id") }.toDF("id", "str")
+        df.write.parquet(dir.toString / "test")
+
+        spark.index.create.indexBy("id").parquet(dir.toString / "test")
+        val df1 = spark.index.parquet(dir.toString / "test").filter(col("str") === "999")
+        val df2 = spark.read.parquet(dir.toString / "test").filter(col("str") === "999")
+        checkAnswer(df1, df2)
+      }
+    }
+  }
+
   test("fail to read when array column is used for indexing Parquet table") {
     withTempDir { dir =>
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
-          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
         val df = Seq(Seq("a", "b", "c")).toDF("arr")
@@ -418,7 +423,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     withTempDir { dir =>
       withSQLConf(
           METASTORE_LOCATION.key -> dir.toString / "metastore",
-          PARQUET_BLOOM_FILTER_ENABLED.key -> "true") {
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true") {
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
         val df = Seq(("a", (1, 2))).toDF("c1", "c2")

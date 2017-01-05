@@ -16,7 +16,6 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
-import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 
 import org.apache.spark.sql.catalyst.{expressions, InternalRow}
@@ -29,7 +28,7 @@ import com.github.lightcopy.util.SerializableFileStatus
 
 /**
  * Index catalog for Parquet tables.
- * Metastore is used mainly to provide Hadoop configuration.
+ * Metastore is used mainly to provide Hadoop file system and/or configuration.
  */
 class ParquetIndexCatalog(
     @transient val metastore: Metastore,
@@ -127,12 +126,11 @@ class ParquetIndexCatalog(
   private[parquet] def resolveSupported(
       filter: Filter,
       status: ParquetFileStatus): Filter = {
-    // we need file system and configuration to resolve column filters
+    // we need file system to resolve column filters
     val fs = metastore.fs
-    val conf = metastore.session.sessionState.newHadoopConf()
     require(status.blocks.nonEmpty,
       "Parquet file status has empty blocks, required at least one block metadata")
-    ParquetIndexFilters(fs, conf, status.blocks).foldFilter(filter)
+    ParquetIndexFilters(fs, status.blocks).foldFilter(filter)
   }
 
   private[parquet] def pruneIndexedPartitions(
