@@ -70,7 +70,7 @@ Currently supported options, use `--conf key=value` on a command line to provide
 other Spark configuration or add them to `spark-defaults.conf` file.
 
 | Name | Since | Description | Default |
-|------|:-----:|:-----------:|---------|
+|------|:-----:|-------------|---------|
 | `spark.sql.index.metastore` | `0.1.0` | Index metastore location, created if does not exist (_file:/folder, hdfs://host:port/folder_) | _working directory_
 | `spark.sql.index.parquet.filter.enabled` | `0.2.0` | When set to `true`, write filter statistics for indexed columns when creating table index, otherwise only min/max statistics are used. Filter statistics are always used during filtering stage, if can be applied and available (_true, false_) | _false_
 | `spark.sql.index.parquet.filter.type` | `0.2.0` | When filter statistics enabled, select type of statistics to use when creating index (_bloom_) | _bloom_
