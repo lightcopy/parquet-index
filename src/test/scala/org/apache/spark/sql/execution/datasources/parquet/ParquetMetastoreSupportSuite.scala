@@ -18,8 +18,6 @@ package org.apache.spark.sql.execution.datasources.parquet
 
 import java.io.IOException
 
-import org.apache.hadoop.fs.Path
-
 import org.apache.spark.sql.execution.datasources.TestMetastore
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.internal.IndexConf._
@@ -52,7 +50,7 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
 
   test("fail if table metadata does not exist") {
     withTempDir { dir =>
-      val metastore = testMetastore(spark, dir.toString / "test_metastore")
+      val metastore = testMetastore(spark, dir / "test_metastore")
       val support = new ParquetMetastoreSupport()
       val err = intercept[IOException] {
         support.loadIndex(metastore, fs.getFileStatus(dir))
@@ -63,8 +61,8 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
 
   test("fail if there is a deserialization error") {
     withTempDir { dir =>
-      touch(dir.toString / ParquetMetastoreSupport.TABLE_METADATA)
-      val metastore = testMetastore(spark, dir.toString / "test_metastore")
+      touch(dir / ParquetMetastoreSupport.TABLE_METADATA)
+      val metastore = testMetastore(spark, dir / "test_metastore")
       val support = new ParquetMetastoreSupport()
       val err = intercept[IOException] {
         support.loadIndex(metastore, fs.getFileStatus(dir))
@@ -75,7 +73,7 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
 
   test("fail to create if partitions are empty") {
     withTempDir { dir =>
-      val metastore = testMetastore(spark, dir.toString / "test_metastore")
+      val metastore = testMetastore(spark, dir / "test_metastore")
       val support = new ParquetMetastoreSupport()
       val status = fs.getFileStatus(dir)
       val err = intercept[IllegalArgumentException] {
@@ -87,7 +85,7 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
 
   test("ParquetMetastoreSupport does not support append mode") {
     withTempDir { dir =>
-      val metastore = testMetastore(spark, dir.toString / "test_metastore")
+      val metastore = testMetastore(spark, dir / "test_metastore")
       val support = new ParquetMetastoreSupport()
       val status = fs.getFileStatus(dir)
       val err = intercept[UnsupportedOperationException] {
@@ -107,13 +105,13 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
         METASTORE_LOCATION.key -> dir.toString / "test_metastore",
         PARQUET_FILTER_STATISTICS_ENABLED.key -> "true",
         PARQUET_FILTER_STATISTICS_EAGER_LOADING.key -> "false")
-      withSQLConf(options.toSeq: _*) {
+      withSQLConf(options) {
         val metastore = testMetastore(spark, options)
         spark.range(0, 9).withColumn("str", lit("abc")).write.parquet(dir.toString / "table")
         spark.index.create.indexBy("id", "str").parquet(dir.toString / "table")
 
         val support = new ParquetMetastoreSupport()
-        val location = metastore.location(support.identifier, new Path(dir.toString / "table"))
+        val location = metastore.location(support.identifier, dir / "table")
 
         val catalog = support.loadIndex(metastore, fs.getFileStatus(location)).
           asInstanceOf[ParquetIndexCatalog]
@@ -141,13 +139,13 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
         METASTORE_LOCATION.key -> dir.toString / "test_metastore",
         PARQUET_FILTER_STATISTICS_ENABLED.key -> "true",
         PARQUET_FILTER_STATISTICS_EAGER_LOADING.key -> "true")
-      withSQLConf(options.toSeq: _*) {
+      withSQLConf(options) {
         val metastore = testMetastore(spark, options)
         spark.range(0, 9).withColumn("str", lit("abc")).write.parquet(dir.toString / "table")
         spark.index.create.indexBy("id", "str").parquet(dir.toString / "table")
 
         val support = new ParquetMetastoreSupport()
-        val location = metastore.location(support.identifier, new Path(dir.toString / "table"))
+        val location = metastore.location(support.identifier, dir / "table")
 
         val catalog = support.loadIndex(metastore, fs.getFileStatus(location)).
           asInstanceOf[ParquetIndexCatalog]
@@ -176,13 +174,13 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
         METASTORE_LOCATION.key -> dir.toString / "test_metastore",
         PARQUET_FILTER_STATISTICS_ENABLED.key -> "false",
         PARQUET_FILTER_STATISTICS_EAGER_LOADING.key -> "true")
-      withSQLConf(options.toSeq: _*) {
+      withSQLConf(options) {
         val metastore = testMetastore(spark, options)
         spark.range(0, 9).withColumn("str", lit("abc")).write.parquet(dir.toString / "table")
         spark.index.create.indexBy("id", "str").parquet(dir.toString / "table")
 
         val support = new ParquetMetastoreSupport()
-        val location = metastore.location(support.identifier, new Path(dir.toString / "table"))
+        val location = metastore.location(support.identifier, dir / "table")
 
         val catalog = support.loadIndex(metastore, fs.getFileStatus(location)).
           asInstanceOf[ParquetIndexCatalog]

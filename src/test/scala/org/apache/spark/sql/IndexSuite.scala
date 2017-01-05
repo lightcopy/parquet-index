@@ -18,8 +18,6 @@ package org.apache.spark.sql
 
 import java.io.FileNotFoundException
 
-import org.apache.hadoop.fs.Path
-
 import org.apache.spark.sql.internal.IndexConf._
 import org.apache.spark.sql.functions.{col, lit}
 import org.apache.spark.sql.types._
@@ -45,7 +43,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         spark.range(0, 10).withColumn("str", lit("abc")).coalesce(1).
           write.parquet(dir.toString / "test")
         // find single file that is not a statistics or _SUCCESS
-        val status = fs.listStatus(new Path(dir.toString / "test")).
+        val status = fs.listStatus(dir / "test").
           filter(_.getPath.getName.contains("part-")).head
         spark.index.create.indexBy("id", "str").parquet(status.getPath.toString)
         spark.index.exists.parquet(status.getPath.toString) should be (true)
@@ -125,7 +123,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         spark.index.exists.parquet(dir.toString / "test") should be (true)
 
         // delete table
-        rm(dir.toString / "test", true)
+        rm(dir / "test", true)
 
         // create index for the different table with overwrite mode
         spark.range(11, 16).withColumn("str", lit("abc")).write.parquet(dir.toString / "test")
@@ -145,7 +143,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         spark.index.exists.parquet(dir.toString / "test") should be (true)
 
         // delete table
-        rm(dir.toString / "test", true)
+        rm(dir / "test", true)
 
         // should result in no-op since original table already exists
         spark.range(11, 16).withColumn("str", lit("abc")).write.parquet(dir.toString / "test")
@@ -166,7 +164,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         // append mode is not supported by Parquet right now
         val err = intercept[UnsupportedOperationException] {
           spark.index.create.mode("append").indexBy("id", "str").
-            table(dir.toString / "test")
+            parquet(dir.toString / "test")
         }
         assert(err.getMessage.contains(
           "ParquetMetastoreSupport does not support append to existing index"))

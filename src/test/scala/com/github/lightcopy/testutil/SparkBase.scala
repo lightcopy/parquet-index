@@ -72,4 +72,9 @@ private[testutil] trait SparkBase {
       }
     }
   }
+
+  /** Allow tests to set custom SQL configuration for duration of closure using map of options */
+  def withSQLConf(options: Map[String, String])(func: => Unit): Unit = {
+    withSQLConf(options.toSeq: _*)(func)
+  }
 }
