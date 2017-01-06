@@ -62,21 +62,21 @@ Currently only these types are supported for indexed columns:
 The `parquet-index` package can be added to Spark by using the `--packages` command line option.
 For example, run this to include it when starting `spark-shell` (Scala 2.10.x):
 ```shell
- $SPARK_HOME/bin/spark-shell --packages lightcopy:parquet-index:0.1.0-s_2.10
+ $SPARK_HOME/bin/spark-shell --packages lightcopy:parquet-index:0.2.0-s_2.10
 ```
-Change to `lightcopy:parquet-index:0.1.0-s_2.11` for Scala 2.11.x
+Change to `lightcopy:parquet-index:0.2.0-s_2.11` for Scala 2.11.x
 
 ## Options
 Currently supported options, use `--conf key=value` on a command line to provide options similar to
 other Spark configuration or add them to `spark-defaults.conf` file.
 
-| Name | Since | Description | Default |
-|------|:-----:|-------------|---------|
-| `spark.sql.index.metastore` | `0.1.0` | Index metastore location, created if does not exist (`file:/folder`, `hdfs://host:port/folder`) | `./index_metastore`
-| `spark.sql.index.parquet.filter.enabled` | `0.2.0` | When set to `true`, write filter statistics for indexed columns when creating table index, otherwise only min/max statistics are used. Filter statistics are used during filtering stage, if can be applied and available (`true`, `false`) | `false`
-| `spark.sql.index.parquet.filter.type` | `0.2.0` | When filter statistics enabled, select type of statistics to use when creating index (`bloom`) | `bloom`
-| `spark.sql.index.parquet.filter.eagerLoading` | `0.2.0` | When set to `true`, read and load all filter statistics in memory the first time catalog is resolved, otherwise load them lazily as needed when evaluating predicate (`true`, `false`) | `false`
-| `spark.sql.index.createIfNotExists` | `0.2.0` | When set to true, create index if one does not exist in metastore for the table, and will use all available columns for indexing (`true`, `false`) | `false`
+| Name | Description | Default |
+|------|-------------|---------|
+| `spark.sql.index.metastore` | Index metastore location, created if does not exist (`file:/folder`, `hdfs://host:port/folder`) | `./index_metastore`
+| `spark.sql.index.parquet.filter.enabled` | When set to `true`, write filter statistics for indexed columns when creating table index, otherwise only min/max statistics are used. Filter statistics are used during filtering stage, if can be applied and available (`true`, `false`) | `false`
+| `spark.sql.index.parquet.filter.type` | When filter statistics enabled, select type of statistics to use when creating index (`bloom`) | `bloom`
+| `spark.sql.index.parquet.filter.eagerLoading` | When set to `true`, read and load all filter statistics in memory the first time catalog is resolved, otherwise load them lazily as needed when evaluating predicate (`true`, `false`) | `false`
+| `spark.sql.index.createIfNotExists` | When set to true, create index if one does not exist in metastore for the table, and will use all available columns for indexing (`true`, `false`) | `false`
 
 ## Example
 
