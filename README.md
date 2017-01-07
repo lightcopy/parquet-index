@@ -126,6 +126,51 @@ val df = spark.read.parquet("temp/codes.parquet").
 df.collect
 ```
 
+### Java API
+To use indexing in Java create `QueryContext` based on `SparkSession` and invoke method `index()` to
+get index functionality. Example below illustrates how to use indexing in standalone application.
+```java
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+
+import com.github.lightcopy.QueryContext;
+
+class ExampleApp {
+  public static void main(String[] args) {
+    // Optionally use `config(key, value)` to specify additional index configuration
+    SparkSession spark = SparkSession.
+      builder().
+      master("local[*]").
+      appName("Java example").
+      getOrCreate();
+
+    // Create query context, entry point to working with parquet-index
+    QueryContext context = new QueryContext(spark);
+
+    // Create index by inferring columns from Parquet table
+    context.index().create().indexByAll().parquet("table.parquet");
+
+    // Create index by specifying index columns, you can also provide `Column` instances, e.g.
+    // `new Column[] { new Column("col1"), new Column("col2") }`.
+    // Mode can be provided as `org.apache.spark.sql.SaveMode` or String value
+    context.index().create().
+      mode("overwrite").
+      indexBy(new String[] { "col1", "col2" }).
+      parquet("table.parquet");
+
+    // Check if index exists for the table
+    boolean exists = context.index().exists().parquet("table.parquet");
+
+    // Run query for indexed table
+    Dataset<Row> df = context.index().parquet("table.parquet").filter("col2 = 'c'");
+
+    // Delete index from metastore
+    context.index().delete().parquet("table.parquet");
+  }
+}
+```
+
 ## Building From Source
 This library is built using `sbt`, to build a JAR file simply run `sbt package` from project root.
 
