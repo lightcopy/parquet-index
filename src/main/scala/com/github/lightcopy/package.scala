@@ -16,21 +16,28 @@
 
 package com.github.lightcopy
 
+import scala.language.implicitConversions
+
 import org.apache.spark.sql.{DataFrameIndexManager, SparkSession}
 import org.apache.spark.sql.execution.datasources.IndexSourceStrategy
 
+/** [[QueryContext]] to access index functionality using SparkSession */
+class QueryContext(session: SparkSession) {
+  def index: DataFrameIndexManager = {
+    // check that index strategy is included
+    val strategies = session.experimental.extraStrategies
+    if (!strategies.contains(IndexSourceStrategy)) {
+      session.experimental.extraStrategies = strategies :+ IndexSourceStrategy
+    }
+
+    new DataFrameIndexManager(session)
+  }
+}
+
 /** Implicit methods for index */
 package object implicits {
-  /** [[QueryContext]] to access index functionality using SparkSession */
-  implicit class QueryContext(session: SparkSession) {
-    def index: DataFrameIndexManager = {
-      // check that index strategy is included
-      val strategies = session.experimental.extraStrategies
-      if (!strategies.contains(IndexSourceStrategy)) {
-        session.experimental.extraStrategies = strategies :+ IndexSourceStrategy
-      }
-
-      new DataFrameIndexManager(session)
-    }
+  /** Implicit conversion to query context for index functionality */
+  implicit def sessionToQueryContext(session: SparkSession): QueryContext = {
+    new QueryContext(session)
   }
 }

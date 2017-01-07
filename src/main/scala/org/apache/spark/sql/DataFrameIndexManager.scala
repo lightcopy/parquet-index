@@ -165,6 +165,25 @@ private[sql] case class CreateIndexCommand(
     indexBy(col(columnName), columnNames.map(col): _*)
   }
 
+  /**
+   * Java-friendly API to index by columns.
+   * For Scala it is recommended to use other more convenient API methods.
+   */
+  def indexBy(columns: Array[Column]): CreateIndexCommand = {
+    require(columns.nonEmpty, "At least one column is required, " +
+      "use 'indexByAll()' method to infer all columns that can be indexed")
+    this.columns = columns.toSeq
+    this
+  }
+
+  /**
+   * Java-friendly API to index by column names.
+   * For Scala it is recommended to use other more convenient API methods.
+   */
+  def indexBy(columnNames: Array[String]): CreateIndexCommand = {
+    indexBy(columnNames.map(col))
+  }
+
   /** Use all available columns that can be indexed */
   def indexByAll(): CreateIndexCommand = {
     // assign empty list, will infer all columns, see `MetastoreSupport` API for more info
