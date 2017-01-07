@@ -1,0 +1,9 @@
+#!/bin/bash
+
+bin="`dirname "$0"`"
+ROOT_DIR="`cd "$bin/../"; pwd`"
+
+# delete .DS_Store files
+find $ROOT_DIR -name ".DS_Store" -type f | xargs rm -f
+# delete .pyc files from project folder
+find $ROOT_DIR -name "*.pyc" -type f -not -path "$ROOT_DIR/venv/*" | xargs rm -f

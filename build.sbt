@@ -44,6 +44,11 @@ libraryDependencies ++= Seq(
   "com.novocode" % "junit-interface" % "0.11" % "test"
 )
 
+// Add Python files to the build
+unmanagedResourceDirectories in Compile += {
+  baseDirectory.value / "python" / "src"
+}
+
 // Check deprecation without manual restart
 scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation", "-feature")
 

@@ -1,0 +1,10 @@
+#!/bin/bash
+
+bin="`dirname "$0"`"
+ROOT_DIR="`cd "$bin/../"; pwd`"
+# Use venv if available otherwise fall back to default pip installation
+if [[ -f "$ROOT_DIR/venv/bin/pip" ]]; then
+  $ROOT_DIR/venv/bin/pip $@
+else
+  pip $@
+fi
