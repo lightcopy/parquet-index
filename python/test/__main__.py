@@ -17,14 +17,7 @@
 # limitations under the License.
 #
 
-import os
+import sys
+import test
 
-# This is an initial configuration, e.g. settings global paths, resolving dependencies directory
-# Root directory of the project
-ROOT_PATH = os.path.dirname(os.path.realpath(__file__))
-# Source directory
-SRC_PATH = os.path.join(ROOT_PATH, 'src')
-# Test directory
-TEST_PATH = os.path.join(ROOT_PATH, 'test')
-# Dependencies directory
-LIB_PATH = os.path.join(ROOT_PATH, 'lib')
+sys.exit(test.main())

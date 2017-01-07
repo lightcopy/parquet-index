@@ -17,14 +17,11 @@
 # limitations under the License.
 #
 
-import os
+import sys
+import init
 
-# This is an initial configuration, e.g. settings global paths, resolving dependencies directory
-# Root directory of the project
-ROOT_PATH = os.path.dirname(os.path.realpath(__file__))
-# Source directory
-SRC_PATH = os.path.join(ROOT_PATH, 'src')
-# Test directory
-TEST_PATH = os.path.join(ROOT_PATH, 'test')
-# Dependencies directory
-LIB_PATH = os.path.join(ROOT_PATH, 'lib')
+if __name__ == '__main__':
+    sys.path.insert(1, init.ROOT_PATH)
+    sys.path.insert(2, init.LIB_PATH)
+    from coverage.cmdline import main
+    sys.exit(main())
