@@ -92,6 +92,7 @@ def check_headers(filepath, skip_empty=True):
 if __name__ == '__main__':
     sys.path.insert(1, init.ROOT_PATH)
     sys.path.insert(2, init.LIB_PATH)
+    sys.path.insert(3, init.SRC_PATH)
     # Checking headers in a file, err_codes has zero, because max requires non-empty sequence
     err_codes = [0]
     for arg in sys.argv[1:]:

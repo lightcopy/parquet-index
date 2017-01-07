@@ -19,12 +19,12 @@
 
 import unittest
 
-class IndexSuite(unittest.TestCase):
-    def test_status(self):
-        self.assertEqual("abc", "abc")
+class ConstSuite(unittest.TestCase):
+    def test_parquet_source(self):
+        self.assertEqual('parquet', 'parquet')
 
 # Load test suites
 def suites():
     return [
-        IndexSuite
+        ConstSuite
     ]

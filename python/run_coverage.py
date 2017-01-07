@@ -23,5 +23,6 @@ import init
 if __name__ == '__main__':
     sys.path.insert(1, init.ROOT_PATH)
     sys.path.insert(2, init.LIB_PATH)
+    sys.path.insert(3, init.SRC_PATH)
     from coverage.cmdline import main
     sys.exit(main())
