@@ -45,7 +45,7 @@ class IndexSuite(unittest.TestCase):
     def setUp(self):
         self.dirpath = self.tempdir()
         self.spark = SparkSession.builder \
-            .master('local') \
+            .master('local[*]') \
             .appName('Pyspark test') \
             .config(Const.METASTORE_LOCATION, os.path.join(self.dirpath, 'metastore')) \
             .getOrCreate()
