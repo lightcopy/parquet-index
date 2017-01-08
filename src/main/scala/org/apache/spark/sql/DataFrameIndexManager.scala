@@ -184,6 +184,18 @@ private[sql] case class CreateIndexCommand(
     indexBy(columnNames.map(col))
   }
 
+  /**
+   * Java-friendly API to index by column names. Also used to Python API.
+   * For Scala it is recommended to use other more convenient API methods.
+   */
+  def indexBy(columnNames: java.util.List[String]): CreateIndexCommand = {
+    val cols = new Array[String](columnNames.size())
+    for (i <- 0 until cols.length) {
+      cols(i) = columnNames.get(i)
+    }
+    indexBy(cols)
+  }
+
   /** Use all available columns that can be indexed */
   def indexByAll(): CreateIndexCommand = {
     // assign empty list, will infer all columns, see `MetastoreSupport` API for more info

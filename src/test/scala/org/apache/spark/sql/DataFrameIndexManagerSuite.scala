@@ -183,6 +183,23 @@ class DataFrameIndexManagerSuite extends UnitTestSuite with SparkLocal {
     assert(err.getMessage.contains("At least one column is required"))
   }
 
+  test("create command - indexBy, java list of strings") {
+    val ddl = new DataFrameIndexManager(spark).create
+    val columns = new java.util.ArrayList[String]()
+    columns.add("a")
+    columns.add("b")
+    columns.add("c")
+    ddl.indexBy(columns).getColumns should be (Seq(col("a"), col("b"), col("c")))
+  }
+
+  test("create command - indexBy, java list of strings is empty") {
+    val ddl = new DataFrameIndexManager(spark).create
+    val err = intercept[IllegalArgumentException] {
+      ddl.indexBy(new java.util.ArrayList[String]())
+    }
+    assert(err.getMessage.contains("At least one column is required"))
+  }
+
   test("create command - indexByAll") {
     val ddl = new DataFrameIndexManager(spark).create
     ddl.indexByAll().getColumns should be (Nil)
