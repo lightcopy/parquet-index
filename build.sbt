@@ -27,25 +27,34 @@ spIgnoreProvided := true
 sparkComponents := Seq("sql")
 
 libraryDependencies ++= Seq(
-  "org.scalatest" %% "scalatest" % "2.2.4" % "test"
-)
-
-libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-client" % hadoopVersion.value % "test" exclude("javax.servlet", "servlet-api") force(),
   "org.apache.spark" %% "spark-core" % sparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client"),
   "org.apache.spark" %% "spark-sql" % sparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client")
 )
 
+// Project dependencies provided by Spark but not included in artefacts
 libraryDependencies ++= Seq(
   "io.netty" % "netty" % "3.6.2.Final" % "provided",
   "com.google.guava" % "guava" % "14.0.1" % "provided"
 )
+
+// Test dependencies
+libraryDependencies ++= Seq(
+  "org.scalatest" %% "scalatest" % "2.2.4" % "test",
+  "com.novocode" % "junit-interface" % "0.11" % "test"
+)
+
+// Add Python files to the build
+unmanagedResourceDirectories in Compile += {
+  baseDirectory.value / "python" / "src"
+}
 
 // Check deprecation without manual restart
 scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation", "-feature")
 
 // Display full-length stacktraces from ScalaTest
 testOptions in Test += Tests.Argument("-oF")
+testOptions in Test += Tests.Argument(TestFrameworks.JUnit, "-a", "-v", "+q")
 
 parallelExecution in Test := false
 
@@ -63,7 +72,7 @@ coverageFailOnMinimum := true
 
 EclipseKeys.eclipseOutput := Some("target/eclipse")
 
-// tasks dependencies
+// Tasks dependencies
 lazy val compileScalastyle = taskKey[Unit]("compileScalastyle")
 compileScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value
 (compile in Compile) <<= (compile in Compile).dependsOn(compileScalastyle)

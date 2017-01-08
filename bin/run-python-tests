@@ -1,0 +1,40 @@
+#!/bin/bash
+
+bin="`dirname "$0"`"
+ROOT_DIR="`cd "$bin/../"; pwd`"
+
+if [[ -z "$SPARK_HOME" ]]; then
+  echo "SPARK_HOME is not set"
+  exit 1
+fi
+
+if [[ $(basename $SPARK_HOME) == "NA" ]]; then
+  echo "SPARK_HOME is set to $SPARK_HOME, ignore running tests"
+  exit 0
+fi
+
+# Find jars to test, should be in target directory, fail if no jar exists
+SPARK_JARS=""
+PYFILES=""
+for jar in $(find $ROOT_DIR/target/scala* -name "*.jar" -type f); do
+  SPARK_JARS="$jar,$SPARK_JARS"
+  PYFILES="$jar:$PYFILES"
+done
+
+if [[ -z "$SPARK_JARS" ]]; then
+  echo "At least one jar is required to run tests, run 'sbt package' to create jar"
+  exit 1
+fi
+
+echo "Adding jars $SPARK_JARS"
+echo "Adding files $PYFILES"
+
+LIBS=""
+for lib in $(find $SPARK_HOME/python/lib -name "*.zip" -type f); do
+  LIBS=$LIBS:$lib
+done
+
+export PYSPARK_SUBMIT_ARGS="--jars $SPARK_JARS pyspark-shell"
+export PYTHONPATH=$PYTHONPATH:$SPARK_HOME/python:$PYFILES:$LIBS
+
+python $ROOT_DIR/python/run_tests.py

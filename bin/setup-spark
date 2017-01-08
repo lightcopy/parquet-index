@@ -1,0 +1,48 @@
+#!/bin/bash
+
+SPARK_RELEASE=$1
+CACHE_DIR=$2
+
+if [[ -z "$SPARK_RELEASE" ]]; then
+  echo "Spark version is invalid: $SPARK_RELEASE, must follow pattern spark-x.y.z-bin-hadoopX.Y"
+  exit 1
+elif [[ "$SPARK_RELEASE" == "NA" ]]; then
+  # If Spark release is set to NA, then release is not available, and we ignore setup
+  echo "Spark release is not available, ignore setup"
+  exit 0
+fi
+
+if [[ -z "$CACHE_DIR" ]]; then
+  echo "Cache directory is required"
+  exit 1
+fi
+
+# Prepare cache directory
+if [[ -e "$CACHE_DIR" ]]; then
+  if [[ ! -d "$CACHE_DIR" ]]; then
+    echo "$CACHE_DIR must be a directory"
+    exit 1
+  fi
+else
+  echo "$CACHE_DIR does not exist, creating"
+  mkdir -p $CACHE_DIR
+fi
+
+SPARK_VERSION_DIR="$CACHE_DIR/$SPARK_RELEASE"
+SPARK_VERSION_URL="http://d3kbcqa49mib13.cloudfront.net/$SPARK_RELEASE.tgz"
+
+# Check if cached version is already available
+if [[ -d "$SPARK_VERSION_DIR" ]]; then
+  echo "Using existing Spark cache $SPARK_VERSION_DIR"
+else
+  echo "Cache is not found for $SPARK_VERSION_DIR"
+  echo "Downloading Spark release $SPARK_RELEASE from $SPARK_VERSION_URL"
+  # Remove tar archive that might have been left after unsuccessful download
+  rm -f $SPARK_VERSION_DIR.tgz
+  curl -L "$SPARK_VERSION_URL" > "$SPARK_VERSION_DIR.tgz"
+  echo "Untar archive"
+  tar xf "$SPARK_VERSION_DIR.tgz" -C "$CACHE_DIR"
+  echo "Removing tar archive"
+  rm -f $SPARK_VERSION_DIR.tgz
+  echo "Spark is available at $SPARK_VERSION_DIR"
+fi
