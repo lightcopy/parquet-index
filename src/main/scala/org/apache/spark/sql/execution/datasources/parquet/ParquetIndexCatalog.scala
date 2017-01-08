@@ -127,10 +127,7 @@ class ParquetIndexCatalog(
       filter: Filter,
       status: ParquetFileStatus): Filter = {
     // we need file system to resolve column filters
-    val fs = metastore.fs
-    require(status.blocks.nonEmpty,
-      "Parquet file status has empty blocks, required at least one block metadata")
-    ParquetIndexFilters(fs, status.blocks).foldFilter(filter)
+    ParquetIndexFilters(metastore.fs, status.blocks).foldFilter(filter)
   }
 
   private[parquet] def pruneIndexedPartitions(

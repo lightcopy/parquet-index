@@ -203,17 +203,13 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
     }
   }
 
-  test("resolveSupported - fail when no blocks provided") {
+  test("resolveSupported - return trivial(false) when no blocks provided") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test_metastore")
       val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
       val status = ParquetFileStatus(null, null, Array.empty)
       val catalog = new ParquetIndexCatalog(metastore, metadata)
-      val err = intercept[IllegalArgumentException] {
-        catalog.resolveSupported(EqualTo("a", 1), status)
-      }
-      assert(err.getMessage.contains(
-        "Parquet file status has empty blocks, required at least one block metadata"))
+      catalog.resolveSupported(EqualTo("a", 1), status) should be (Trivial(false))
     }
   }
 }

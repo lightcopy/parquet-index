@@ -457,11 +457,11 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         // scalastyle:off
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
-        val df = Seq("a", "é").toDF("name").coalesce(1).write.parquet(dir.toString /"utf")
+        Seq("a", "é").toDF("name").coalesce(1).write.parquet(dir.toString /"utf")
 
         spark.index.create.indexBy("name").parquet(dir.toString / "utf")
-        val df1 = spark.index.parquet(dir.toString / "utf").filter("name > 'a'")
-        df1.collect should be (Array(Row("é")))
+        val df = spark.index.parquet(dir.toString / "utf").filter("name > 'a'")
+        df.collect should be (Array(Row("é")))
         // scalastyle:on
       }
     }
@@ -473,12 +473,48 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         // scalastyle:off
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
-        val df = Seq("aa", "bé", "bb").toDF("name").coalesce(1).write.parquet(dir.toString /"utf")
+        Seq("aa", "bé", "bb").toDF("name").coalesce(1).write.parquet(dir.toString / "utf")
 
         spark.index.create.indexBy("name").parquet(dir.toString / "utf")
-        val df1 = spark.index.parquet(dir.toString / "utf").filter("name > 'bb'")
-        df1.collect should be (Array(Row("bé")))
+        val df = spark.index.parquet(dir.toString / "utf").filter("name > 'bb'")
+        df.collect should be (Array(Row("bé")))
         // scalastyle:on
+      }
+    }
+  }
+
+  test("#40 - query indexed table with empty partitions (files on disk)") {
+    withTempDir { dir =>
+      withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        // DataFrame contains some partitions that are empty (for odd ids)
+        spark.sparkContext.parallelize(0 until 8, 8).
+          map { x => (x, s"$x") }.
+          filter { x => x._1 % 2 == 0 }.toDF("col1", "col2").
+          write.parquet(dir.toString / "empt")
+
+        spark.index.create.indexByAll.parquet(dir.toString / "empt")
+        val df = spark.index.parquet(dir.toString / "empt").filter("col1 == 2")
+        df.collect should be (Array(Row(2, "2")))
+      }
+    }
+  }
+
+  test("#40 - index and query empty table") {
+    withTempDir { dir =>
+      withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        // DataFrame with each partition being empty
+        spark.sparkContext.parallelize(0 until 8, 8).
+          map { x => (x, s"$x") }.
+          filter { x => false }.toDF("col1", "col2").
+          write.parquet(dir.toString / "empt")
+
+        spark.index.create.indexByAll.parquet(dir.toString / "empt")
+        val df = spark.index.parquet(dir.toString / "empt").filter("col1 == 2")
+        df.count should be (0)
       }
     }
   }
