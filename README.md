@@ -60,11 +60,15 @@ Currently only these types are supported for indexed columns:
 
 ## Linking
 The `parquet-index` package can be added to Spark by using the `--packages` command line option.
-For example, run this to include it when starting `spark-shell` (Scala 2.10.x):
+For example, run this to include it when starting `spark-shell` (Scala 2.11.x):
 ```shell
- $SPARK_HOME/bin/spark-shell --packages lightcopy:parquet-index:0.2.0-s_2.10
+ $SPARK_HOME/bin/spark-shell --packages lightcopy:parquet-index:0.2.0-s_2.11
 ```
-Change to `lightcopy:parquet-index:0.2.0-s_2.11` for Scala 2.11.x
+Or for `pyspark` to use Python API (see section below):
+```shell
+$SPARK_HOME/bin/pyspark --packages lightcopy:parquet-index:0.2.1-SNAPSHOT-s_2.11
+```
+Change to `lightcopy:parquet-index:0.2.0-s_2.10` for Scala 2.10.x
 
 ## Options
 Currently supported options, use `--conf key=value` on a command line to provide options similar to
@@ -83,7 +87,7 @@ other Spark configuration or add them to `spark-defaults.conf` file.
 ### Scala API
 Most of the API is defined in [DataFrameIndexManager](./src/main/scala/org/apache/spark/sql/DataFrameIndexManager.scala).
 Usage is similar to Spark's `DataFrameReader`, but for `spark.index`. See example below on different
-commands (runnable in `spark shell`).
+commands (runnable in `spark-shell`).
 
 ```scala
 // Start spark-shell and create dummy table "codes.parquet", use repartition
@@ -161,6 +165,31 @@ Dataset<Row> df = context.index().parquet("table.parquet").filter("col2 = 'c'");
 
 // Delete index from metastore
 context.index().delete().parquet("table.parquet");
+```
+
+### Python API
+Following example shows usage of Python API (runnable in `pyspark`)
+```python
+from lightcopy.index import QueryContext
+
+# Create QueryContext from SparkSession
+context = QueryContext(spark)
+
+# Create index in metastore for Parquet table 'table.parquet' using 'col1' and 'col2' columns
+context.index.create.indexBy('col1', 'col2').parquet('table.parquet')
+
+# Create index in metastore for Parquet table 'table.parquet' using all inferred columns and
+# overwrite any existing index for this table
+context.index.create.mode('overwrite').indexByAll().parquet('table.parquet')
+
+# Check if index exists, returns 'True' if exists, otherwise 'False'
+context.index.exists.parquet('table.parquet')
+
+# Query index for table, returns DataFrame
+df = context.index.parquet('table.parquet').filter('col1 = 123')
+
+# Delete index from metastore, if index does not exist - no-op
+context.index.delete.parquet('table.parquet')
 ```
 
 ## Building From Source
