@@ -6,6 +6,10 @@ CACHE_DIR=$2
 if [[ -z "$SPARK_RELEASE" ]]; then
   echo "Spark version is invalid: $SPARK_RELEASE, must follow pattern spark-x.y.z-bin-hadoopX.Y"
   exit 1
+elif [[ "$SPARK_RELEASE" == "NA" ]]; then
+  # If Spark release is set to NA, then release is not available, and we ignore setup
+  echo "Spark release is not available, ignore setup"
+  exit 0
 fi
 
 if [[ -z "$CACHE_DIR" ]]; then
@@ -26,9 +30,6 @@ fi
 
 SPARK_VERSION_DIR="$CACHE_DIR/$SPARK_RELEASE"
 SPARK_VERSION_URL="http://d3kbcqa49mib13.cloudfront.net/$SPARK_RELEASE.tgz"
-
-# List content of spark releases cache for debugging
-ls -lh "$CACHE_DIR/*"
 
 # Check if cached version is already available
 if [[ -d "$SPARK_VERSION_DIR" ]]; then

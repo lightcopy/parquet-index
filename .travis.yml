@@ -9,10 +9,13 @@ matrix:
   include:
     - jdk: openjdk7
       scala: 2.10.5
-      env: TEST_SPARK_VERSION="2.0.0" TEST_SPARK_RELEASE="spark-2.0.0-bin-hadoop2.6"
+      env: TEST_SPARK_VERSION="2.0.0" TEST_SPARK_RELEASE="NA"
     - jdk: openjdk7
       scala: 2.10.5
-      env: TEST_SPARK_VERSION="2.0.1" TEST_SPARK_RELEASE="spark-2.0.1-bin-hadoop2.6"
+      env: TEST_SPARK_VERSION="2.0.1" TEST_SPARK_RELEASE="NA"
+    - jdk: openjdk7
+      scala: 2.11.7
+      env: TEST_SPARK_VERSION="2.0.0" TEST_SPARK_RELEASE="spark-2.0.0-bin-hadoop2.6"
     - jdk: openjdk7
       scala: 2.11.7
       env: TEST_SPARK_VERSION="2.0.1" TEST_SPARK_RELEASE="spark-2.0.1-bin-hadoop2.6"
