@@ -53,6 +53,9 @@ class IndexSuite(unittest.TestCase):
     def tearDown(self):
         if self.spark:
             self.spark.stop()
+        # This is added due to bug in Spark 2.0.0 when recreating SparkSession after stop() does
+        # not create SparkContext in JVM, see SPARK-17261
+        SparkSession._instantiatedContext = None
         self.spark = None
         shutil.rmtree(self.dirpath, ignore_errors=True)
 
@@ -124,21 +127,21 @@ class IndexSuite(unittest.TestCase):
     def test_create_index(self):
         context = QueryContext(self.spark)
         table_path = os.path.join(self.dirpath, 'table.parquet')
-        self.spark.range(0, 10, 1, 4).withColumn('str', lit('abc')).write.parquet(table_path)
+        self.spark.range(0, 10).withColumn('str', lit('abc')).write.parquet(table_path)
         context.index.create.indexByAll().parquet(table_path)
         self.assertTrue(context.index.exists.parquet(table_path))
 
     def test_create_index_cols(self):
         context = QueryContext(self.spark)
         table_path = os.path.join(self.dirpath, 'table.parquet')
-        self.spark.range(0, 10, 1, 4).withColumn('str', lit('abc')).write.parquet(table_path)
+        self.spark.range(0, 10).withColumn('str', lit('abc')).write.parquet(table_path)
         context.index.create.indexBy('id', 'str').parquet(table_path)
         self.assertTrue(context.index.exists.parquet(table_path))
 
     def test_create_index_mode(self):
         context = QueryContext(self.spark)
         table_path = os.path.join(self.dirpath, 'table.parquet')
-        self.spark.range(0, 10, 1, 4).withColumn('str', lit('abc')).write.parquet(table_path)
+        self.spark.range(0, 10).withColumn('str', lit('abc')).write.parquet(table_path)
         context.index.create.mode('error').indexByAll().parquet(table_path)
         context.index.create.mode('overwrite').indexByAll().parquet(table_path)
         self.assertTrue(context.index.exists.parquet(table_path))
@@ -146,7 +149,7 @@ class IndexSuite(unittest.TestCase):
     def test_create_delete_index(self):
         context = QueryContext(self.spark)
         table_path = os.path.join(self.dirpath, 'table.parquet')
-        self.spark.range(0, 10, 1, 4).withColumn('str', lit('abc')).write.parquet(table_path)
+        self.spark.range(0, 10).withColumn('str', lit('abc')).write.parquet(table_path)
         context.index.create.indexByAll().parquet(table_path)
         self.assertTrue(context.index.exists.parquet(table_path))
         context.index.delete.parquet(table_path)
@@ -155,7 +158,7 @@ class IndexSuite(unittest.TestCase):
     def test_create_query_index(self):
         context = QueryContext(self.spark)
         table_path = os.path.join(self.dirpath, 'table.parquet')
-        self.spark.range(0, 10, 1, 4).withColumn('str', lit('abc')).write.parquet(table_path)
+        self.spark.range(0, 10).withColumn('str', lit('abc')).write.parquet(table_path)
         context.index.create.indexByAll().parquet(table_path)
         res1 = context.index.parquet(table_path).filter('id = 3').collect()
         res2 = self.spark.read.parquet(table_path).filter('id = 3').collect()

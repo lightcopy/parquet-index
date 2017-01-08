@@ -185,7 +185,7 @@ private[sql] case class CreateIndexCommand(
   }
 
   /**
-   * Java-friendly API to index by column names. Also used to Python API.
+   * Java-friendly API to index by column names. Also used in Python API.
    * For Scala it is recommended to use other more convenient API methods.
    */
   def indexBy(columnNames: java.util.List[String]): CreateIndexCommand = {
