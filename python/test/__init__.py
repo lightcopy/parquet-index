@@ -21,7 +21,7 @@ import importlib
 import sys
 import unittest
 
-# Select what tests to run
+# Select what tests to run, should be full path to the package, e.g. a.b.c.test_abc
 RUN_TESTS = {
     "test.test_index": True
 }

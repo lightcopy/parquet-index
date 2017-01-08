@@ -1,4 +1,0 @@
-# Testing
-coverage == 4.1
-mock == 2.0.0
-pylint == 1.5.6

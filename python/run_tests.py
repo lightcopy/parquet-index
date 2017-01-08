@@ -19,7 +19,13 @@
 
 import os
 import sys
-import init
+
+# Root directory of the project
+ROOT_PATH = os.path.dirname(os.path.realpath(__file__))
+# Source directory
+SRC_PATH = os.path.join(ROOT_PATH, 'src')
+# Test directory
+TEST_PATH = os.path.join(ROOT_PATH, 'test')
 
 def find_python_files(path):
     """
@@ -28,7 +34,7 @@ def find_python_files(path):
     :param path: path to traverse (directory) or check (file)
     :return: array of relative file paths found
     """
-    if os.path.isfile(path) and os.path.splitext(path)[1] == '.py':
+    if os.path.isfile(path) and os.path.splitext(path)[1] == ".py":
         return [path]
     elif os.path.isdir(path):
         buf = []
@@ -70,37 +76,33 @@ def check_headers(filepath, skip_empty=True):
         return 0
     exit_code = 0
     with open(filepath, 'r') as stream:
-        if stream.readline().strip() != '#!/usr/bin/env python':
-            print 'ERROR: Missing \'#!/usr/bin/env python\' as first line in \'%s\'' % filepath
+        if stream.readline().strip() != "#!/usr/bin/env python":
+            print "ERROR: Missing '#!/usr/bin/env python' as first line in '%s'" % filepath
             exit_code = 1
-        if stream.readline().strip() != '# -*- coding: UTF-8 -*-':
-            print 'ERROR: Missing \'# -*- coding: UTF-8 -*-\' as second line in \'%s\'' % filepath
+        if stream.readline().strip() != "# -*- coding: UTF-8 -*-":
+            print "ERROR: Missing '# -*- coding: UTF-8 -*-' as second line in '%s'" % filepath
             exit_code = 1
         # next line must be empty
         if stream.readline().strip():
-            print 'ERROR: No new line after shebang headers in \'%s\'' % filepath
+            print "ERROR: No new line after shebang headers in '%s'" % filepath
             exit_code = 1
         # read next 15 lines and check license header
-        # pylint: disable=W0612,unused-variable
         header = [stream.readline().strip() for x in range(0, 15)]
-        # pylint: enable=W0612,unused-variable
         if '\n'.join(header) != license_header:
-            print 'ERROR: Wrong license header in \'%s\'' % filepath
+            print "ERROR: Wrong license header in '%s'" % filepath
             exit_code = 1
     return exit_code
 
 if __name__ == '__main__':
-    sys.path.insert(1, init.ROOT_PATH)
-    sys.path.insert(2, init.LIB_PATH)
-    sys.path.insert(3, init.SRC_PATH)
     # Checking headers in a file, err_codes has zero, because max requires non-empty sequence
     err_codes = [0]
-    for arg in sys.argv[1:]:
+    # Paths to search
+    all_paths = [ROOT_PATH]
+    # Search directories recursively and find any violations with headers
+    for arg in all_paths:
         for found_path in find_python_files(arg):
             err_codes.append(check_headers(found_path))
     if max(err_codes) > 0:
         sys.exit(1)
-    # pylint: disable=C0413,wrong-import-position
-    import pylint
-    # pylint: enable=C0413,wrong-import-position
-    pylint.run_pylint()
+    import test
+    sys.exit(test.main())

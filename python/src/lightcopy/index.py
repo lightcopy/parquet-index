@@ -21,11 +21,12 @@ from types import DictType
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.session import SparkSession
 
-__all__ = ['QueryContext']
+__all__ = ['Const', 'QueryContext', 'DataFrameIndexManager']
 
 # Constants used through the package
 class Const(object):
     PARQUET_SOURCE = 'parquet'
+    METASTORE_LOCATION = 'spark.sql.index.metastore'
 
 class CreateIndexCommand(object):
     """
@@ -293,6 +294,7 @@ class QueryContext(object):
 
     >>> from pyspark.sql.session import SparkSession
     >>> spark = SparkSession.builder...
+    >>> from lightcopy.index import QueryContext
     >>> context = QueryContext(spark)
     """
     def __init__(self, session):
