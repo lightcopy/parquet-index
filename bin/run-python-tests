@@ -8,12 +8,10 @@ if [[ -z "$SPARK_HOME" ]]; then
   exit 1
 fi
 
-# Find jar to test, should be in target directory, fail if no jar exists
-SCALA_VERSION="2.11"
-
+# Find jars to test, should be in target directory, fail if no jar exists
 SPARK_JARS=""
 PYFILES=""
-for jar in $(find $ROOT_DIR/target/scala-$SCALA_VERSION -name "*.jar" -type f); do
+for jar in $(find $ROOT_DIR/target/scala* -name "*.jar" -type f); do
   SPARK_JARS="$jar,$SPARK_JARS"
   PYFILES="$jar:$PYFILES"
 done
@@ -22,6 +20,9 @@ if [[ -z "$SPARK_JARS" ]]; then
   echo "At least one jar is required to run tests, run 'sbt package' to create jar"
   exit 1
 fi
+
+echo "Adding jars $SPARK_JARS"
+echo "Adding files $PYFILES"
 
 LIBS=""
 for lib in $(find $SPARK_HOME/python/lib -name "*.zip" -type f); do

@@ -3,6 +3,7 @@ sudo: false
 cache:
   directories:
     - $HOME/.ivy2
+    - $HOME/.sbt/launchers
     - $HOME/.cache/spark-versions
 matrix:
   include:

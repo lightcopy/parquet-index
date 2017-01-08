@@ -27,6 +27,9 @@ fi
 SPARK_VERSION_DIR="$CACHE_DIR/$SPARK_RELEASE"
 SPARK_VERSION_URL="http://d3kbcqa49mib13.cloudfront.net/$SPARK_RELEASE.tgz"
 
+# List content of spark releases cache for debugging
+ls -lh "$CACHE_DIR/*"
+
 # Check if cached version is already available
 if [[ -d "$SPARK_VERSION_DIR" ]]; then
   echo "Using existing Spark cache $SPARK_VERSION_DIR"
