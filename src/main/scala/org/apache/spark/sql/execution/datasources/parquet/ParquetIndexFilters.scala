@@ -39,8 +39,10 @@ private[parquet] case class ParquetIndexFilters(
           Trivial(true)
       }
     }
-    // all filters must be resolved at this point
-    foldFilter(references.reduceLeft(Or))
+    // If references are empty (blocks are empty) then we return Trivial(false), because only empty
+    // file has 0 block metadata chunks, and therefore there is no need to scan it.
+    // If references are non empty, join them with Or, all filters must be resolved at this point
+    if (references.isEmpty) Trivial(false) else foldFilter(references.reduceLeft(Or))
   }
 
   /**
