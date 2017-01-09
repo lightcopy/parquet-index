@@ -39,8 +39,8 @@ Currently only these types are supported for indexed columns:
 
 ### Limitations
 - Indexed columns must be top level primitive columns with types above
-- Indexed columns cannot be the same as partitioning columns (which kind of makes sense)
-- Append mode is not supported for Parquet table when creating index
+- Indexed columns cannot be the same as partitioning columns
+- Append mode is not yet supported for Parquet table when creating index
 - Certain Spark versions are supported (see table below)
 
 > Project is **experimental and is in active development at the moment**. We are working to remove
