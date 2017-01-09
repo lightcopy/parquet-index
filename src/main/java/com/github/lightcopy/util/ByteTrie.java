@@ -16,6 +16,8 @@
 
 package com.github.lightcopy.util;
 
+import java.util.HashMap;
+
 public class ByteTrie {
   public static final int BYTE_LEAF_MASK = 1;
   public static final int INT_LEAF_MASK = 2;
@@ -23,10 +25,11 @@ public class ByteTrie {
   public static final int BINARY_LEAF_MASK = 8;
 
   private ByteTrieNode root;
+  private boolean hasEmptyString;
 
   static class ByteTrieNode {
     private int leaf;
-    private ByteTrieNode[] bytes;
+    private HashMap<Integer, ByteTrieNode> bytes;
 
     ByteTrieNode() {
       this.leaf = 0;
@@ -36,21 +39,18 @@ public class ByteTrie {
     private ByteTrieNode insertByte(byte value) {
       int index = (1 << 8) - 1 & value;
       if (this.bytes == null) {
-        // to include as unsigned bytes
-        this.bytes = new ByteTrieNode[256];
+        this.bytes = new HashMap<Integer, ByteTrieNode>();
       }
-
-      if (this.bytes[index] == null) {
-        this.bytes[index] = new ByteTrieNode();
+      if (!this.bytes.containsKey(index)) {
+        this.bytes.put(index, new ByteTrieNode());
       }
-
-      return this.bytes[index];
+      return this.bytes.get(index);
     }
 
     private ByteTrieNode getByte(byte value) {
       int index = (1 << 8) - 1 & value;
       if (this.bytes == null) return null;
-      return this.bytes[index];
+      return this.bytes.get(index);
     }
 
     private void markByteLeaf() {
@@ -170,12 +170,60 @@ public class ByteTrie {
 
     @Override
     public String toString() {
-      String values = (this.bytes == null) ? "null" : ("" + this.bytes.length);
-      return "ByteNode(leaf=" + this.leaf + ", values=" + values + ")";
+      return "ByteNode(leaf=" + this.leaf + ", values=" + this.bytes + ")";
     }
   }
 
-  ByteTrie() {
+  public ByteTrie() {
     this.root = new ByteTrieNode();
+    this.hasEmptyString = false;
+  }
+
+  public void update(byte value) {
+    this.root.putByte(value);
+  }
+
+  public void update(int value) {
+    this.root.putInt(value);
+  }
+
+  public void update(long value) {
+    this.root.putLong(value);
+  }
+
+  public void update(String value) {
+    if (value == null) return;
+    if (value.isEmpty()) {
+      this.hasEmptyString = true;
+    } else {
+      this.root.putBinary(value.getBytes());
+    }
+  }
+
+  public boolean contains(byte value) {
+    return this.root.containsByte(value);
+  }
+
+  public boolean contains(int value) {
+    return this.root.containsInt(value);
+  }
+
+  public boolean contains(long value) {
+    return this.root.containsLong(value);
+  }
+
+  public boolean contains(String value) {
+    if (value == null) return false;
+    if (value.isEmpty()) return this.hasEmptyString;
+    return this.root.containsBinary(value.getBytes());
+  }
+
+  public ByteTrieNode getRoot() {
+    return this.root;
+  }
+
+  @Override
+  public String toString() {
+    return "ByteTrie(root=" + this.root + ", hasEmptyString=" + this.hasEmptyString + ")";
   }
 }
