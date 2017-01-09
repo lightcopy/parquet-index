@@ -591,6 +591,22 @@ class ColumnStatisticsSuite extends UnitTestSuite {
     assert(stats.getMax === "zzz")
   }
 
+  test("StringColumnStatistics - update statistics with empty values") {
+    val stats = StringColumnStatistics()
+    for (x <- Seq("a", "b", "", "", "c", "d")) {
+      stats.updateMinMax(x)
+    }
+    assert(stats.getMin === "")
+    assert(stats.getMax === "d")
+  }
+
+  test("StringColumnStatistics - set empty values as min/max for statistics") {
+    val stats = StringColumnStatistics()
+    stats.updateMinMax("")
+    assert(stats.getMin === "")
+    assert(stats.getMax === "")
+  }
+
   test("StringColumnStatistics - update statistics with wrong types") {
     val stats = StringColumnStatistics()
     for (x <- Seq(1, null, 1L, Array(1, 2, 3), 123, "abc")) {

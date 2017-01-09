@@ -495,7 +495,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
           write.parquet(dir.toString / "empt")
 
         spark.index.create.indexByAll.parquet(dir.toString / "empt")
-        val df = spark.index.parquet(dir.toString / "empt").filter("col1 == 2")
+        val df = spark.index.parquet(dir.toString / "empt").filter("col1 = 2")
         df.collect should be (Array(Row(2, "2")))
       }
     }
@@ -513,8 +513,44 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
           write.parquet(dir.toString / "empt")
 
         spark.index.create.indexByAll.parquet(dir.toString / "empt")
-        val df = spark.index.parquet(dir.toString / "empt").filter("col1 == 2")
+        val df = spark.index.parquet(dir.toString / "empt").filter("col1 = 2")
         df.count should be (0)
+      }
+    }
+  }
+
+  test("index and query table with string column of all empty values") {
+    withTempDir { dir =>
+      withSQLConf(
+          METASTORE_LOCATION.key -> dir.toString / "metastore",
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        // DataFrame with each partition being empty
+        Seq("", "", "", "").toDF("col").write.parquet(dir.toString / "str-empty")
+
+        spark.index.create.indexByAll.parquet(dir.toString / "str-empty")
+        val df = spark.index.parquet(dir.toString / "str-empty").filter("col = ''")
+        df.count should be (4)
+      }
+    }
+  }
+
+  test("index and query table with string column of some empty values") {
+    withTempDir { dir =>
+      withSQLConf(
+          METASTORE_LOCATION.key -> dir.toString / "metastore",
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        // DataFrame with each partition being empty
+        Seq("", "1", "", "1").toDF("col").write.parquet(dir.toString / "str-empty")
+
+        spark.index.create.indexByAll.parquet(dir.toString / "str-empty")
+        val df = spark.index.parquet(dir.toString / "str-empty")
+        df.filter("col = ''").count should be (2)
+        df.filter("col = '1'").count should be (2)
+        df.filter("col > ''").count should be (2)
       }
     }
   }
