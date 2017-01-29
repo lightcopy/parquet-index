@@ -12,6 +12,11 @@ does not change frequently, but is used for queries often, e.g. using Thrift JDB
 indexed, schema and list of files (including partitioning) will be automatically resolved from index
 metastore instead of inferring schema every time datasource is created.
 
+> Project is **experimental and is in active development**. Any feedback, issues or PRs are welcome.
+
+> Documentation reflects changes in `master` branch, for a documentation for specific version,
+> please select version tag or branch.
+
 ### Metastore
 Metastore keeps information about all indexed tables and can be created on local file system or HDFS
 (see available options below) with support for in-memory cache of index (after first scan). Each
@@ -42,12 +47,6 @@ Currently only these types are supported for indexed columns:
 - Indexed columns cannot be the same as partitioning columns
 - Append mode is not yet supported for Parquet table when creating index
 - Certain Spark versions are supported (see table below)
-
-> Project is **experimental and is in active development at the moment**. We are working to remove
-> limitations and add support for different versions. Any feedback, issues or PRs are welcome.
-
-> Documentation reflects changes in `master` branch, for specific version documentation, please
-> select version tag or branch.
 
 ## Requirements
 | Spark version | `parquet-index` latest version |
