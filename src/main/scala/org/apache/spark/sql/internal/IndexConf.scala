@@ -67,9 +67,9 @@ private[spark] object IndexConf {
     IndexConfigBuilder("spark.sql.index.parquet.filter.enabled").
     doc("When set to true, writes filter statistics for indexed columns when creating table " +
       "index, otherwise only min/max statistics are used. Filter statistics are always used " +
-      "during filtering stage, if can be applied and available").
+      "during filtering stage, if applicable").
     booleanConf.
-    createWithDefault(false)
+    createWithDefault(true)
 
   val PARQUET_FILTER_STATISTICS_TYPE =
     IndexConfigBuilder("spark.sql.index.parquet.filter.type").
