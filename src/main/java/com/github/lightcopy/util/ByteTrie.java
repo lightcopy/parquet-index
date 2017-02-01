@@ -16,8 +16,6 @@
 
 package com.github.lightcopy.util;
 
-import java.util.HashMap;
-
 public class ByteTrie {
   public static final int BYTE_LEAF_MASK = 1;
   public static final int INT_LEAF_MASK = 2;
@@ -27,30 +25,36 @@ public class ByteTrie {
   private ByteTrieNode root;
   private boolean hasEmptyString;
 
-  static class ByteTrieNode {
+  public static class ByteTrieNode {
     private int leaf;
-    private HashMap<Integer, ByteTrieNode> bytes;
+    private byte value;
+    private ByteTrieTable bytes;
 
     ByteTrieNode() {
       this.leaf = 0;
       this.bytes = null;
     }
 
+    public ByteTrieNode(byte value) {
+      this();
+      this.value = value;
+    }
+
     private ByteTrieNode insertByte(byte value) {
-      int index = (1 << 8) - 1 & value;
       if (this.bytes == null) {
-        this.bytes = new HashMap<Integer, ByteTrieNode>();
+        this.bytes = new ByteTrieTable();
       }
-      if (!this.bytes.containsKey(index)) {
-        this.bytes.put(index, new ByteTrieNode());
+      ByteTrieNode node = this.bytes.get(value);
+      if (node == null) {
+        node = new ByteTrieNode(value);
+        this.bytes.put(node);
       }
-      return this.bytes.get(index);
+      return node;
     }
 
     private ByteTrieNode getByte(byte value) {
-      int index = (1 << 8) - 1 & value;
       if (this.bytes == null) return null;
-      return this.bytes.get(index);
+      return this.bytes.get(value);
     }
 
     private void markByteLeaf() {
@@ -170,7 +174,143 @@ public class ByteTrie {
 
     @Override
     public String toString() {
-      return "ByteNode(leaf=" + this.leaf + ", values=" + this.bytes + ")";
+      return "ByteNode(" + this.value + ", leaf=" + this.leaf + ", values=" + this.bytes + ")";
+    }
+  }
+
+  public static class ByteTrieTable {
+    private final static int INITIAL_SIZE = 16;
+    private final static int MAX_SIZE = 256;
+
+    private int size = INITIAL_SIZE;
+    private ByteTrieNode[] map;
+    private int numInserted;
+
+    ByteTrieTable(int initialSize) {
+      assert initialSize >= INITIAL_SIZE && initialSize <= MAX_SIZE:
+        "Invalid table size " + initialSize;
+      this.size = initialSize;
+      this.map = new ByteTrieNode[initialSize];
+      this.numInserted = 0;
+    }
+
+    public ByteTrieTable() {
+      this(INITIAL_SIZE);
+    }
+
+    public boolean put(ByteTrieNode node) {
+      if (!insert(this.map, node)) {
+        resize();
+        return insert(this.map, node);
+      }
+      return false;
+    }
+
+    public ByteTrieNode get(byte value) {
+      return lookup(this.map, value);
+    }
+
+    public int size() {
+      return this.size;
+    }
+
+    public int numInserted() {
+      return this.numInserted;
+    }
+
+    public boolean isEmpty() {
+      return this.numInserted == 0;
+    }
+
+    // key does not check if value is out of range
+    private int unsignedKey(byte rawKey) {
+      return (1 << 8) - 1 & rawKey;
+    }
+
+    protected boolean insert(ByteTrieNode[] table, ByteTrieNode node) {
+      if (size < MAX_SIZE) {
+        return insertHash(table, node);
+      } else {
+        return insertDirect(table, node);
+      }
+    }
+
+    private boolean insertHash(ByteTrieNode[] table, ByteTrieNode node) {
+      // unsigned byte value
+      int index = unsignedKey(node.value);
+      int ref;
+      for (int i = 0; i < size; i++) {
+        ref = (index + i * (i + 1) / 2) % size;
+        if (table[ref] == null) {
+          numInserted++;
+          table[ref] = node;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // always overwrite previous values in the table
+    private boolean insertDirect(ByteTrieNode[] table, ByteTrieNode node) {
+      int index = unsignedKey(node.value);
+      if (table[index] == null) {
+        numInserted++;
+      }
+      table[index] = node;
+      return true;
+    }
+
+    protected ByteTrieNode lookup(ByteTrieNode[] table, byte key) {
+      if (size < MAX_SIZE) {
+        return lookupHash(table, key);
+      } else {
+        return lookupDirect(table, key);
+      }
+    }
+
+    private ByteTrieNode lookupHash(ByteTrieNode[] table, byte key) {
+      int index = unsignedKey(key);
+      int ref;
+      for (int i = 0; i < size; i++) {
+        ref = (index + i * (i + 1) / 2) % size;
+        if (table[ref] != null && table[ref].value == key) {
+          return table[ref];
+        }
+      }
+      return null;
+    }
+
+    private ByteTrieNode lookupDirect(ByteTrieNode[] table, byte key) {
+      return table[unsignedKey(key)];
+    }
+
+    protected void resize() {
+      // do not grow beyond max size
+      if (size >= MAX_SIZE) return;
+      size <<= 2;
+      numInserted = 0;
+      ByteTrieNode[] arr = new ByteTrieNode[size];
+      for (int i = 0; i < this.map.length; i++) {
+        if (this.map[i] != null) {
+          insert(arr, this.map[i]);
+        }
+      }
+      this.map = arr;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder();
+      for (int i = 0; i < this.map.length; i++) {
+        if (i == 0) {
+          sb.append(this.map[i]);
+        } else {
+          sb.append(", ");
+          sb.append(this.map[i]);
+        }
+      }
+      return "ByteTrieTable(size=" + this.size + ", numInserted=" + this.numInserted +
+        ", values=["+ sb.toString() + "]";
     }
   }
 
