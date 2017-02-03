@@ -304,7 +304,7 @@ public class ByteTrie {
 
     /**
      * Make hash insert, e.g. generate key and insert/resolve collisions.
-     * Does not overwrite duplicate values.
+     * Duplicate values will be overwritten, similar to direct insert.
      */
     private boolean insertHash(ByteTrieNode[] table, ByteTrieNode node) {
       // unsigned byte value
@@ -312,8 +312,11 @@ public class ByteTrie {
       int ref;
       for (int i = 0; i < size; i++) {
         ref = (index + i * (i + 1) / 2) % size;
-        if (table[ref] == null) {
-          numInserted++;
+        if (table[ref] == null || table[ref].value == node.value) {
+          if (table[ref] == null) {
+            // only increment for newly inserted values
+            numInserted++;
+          }
           table[ref] = node;
           return true;
         }
@@ -322,9 +325,8 @@ public class ByteTrie {
     }
 
     /**
-     * Make direct insert into the table; behaviour is different from hash insert since it
-     * overwrites duplicates. This might affect numInserted value since it will only be updated
-     * on actual insertion.
+     * Make direct insert into the table. Duplicate values are overwritten, which is consistent
+     * with hash lookup.
      */
     private boolean insertDirect(ByteTrieNode[] table, ByteTrieNode node) {
       int index = unsignedKey(node.value);
@@ -345,7 +347,8 @@ public class ByteTrie {
     }
 
     /**
-     * Perform hash lookup; if table contains duplicates, returns first node found.
+     * Perform hash lookup. Note that since insert overwrites duplicate values, the last inserted
+     * value will be returned in this case.
      */
     private ByteTrieNode lookupHash(ByteTrieNode[] table, byte key) {
       int index = unsignedKey(key);
@@ -360,8 +363,8 @@ public class ByteTrie {
     }
 
     /**
-     * Perform direct lookup by index. Note that since insert overwrites values, the last inserted
-     * value will be returned in case of duplicates.
+     * Perform direct lookup. Note that since insert overwrites duplicate values, the last inserted
+     * value will be returned in this case.
      */
     private ByteTrieNode lookupDirect(ByteTrieNode[] table, byte key) {
       return table[unsignedKey(key)];
@@ -373,7 +376,7 @@ public class ByteTrie {
      * TODO: rehash keys without reinsertion.
      */
     protected void resize() {
-      // do not grow beyond max size
+      // do not grow table beyond max size
       if (size >= MAX_SIZE) return;
       size <<= 2;
       numInserted = 0; // reset numInserted, it will increment for each insert
