@@ -12,6 +12,11 @@ does not change frequently, but is used for queries often, e.g. using Thrift JDB
 indexed, schema and list of files (including partitioning) will be automatically resolved from index
 metastore instead of inferring schema every time datasource is created.
 
+> Project is **experimental and is in active development**. Any feedback, issues or PRs are welcome.
+
+> Documentation reflects changes in `master` branch, for a documentation for specific version,
+> please select version tag or branch.
+
 ### Metastore
 Metastore keeps information about all indexed tables and can be created on local file system or HDFS
 (see available options below) with support for in-memory cache of index (after first scan). Each
@@ -43,12 +48,6 @@ Currently only these types are supported for indexed columns:
 - Append mode is not yet supported for Parquet table when creating index
 - Certain Spark versions are supported (see table below)
 
-> Project is **experimental and is in active development at the moment**. We are working to remove
-> limitations and add support for different versions. Any feedback, issues or PRs are welcome.
-
-> Documentation reflects changes in `master` branch, for specific version documentation, please
-> select version tag or branch.
-
 ## Requirements
 | Spark version | `parquet-index` latest version |
 |---------------|--------------------------------|
@@ -77,7 +76,7 @@ other Spark configuration or add them to `spark-defaults.conf` file.
 | Name | Description | Default |
 |------|-------------|---------|
 | `spark.sql.index.metastore` | Index metastore location, created if does not exist (`file:/folder`, `hdfs://host:port/folder`) | `./index_metastore`
-| `spark.sql.index.parquet.filter.enabled` | When set to `true`, write filter statistics for indexed columns when creating table index, otherwise only min/max statistics are used. Filter statistics are used during filtering stage, if can be applied and available (`true`, `false`) | `false`
+| `spark.sql.index.parquet.filter.enabled` | When set to `true`, write filter statistics for indexed columns when creating table index, otherwise only min/max statistics are used. Filter statistics are used during filtering stage, if applicable (`true`, `false`) | `true`
 | `spark.sql.index.parquet.filter.type` | When filter statistics enabled, select type of statistics to use when creating index (`bloom`) | `bloom`
 | `spark.sql.index.parquet.filter.eagerLoading` | When set to `true`, read and load all filter statistics in memory the first time catalog is resolved, otherwise load them lazily as needed when evaluating predicate (`true`, `false`) | `false`
 | `spark.sql.index.createIfNotExists` | When set to true, create index if one does not exist in metastore for the table, and will use all available columns for indexing (`true`, `false`) | `false`

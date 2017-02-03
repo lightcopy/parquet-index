@@ -457,10 +457,10 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         // scalastyle:off
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
-        Seq("a", "é").toDF("name").coalesce(1).write.parquet(dir.toString /"utf")
+        Seq("a", "é").toDF("col").coalesce(1).write.parquet(dir.toString /"utf")
 
-        spark.index.create.indexBy("name").parquet(dir.toString / "utf")
-        val df = spark.index.parquet(dir.toString / "utf").filter("name > 'a'")
+        spark.index.create.indexBy("col").parquet(dir.toString / "utf")
+        val df = spark.index.parquet(dir.toString / "utf").filter("col > 'a'")
         df.collect should be (Array(Row("é")))
         // scalastyle:on
       }
@@ -473,11 +473,30 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         // scalastyle:off
         val sqlContext = spark.sqlContext
         import sqlContext.implicits._
-        Seq("aa", "bé", "bb").toDF("name").coalesce(1).write.parquet(dir.toString / "utf")
+        Seq("aa", "bé", "bb").toDF("col").coalesce(1).write.parquet(dir.toString / "utf")
 
-        spark.index.create.indexBy("name").parquet(dir.toString / "utf")
-        val df = spark.index.parquet(dir.toString / "utf").filter("name > 'bb'")
+        spark.index.create.indexBy("col").parquet(dir.toString / "utf")
+        val df = spark.index.parquet(dir.toString / "utf").filter("col > 'bb'")
         df.collect should be (Array(Row("bé")))
+        // scalastyle:on
+      }
+    }
+  }
+
+  test("#25 - create index for table with UTF-8 columns only") {
+    withTempDir { dir =>
+      withSQLConf(
+          METASTORE_LOCATION.key -> dir.toString / "metastore",
+          PARQUET_FILTER_STATISTICS_ENABLED.key -> "true") {
+        // scalastyle:off
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        Seq("ᚠᛇᚻ", "᛫ᛒᛦᚦ᛫ᚠᚱ", "ᚩᚠᚢᚱ᛫", "ᚠᛁᚱᚪ᛫ᚷ", "ᛖᚻᚹᛦ", "ᛚᚳᚢᛗ").toDF("col").
+          write.parquet(dir.toString / "utf")
+
+        spark.index.create.indexBy("col").parquet(dir.toString / "utf")
+        val df = spark.index.parquet(dir.toString / "utf").filter("col = 'ᛖᚻᚹᛦ'")
+        df.collect should be (Array(Row("ᛖᚻᚹᛦ")))
         // scalastyle:on
       }
     }
