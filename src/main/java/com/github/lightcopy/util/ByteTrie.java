@@ -16,18 +16,40 @@
 
 package com.github.lightcopy.util;
 
+/**
+ * Prefix tree to store primitive types and arrays of bytes efficiently and offer fast "exists"
+ * lookups. Used for dictionary filtering.
+ * To distinguish between different types masks are used for each trie node. Currently these types
+ * are supported:
+ * - Integer
+ * - Long
+ * - Byte
+ * - Byte array
+ */
 public class ByteTrie {
   public static final int BYTE_LEAF_MASK = 1;
   public static final int INT_LEAF_MASK = 2;
   public static final int LONG_LEAF_MASK = 4;
   public static final int BINARY_LEAF_MASK = 8;
 
+  // Root node to start traversal and insertions
   private ByteTrieNode root;
+  // Whether or not trie contains any empty string instance; allows to look up empty strings
   private boolean hasEmptyString;
 
-  public static class ByteTrieNode {
+  /**
+   * Byte trie node.
+   * Each node contains resizable hash table for children, which is only allocated for the first
+   * child node insertion. Each node contains additional pointer for label (value). If node is leaf,
+   * meaning that there is a value that ends on this node, leaf property contains summary of all
+   * valid masks.
+   */
+  static class ByteTrieNode {
+    // leaf mask that includes all masks ending on this node, otherwise is 0
     private int leaf;
+    // label/value for this node
     private byte value;
+    // hash table for child nodes
     private ByteTrieTable bytes;
 
     ByteTrieNode() {
@@ -35,11 +57,15 @@ public class ByteTrie {
       this.bytes = null;
     }
 
-    public ByteTrieNode(byte value) {
+    ByteTrieNode(byte value) {
       this();
       this.value = value;
     }
 
+    /**
+     * Insert signed byte value into the trie node.
+     * Returns newly created node or existing one for the value.
+     */
     private ByteTrieNode insertByte(byte value) {
       if (this.bytes == null) {
         this.bytes = new ByteTrieTable();
@@ -52,32 +78,42 @@ public class ByteTrie {
       return node;
     }
 
+    /**
+     * Return node for provided signed byte value.
+     * Can return null, ff node is leaf or table does not have value.
+     */
     private ByteTrieNode getByte(byte value) {
       if (this.bytes == null) return null;
       return this.bytes.get(value);
     }
 
+    /** Mark current node as byte leaf node */
     private void markByteLeaf() {
       this.leaf |= BYTE_LEAF_MASK;
     }
 
+    /** Mark current node as integer leaf node */
     private void markIntLeaf() {
       this.leaf |= INT_LEAF_MASK;
     }
 
+    /** Mark current node as long leaf node */
     private void markLongLeaf() {
       this.leaf |= LONG_LEAF_MASK;
     }
 
+    /** Mark current node as binary leaf node */
     private void markBinaryLeaf() {
       this.leaf |= BINARY_LEAF_MASK;
     }
 
+    /** Insert single signed byte value */
     public void putByte(byte value) {
       ByteTrieNode node = insertByte(value);
       node.markByteLeaf();
     }
 
+    /** Insert signed integer value, stores bytes in little endian format */
     public void putInt(int value) {
       ByteTrieNode node = this;
       if (value == 0) {
@@ -93,6 +129,7 @@ public class ByteTrie {
       node.markIntLeaf();
     }
 
+    /** Insert signed long value, stores bytes in little endian format */
     public void putLong(long value) {
       ByteTrieNode node = this;
       if (value == 0) {
@@ -108,6 +145,10 @@ public class ByteTrie {
       node.markLongLeaf();
     }
 
+    /**
+     * Insert byte array, bytes are stored in order of array.
+     * Does not support nulls or empty byte arrays.
+     */
     public void putBinary(byte[] value) {
       if (value == null || value.length == 0) {
         throw new IllegalArgumentException("Binary null/empty value");
@@ -121,11 +162,13 @@ public class ByteTrie {
       node.markBinaryLeaf();
     }
 
+    /** Check if trie contains byte value */
     public boolean containsByte(byte value) {
       ByteTrieNode node = getByte(value);
       return node != null && (node.leaf & BYTE_LEAF_MASK) > 0;
     }
 
+    /** Check if trie contains signed integer value */
     public boolean containsInt(int value) {
       ByteTrieNode node = this;
       if (value == 0) {
@@ -142,6 +185,7 @@ public class ByteTrie {
       return node != null && (node.leaf & INT_LEAF_MASK) > 0;
     }
 
+    /** Check if trie contains signed long value */
     public boolean containsLong(long value) {
       ByteTrieNode node = this;
       if (value == 0) {
@@ -158,6 +202,7 @@ public class ByteTrie {
       return node != null && (node.leaf & LONG_LEAF_MASK) > 0;
     }
 
+    /** Check if trie contains byte array */
     public boolean containsBinary(byte[] value) {
       if (value == null || value.length == 0) {
         throw new IllegalArgumentException("Binary null/empty value");
@@ -178,12 +223,19 @@ public class ByteTrie {
     }
   }
 
+  /**
+   * Resizable (powers of 2) open-addressing hash table with quadratic probing and triangular
+   * lookup sequence. Has two modes, one is for hash table and when is sized to MAX_SIZE is
+   * converted into direct index lookup without hash function.
+   */
   public static class ByteTrieTable {
     private final static int INITIAL_SIZE = 16;
     private final static int MAX_SIZE = 256;
 
     private int size = INITIAL_SIZE;
+    // underlying resizable array
     private ByteTrieNode[] map;
+    // statistics for number of inserted elements
     private int numInserted;
 
     ByteTrieTable(int initialSize) {
@@ -194,39 +246,54 @@ public class ByteTrie {
       this.numInserted = 0;
     }
 
-    public ByteTrieTable() {
+    ByteTrieTable() {
       this(INITIAL_SIZE);
     }
 
+    /**
+     * Insert ByteTrieNode node into table, use node value as a key.
+     * Return boolean value to indicate whether or not insert was successful.
+     */
     public boolean put(ByteTrieNode node) {
       if (!insert(this.map, node)) {
         resize();
         return insert(this.map, node);
       }
-      return false;
+      return true;
     }
 
+    /** Get node for provided signed byte value */
     public ByteTrieNode get(byte value) {
       return lookup(this.map, value);
     }
 
+    /** Get size of underlying array, not number of inserted elements */
     public int size() {
       return this.size;
     }
 
+    /** Number of inserted elements in the table */
     public int numInserted() {
       return this.numInserted;
     }
 
+    /** Whether or not table is empty */
     public boolean isEmpty() {
       return this.numInserted == 0;
     }
 
-    // key does not check if value is out of range
+    /**
+     * Generate unsigned key, used as hash function.
+     * Key is not checked if value is out of range.
+     */
     private int unsignedKey(byte rawKey) {
       return (1 << 8) - 1 & rawKey;
     }
 
+    /**
+     * Generic insert of the node into table, depending on size of the table chooses either direct
+     * insert by index or hash insert.
+     */
     protected boolean insert(ByteTrieNode[] table, ByteTrieNode node) {
       if (size < MAX_SIZE) {
         return insertHash(table, node);
@@ -235,6 +302,10 @@ public class ByteTrie {
       }
     }
 
+    /**
+     * Make hash insert, e.g. generate key and insert/resolve collisions.
+     * Does not overwrite duplicate values.
+     */
     private boolean insertHash(ByteTrieNode[] table, ByteTrieNode node) {
       // unsigned byte value
       int index = unsignedKey(node.value);
@@ -250,7 +321,11 @@ public class ByteTrie {
       return false;
     }
 
-    // always overwrite previous values in the table
+    /**
+     * Make direct insert into the table; behaviour is different from hash insert since it
+     * overwrites duplicates. This might affect numInserted value since it will only be updated
+     * on actual insertion.
+     */
     private boolean insertDirect(ByteTrieNode[] table, ByteTrieNode node) {
       int index = unsignedKey(node.value);
       if (table[index] == null) {
@@ -260,6 +335,7 @@ public class ByteTrie {
       return true;
     }
 
+    /** Generic lookup of the key in provided table */
     protected ByteTrieNode lookup(ByteTrieNode[] table, byte key) {
       if (size < MAX_SIZE) {
         return lookupHash(table, key);
@@ -268,6 +344,9 @@ public class ByteTrie {
       }
     }
 
+    /**
+     * Perform hash lookup; if table contains duplicates, returns first node found.
+     */
     private ByteTrieNode lookupHash(ByteTrieNode[] table, byte key) {
       int index = unsignedKey(key);
       int ref;
@@ -280,15 +359,24 @@ public class ByteTrie {
       return null;
     }
 
+    /**
+     * Perform direct lookup by index. Note that since insert overwrites values, the last inserted
+     * value will be returned in case of duplicates.
+     */
     private ByteTrieNode lookupDirect(ByteTrieNode[] table, byte key) {
       return table[unsignedKey(key)];
     }
 
+    /**
+     * Resize current map. If size is alreday maximum, then no-op. Resizing involves rehashing keys
+     * and in this implementation we just reinsert values.
+     * TODO: rehash keys without reinsertion.
+     */
     protected void resize() {
       // do not grow beyond max size
       if (size >= MAX_SIZE) return;
       size <<= 2;
-      numInserted = 0;
+      numInserted = 0; // reset numInserted, it will increment for each insert
       ByteTrieNode[] arr = new ByteTrieNode[size];
       for (int i = 0; i < this.map.length; i++) {
         if (this.map[i] != null) {
@@ -319,19 +407,26 @@ public class ByteTrie {
     this.hasEmptyString = false;
   }
 
-  public void update(byte value) {
+  /** Insert signed byte value */
+  public void put(byte value) {
     this.root.putByte(value);
   }
 
-  public void update(int value) {
+  /** Insert signed integer value */
+  public void put(int value) {
     this.root.putInt(value);
   }
 
-  public void update(long value) {
+  /** Insert signed long value */
+  public void put(long value) {
     this.root.putLong(value);
   }
 
-  public void update(String value) {
+  /**
+   * Insert String instance as sequence of bytes.
+   * Empty strings are allowed, but no-op for null values.
+   */
+  public void put(String value) {
     if (value == null) return;
     if (value.isEmpty()) {
       this.hasEmptyString = true;
@@ -340,25 +435,29 @@ public class ByteTrie {
     }
   }
 
+  /** Check if trie contains signed byte value */
   public boolean contains(byte value) {
     return this.root.containsByte(value);
   }
 
+  /** Check if trie contains signed integer value */
   public boolean contains(int value) {
     return this.root.containsInt(value);
   }
 
+  /** Check if trie contains signed long value */
   public boolean contains(long value) {
     return this.root.containsLong(value);
   }
 
+  /** Check if trie contains String value */
   public boolean contains(String value) {
     if (value == null) return false;
     if (value.isEmpty()) return this.hasEmptyString;
     return this.root.containsBinary(value.getBytes());
   }
 
-  public ByteTrieNode getRoot() {
+  ByteTrieNode getRoot() {
     return this.root;
   }
 
