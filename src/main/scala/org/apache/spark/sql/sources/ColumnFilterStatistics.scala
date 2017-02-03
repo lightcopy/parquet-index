@@ -150,7 +150,16 @@ object ColumnFilterStatistics {
  */
 case class BloomFilterStatistics(numRows: Long = 1024L) extends ColumnFilterStatistics {
   require(numRows > 0, s"Invalid expected number of records $numRows, should be > 0")
-  @transient private var bloomFilter: BloomFilter = BloomFilter.create(numRows, 0.03)
+  @transient private var bloomFilter: BloomFilter =
+    try {
+      // Create bloom filter with at most ~1048576 expected records and FPP of 3%
+      BloomFilter.create(Math.min(numRows, 1 << 20), 0.03)
+    } catch {
+      case oom: OutOfMemoryError =>
+        throw new OutOfMemoryError(s"Failed to create bloom filter for numRows=$numRows. " +
+          "Consider reducing partition size and/or number of filters/indexed columns").
+          initCause(oom)
+    }
   @transient private var hasLoadedData: Boolean = false
 
   override def update(value: Any): Unit = bloomFilter.put(value)
