@@ -34,7 +34,7 @@ import org.apache.parquet.schema.MessageType
 
 import org.apache.spark.{SparkContext, Partition, TaskContext}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.sources.{BloomFilterStatistics, ColumnFilterStatistics, ColumnStatistics}
+import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 
 import com.github.lightcopy.util.{SerializableConfiguration, SerializableFileStatus}
@@ -281,6 +281,8 @@ private[parquet] object ParquetStatisticsRDD {
     ColumnFilterStatistics.classForName(filterType) match {
       case clazz if clazz == classOf[BloomFilterStatistics] =>
         BloomFilterStatistics(block.getRowCount)
+      case clazz if clazz == classOf[DictionaryFilterStatistics] =>
+        DictionaryFilterStatistics()
     }
   }
 

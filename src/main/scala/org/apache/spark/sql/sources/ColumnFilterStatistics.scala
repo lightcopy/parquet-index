@@ -17,9 +17,12 @@
 package org.apache.spark.sql.sources
 
 import java.io.{InputStream, OutputStream}
+import java.util.{HashSet => JHashSet}
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 
+import org.apache.spark.SparkConf
+import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.util.sketch.BloomFilter
 
 /**
@@ -129,7 +132,9 @@ abstract class ColumnFilterStatistics extends Serializable {
 
 object ColumnFilterStatistics {
   // Registered classes of filter statistics, key is a short name used in configuration
-  val REGISTERED_FILTERS = Map("bloom" -> classOf[BloomFilterStatistics])
+  val REGISTERED_FILTERS = Map(
+    "bloom" -> classOf[BloomFilterStatistics],
+    "dict" -> classOf[DictionaryFilterStatistics])
 
   /**
    * Get [[ColumnFilterStatistics]] class for short name, used for selecting filter type in
@@ -182,4 +187,51 @@ case class BloomFilterStatistics(numRows: Long = 1024L) extends ColumnFilterStat
 
   /** Get value of `hasLoadedData`, for testing */
   private[sources] def getHasLoadedData(): Boolean = hasLoadedData
+}
+
+/**
+ * [[DictionaryFilterStatistics]] provides filter statistics based on underlying lookup data
+ * structure, in this case java.util.HashSet, to get exact answer on whether or not value is in
+ * filter. Similar to bloom filter statistics, it is created per column.
+ */
+case class DictionaryFilterStatistics() extends ColumnFilterStatistics {
+  @transient private var set = new JHashSet[Any]()
+  @transient private var hasLoadedData = false
+
+  /** Get new Spark configuration without loading defaults from system properties */
+  private def getConf(): SparkConf = new SparkConf(false)
+
+  override def update(value: Any): Unit = set.add(value)
+
+  override def mightContain(value: Any): Boolean = set.contains(value)
+
+  override protected def needToReadData(): Boolean = !hasLoadedData
+
+  override protected def serializeData(out: OutputStream): Unit = {
+    val kryo = new KryoSerializer(getConf())
+    val serializedStream = kryo.newInstance().serializeStream(out)
+    try {
+      serializedStream.writeObject(set)
+    } finally {
+      serializedStream.close()
+    }
+  }
+
+  override protected def deserializeData(in: InputStream): Unit = {
+    val kryo = new KryoSerializer(getConf())
+    val deserializedStream = kryo.newInstance.deserializeStream(in)
+    try {
+      set = deserializedStream.readObject()
+      hasLoadedData = true
+    } finally {
+      // despite method closing external stream, we ensure that kryo stream is closed
+      deserializedStream.close()
+    }
+  }
+
+  /** Get value of `hasLoadedData`, for testing */
+  private[sources] def getHasLoadedData(): Boolean = hasLoadedData
+
+  /** Get value of `set`, for testing */
+  private[sources] def getSet(): JHashSet[Any] = set
 }
