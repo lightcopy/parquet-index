@@ -16,10 +16,6 @@
 
 package org.apache.spark.sql.sources
 
-import java.nio.ByteOrder
-
-import org.apache.parquet.io.api.Binary
-
 import org.apache.spark.sql.types._
 
 /**
@@ -265,23 +261,16 @@ case class StringColumnStatistics() extends ColumnStatistics {
   private var max: String = null
   private var isSet: Boolean = false
 
-  private def setMinMaxString(strValue: String): Unit = {
-    if (!isSet) {
-      min = strValue
-      max = strValue
-      isSet = true
-    } else {
-      if (min > strValue) min = strValue
-      if (max < strValue) max = strValue
-    }
-  }
-
   override protected def updateMinMaxFunc: PartialFunction[Any, Unit] = {
-    case binValue: Binary => {
-      setMinMaxString(binValue.toStringUsingUTF8)
-    }
     case strValue: String => {
-      setMinMaxString(strValue)
+      if (!isSet) {
+        min = strValue
+        max = strValue
+        isSet = true
+      } else {
+        if (min > strValue) min = strValue
+        if (max < strValue) max = strValue
+      }
     }
   }
 
@@ -312,33 +301,23 @@ case class StringColumnStatistics() extends ColumnStatistics {
 
 /**
  * [[DateColumnStatistics]] keep track of min/max/nulls for Date column, which is a Parquet int32
- * field. Note that when we update min/max from Parquet values, we also process integer value,
- * but actual checks on contains or/and greater/less/equals are for java.sql.Date only.
+ * field, but converted into java.sql.Date instance in record container.
  */
 case class DateColumnStatistics() extends ColumnStatistics {
   private var min: java.sql.Date = null
   private var max: java.sql.Date = null
   private var isSet: Boolean = false
 
-  /** Set min and max date values based on value provided */
-  private def setMinMaxDate(dateValue: java.sql.Date): Unit = {
-    if (!isSet) {
-      min = dateValue
-      max = dateValue
-      isSet = true
-    } else {
-      if (min.after(dateValue)) min = dateValue
-      if (max.before(dateValue)) max = dateValue
-    }
-  }
-
-  // When reading Parquet file values are stored as int32, so we process them as sql dates
   override protected def updateMinMaxFunc: PartialFunction[Any, Unit] = {
-    case intValue: Int => {
-      setMinMaxDate(new java.sql.Date(intValue.toLong))
-    }
     case dateValue: java.sql.Date => {
-      setMinMaxDate(dateValue)
+      if (!isSet) {
+        min = dateValue
+        max = dateValue
+        isSet = true
+      } else {
+        if (min.after(dateValue)) min = dateValue
+        if (max.before(dateValue)) max = dateValue
+      }
     }
   }
 
@@ -372,52 +351,25 @@ case class DateColumnStatistics() extends ColumnStatistics {
 
 /**
  * [[TimestampColumnStatistics]] keep track of min/max/nulls for timestamp column, which is int96
- * in Parquet, but passed into statistics as Binary value. See `ParquetRowConverter` in Spark for
+ * in Parquet, but passed into statistics as java.sql.Timestamp value. See `RecordContainer` for
  * more information.
  */
 case class TimestampColumnStatistics() extends ColumnStatistics {
-  final val JULIAN_DAY_OF_EPOCH = 2440588
-  final val SECONDS_PER_DAY = 60 * 60 * 24L
-  final val MICROS_PER_SECOND = 1000L * 1000L
-
   private var min: java.sql.Timestamp = null
   private var max: java.sql.Timestamp = null
   private var isSet: Boolean = false
 
-  /** Set min and max timetamp values based on value provided */
-  private def setMinMaxTimestamp(timeValue: java.sql.Timestamp): Unit = {
-    if (!isSet) {
-      min = timeValue
-      max = timeValue
-      isSet = true
-    } else {
-      if (min.after(timeValue)) min = timeValue
-      if (max.before(timeValue)) max = timeValue
-    }
-  }
-
-  /**
-   * Returns the number of microseconds since epoch from Julian day
-   * and nanoseconds in a day
-   */
-  private def fromJulianDay(day: Int, nanoseconds: Long): Long = {
-    // use Long to avoid rounding errors
-    val seconds = (day - JULIAN_DAY_OF_EPOCH).toLong * SECONDS_PER_DAY
-    seconds * MICROS_PER_SECOND + nanoseconds / 1000L
-  }
-
   // When reading Parquet file values are stored as int96, which returned by container as Binary
   override protected def updateMinMaxFunc: PartialFunction[Any, Unit] = {
-    case binValue: Binary => {
-      assert(binValue.length() == 12, "Timestamps (with nanoseconds) are expected to be stored " +
-        s"in 12-byte long binaries, but got a ${binValue.length()}-byte binary")
-      val buf = binValue.toByteBuffer.order(ByteOrder.LITTLE_ENDIAN)
-      val timeOfDayNanos = buf.getLong
-      val julianDay = buf.getInt
-      setMinMaxTimestamp(new java.sql.Timestamp(fromJulianDay(julianDay, timeOfDayNanos)))
-    }
     case timeValue: java.sql.Timestamp => {
-      setMinMaxTimestamp(timeValue)
+      if (!isSet) {
+        min = timeValue
+        max = timeValue
+        isSet = true
+      } else {
+        if (min.after(timeValue)) min = timeValue
+        if (max.before(timeValue)) max = timeValue
+      }
     }
   }
 

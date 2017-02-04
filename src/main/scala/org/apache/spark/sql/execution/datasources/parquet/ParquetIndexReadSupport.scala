@@ -16,51 +16,107 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
-import java.util.{HashMap => JHashMap, Map => JMap}
+import java.nio.ByteOrder
+import java.sql.{Date => SQLDate, Timestamp => SQLTimestamp}
+import java.util.{Map => JMap}
 
 import org.apache.hadoop.conf.Configuration
 
 import org.apache.parquet.schema._
+import org.apache.parquet.schema.OriginalType._
+import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName._
 import org.apache.parquet.io.api._
 
 import org.apache.parquet.hadoop.api.ReadSupport
 import org.apache.parquet.hadoop.api.ReadSupport.ReadContext
 
-// Parquet read support and simple record materializer for index filters, e.g. bloom filters.
-// File schema is MessageType (GroupType), record materializer defines GroupConverter that allows
-// to traverse fields and invoke either group converter or primitive converter. Current
-// implementation only defines group converter for schema, it grabs only primitive fields at the
-// top level.
+// Parquet read support and simple record materializer for index statistics and filters, e.g. bloom
+// filters. File schema is MessageType (GroupType), record materializer defines GroupConverter that
+// allows to traverse fields and invoke either group converter or primitive converter.
+//
+// Current implementation of containers supports traversal of GroupType, but since we only support
+// primitive top level fields, `ParquetIndexGroupConverter` has a check to fail if there is any
+// child group found and traverse only primitive types.
 
-abstract class Container {
-  def setBinary(ordinal: Int, value: Binary): Unit
+abstract class RecordContainer {
+  def setParquetBinary(ordinal: Int, field: PrimitiveType, value: Binary): Unit
+  def setParquetInteger(ordinal: Int, field: PrimitiveType, value: Int): Unit
+  def setString(ordinal: Int, value: String): Unit
   def setBoolean(ordinal: Int, value: Boolean): Unit
   def setDouble(ordinal: Int, value: Double): Unit
   def setInt(ordinal: Int, value: Int): Unit
   def setLong(ordinal: Int, value: Long): Unit
+  def setDate(ordinal: Int, value: SQLDate): Unit
+  def setTimestamp(ordinal: Int, value: SQLTimestamp): Unit
   def getByIndex(ordinal: Int): Any
-  def init(): Unit
+  def init(numFields: Int): Unit
   def close(): Unit
 }
 
-private[parquet] class MapContainer extends Container {
-  // buffer to store values in container, column index - value
-  private var buffer: JHashMap[Int, Any] = null
+private[parquet] class BufferRecordContainer extends RecordContainer {
+  val JULIAN_DAY_OF_EPOCH = 2440588
+  val SECONDS_PER_DAY = 60 * 60 * 24L
+  val MICROS_PER_SECOND = 1000L * 1000L
 
-  override def setBinary(ordinal: Int, value: Binary): Unit = buffer.put(ordinal, value)
-  override def setBoolean(ordinal: Int, value: Boolean): Unit = buffer.put(ordinal, value)
-  override def setDouble(ordinal: Int, value: Double): Unit = buffer.put(ordinal, value)
-  override def setInt(ordinal: Int, value: Int): Unit = buffer.put(ordinal, value)
-  override def setLong(ordinal: Int, value: Long): Unit = buffer.put(ordinal, value)
-  override def getByIndex(ordinal: Int): Any = buffer.get(ordinal)
+  // buffer to store values in container, column index - value
+  private var buffer: Array[Any] = null
+
+  /** Returns the number of microseconds since epoch from Julian day and nanoseconds in a day */
+  private def fromJulianDay(day: Int, nanoseconds: Long): Long = {
+    // use Long to avoid rounding errors
+    val seconds = (day - JULIAN_DAY_OF_EPOCH).toLong * SECONDS_PER_DAY
+    seconds * MICROS_PER_SECOND + nanoseconds / 1000L
+  }
+
+  override def setParquetBinary(ordinal: Int, field: PrimitiveType, value: Binary): Unit = {
+    field.getPrimitiveTypeName match {
+      case INT96 =>
+        assert(value.length() == 12,
+          "Timestamps (with nanoseconds) are expected to be stored " +
+          s"in 12-byte long binaries, but got a ${value.length()}-byte binary")
+        val buf = value.toByteBuffer.order(ByteOrder.LITTLE_ENDIAN)
+        val timeOfDayNanos = buf.getLong
+        val julianDay = buf.getInt
+        setTimestamp(ordinal, new SQLTimestamp(fromJulianDay(julianDay, timeOfDayNanos)))
+      // all other types are treated as UTF8 string
+      case _ =>
+        setString(ordinal, value.toStringUsingUTF8)
+    }
+  }
+
+  override def setParquetInteger(ordinal: Int, field: PrimitiveType, value: Int): Unit = {
+    field.getPrimitiveTypeName match {
+      case INT32 =>
+        field.getOriginalType match {
+          case DATE => setDate(ordinal, new SQLDate(value.toLong))
+          // all other values are parsed as signed int32
+          case _ => setInt(ordinal, value)
+        }
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Field $field with value $value at position $ordinal " +
+          "cannot be parsed as Parquet Integer")
+    }
+  }
+
+  override def setString(ordinal: Int, value: String): Unit = buffer(ordinal) = value
+  override def setBoolean(ordinal: Int, value: Boolean): Unit = buffer(ordinal) = value
+  override def setDouble(ordinal: Int, value: Double): Unit = buffer(ordinal) = value
+  override def setInt(ordinal: Int, value: Int): Unit = buffer(ordinal) = value
+  override def setLong(ordinal: Int, value: Long): Unit = buffer(ordinal) = value
+  override def setDate(ordinal: Int, value: SQLDate): Unit = buffer(ordinal) = value
+  override def setTimestamp(ordinal: Int, value: SQLTimestamp): Unit = buffer(ordinal) = value
+  override def getByIndex(ordinal: Int): Any = buffer(ordinal)
 
   // Initialize map before every read, allows to have access to current record and provides cleanup
   // for every scan.
-  override def init(): Unit = {
-    if (buffer == null) {
-      buffer = new JHashMap[Int, Any]()
+  override def init(numFields: Int): Unit = {
+    if (buffer == null || numFields != buffer.length) {
+      buffer = new Array[Any](numFields)
     } else {
-      buffer.clear()
+      for (i <- 0 until buffer.length) {
+        buffer(i) = null
+      }
     }
   }
 
@@ -73,18 +129,19 @@ private[parquet] class MapContainer extends Container {
 
 class ParquetIndexPrimitiveConverter(
     val ordinal: Int,
-    val updater: Container)
+    val field: PrimitiveType,
+    val updater: RecordContainer)
   extends PrimitiveConverter {
 
-  override def addBinary(value: Binary): Unit = updater.setBinary(ordinal, value)
-  override def addBoolean(value: Boolean): Unit = updater.setBoolean(ordinal, value)
-  override def addDouble(value: Double): Unit = updater.setDouble(ordinal, value)
-  override def addInt(value: Int): Unit = updater.setInt(ordinal, value)
+  override def addBinary(value: Binary): Unit = updater.setParquetBinary(ordinal, field, value)
+  override def addInt(value: Int): Unit = updater.setParquetInteger(ordinal, field, value)
   override def addLong(value: Long): Unit = updater.setLong(ordinal, value)
+  override def addDouble(value: Double): Unit = updater.setDouble(ordinal, value)
+  override def addBoolean(value: Boolean): Unit = updater.setBoolean(ordinal, value)
 }
 
 class ParquetIndexGroupConverter(
-    private val updater: Container,
+    private val updater: RecordContainer,
     private val schema: GroupType)
   extends GroupConverter {
 
@@ -95,31 +152,33 @@ class ParquetIndexGroupConverter(
     for (i <- 0 until arr.length) {
       val tpe = schema.getType(i)
       assert(tpe.isPrimitive, s"Only primitive types are supported, found schema $schema")
-      arr(i) = new ParquetIndexPrimitiveConverter(i, updater)
+      arr(i) = new ParquetIndexPrimitiveConverter(i, tpe.asPrimitiveType, updater)
     }
     arr
   }
 
   override def getConverter(fieldIndex: Int): Converter = converters(fieldIndex)
 
-  override def start(): Unit = updater.init()
+  // Initialize container with known fields in advance, so we can resize it
+  override def start(): Unit = updater.init(schema.getFieldCount)
 
   override def end(): Unit = updater.close()
 }
 
 class ParquetIndexRecordMaterializer(
-    private val updater: Container,
     private val schema: MessageType)
-  extends RecordMaterializer[Container] {
+  extends RecordMaterializer[RecordContainer] {
 
-  override def getCurrentRecord(): Container = updater
+  private val updater = new BufferRecordContainer()
+
+  override def getCurrentRecord(): RecordContainer = updater
 
   override def getRootConverter(): GroupConverter = {
     new ParquetIndexGroupConverter(updater, schema)
   }
 }
 
-class ParquetIndexReadSupport extends ReadSupport[Container] {
+class ParquetIndexReadSupport extends ReadSupport[RecordContainer] {
   override def init(
       conf: Configuration,
       keyValueMetaData: JMap[String, String],
@@ -132,8 +191,8 @@ class ParquetIndexReadSupport extends ReadSupport[Container] {
   override def prepareForRead(
       conf: Configuration,
       keyValueMetaData: JMap[String, String],
-      fileSchema: MessageType, context: ReadContext): RecordMaterializer[Container] = {
-    val updater = new MapContainer()
-    new ParquetIndexRecordMaterializer(updater, context.getRequestedSchema)
+      fileSchema: MessageType,
+      context: ReadContext): RecordMaterializer[RecordContainer] = {
+    new ParquetIndexRecordMaterializer(context.getRequestedSchema)
   }
 }

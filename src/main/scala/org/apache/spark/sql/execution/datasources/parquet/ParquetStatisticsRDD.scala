@@ -175,7 +175,7 @@ class ParquetStatisticsRDD(
           attemptContext.getConfiguration.set(ParquetMetastoreSupport.READ_SCHEMA,
             indexSchema.toString)
 
-          val reader = new ParquetRecordReader[Container](new ParquetIndexReadSupport())
+          val reader = new ParquetRecordReader[RecordContainer](new ParquetIndexReadSupport())
           try {
             reader.initialize(parquetSplit, attemptContext)
             // current block index, when row count > record count we select next block
