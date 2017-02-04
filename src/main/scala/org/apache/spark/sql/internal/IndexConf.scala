@@ -73,7 +73,8 @@ private[spark] object IndexConf {
 
   val PARQUET_FILTER_STATISTICS_TYPE =
     IndexConfigBuilder("spark.sql.index.parquet.filter.type").
-    doc("When filter statistics enabled, selects type of statistics to use when creating index").
+    doc("When filter statistics enabled, selects type of statistics to use when creating index. " +
+      "Available options are `bloom`, `dict`").
     stringConf.
     createWithDefault("bloom")
 
