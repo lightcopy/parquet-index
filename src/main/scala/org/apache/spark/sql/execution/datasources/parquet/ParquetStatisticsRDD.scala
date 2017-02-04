@@ -155,7 +155,10 @@ class ParquetStatisticsRDD(
       override def next(): ParquetFileStatus = {
         val serdeStatus = iter.next
         val parquetStatus = SerializableFileStatus.toFileStatus(serdeStatus)
-        logDebug(s"Reading file ${parquetStatus.getPath}")
+        // extract hosts for status block locations
+        val statusHosts = serdeStatus.blockLocations.flatMap(_.hosts).distinct
+        logDebug(s"Reading file ${parquetStatus.getPath}, " +
+          s"locations ${statusHosts.mkString("[", ", ", "]")}")
         val attemptContext = ParquetStatisticsRDD.taskAttemptContext(configuration)
         // read metadata from the file footer
         val metadata = ParquetFileReader.readFooter(configuration, parquetStatus, NO_FILTER)
@@ -191,8 +194,7 @@ class ParquetStatisticsRDD(
         // blocks can be empty for empty Parquet file, in this case we just skip the reader step
         val blockMetadata: Array[ParquetBlockMetadata] = if (blocks.nonEmpty) {
           // create reader and run statistics using blocks
-          // TODO: pass locations from file status, currently it is an empty array
-          val split = new FileSplit(parquetStatus.getPath, 0, parquetStatus.getLen, Array.empty)
+          val split = new FileSplit(parquetStatus.getPath, 0, parquetStatus.getLen, statusHosts)
           val parquetSplit = new ParquetInputSplit(split.getPath, split.getStart,
             split.getStart + split.getLength, split.getLength, split.getLocations, null)
           // make index schema to be available for record reader

@@ -176,7 +176,6 @@ object IndexSourceStrategy extends Strategy with Logging {
           }
 
           // Assign files to partitions using "First Fit Decreasing" (FFD)
-          // TODO: consider adding a slop factor here?
           splitFiles.foreach { file =>
             if (currentSize + file.length > maxSplitBytes) {
               closePartition()
