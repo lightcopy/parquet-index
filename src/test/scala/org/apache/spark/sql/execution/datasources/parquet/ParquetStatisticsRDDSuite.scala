@@ -249,6 +249,13 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     filter.asInstanceOf[BloomFilterStatistics].numRows should be (123L)
   }
 
+  test("ParquetStatisticsRDD - newFilter, select DictionaryFilterStatistics") {
+    val metadata = new BlockMetaData()
+    metadata.setRowCount(123L)
+    val filter = ParquetStatisticsRDD.newFilter("dict", metadata)
+    filter.isInstanceOf[DictionaryFilterStatistics] should be (true)
+  }
+
   test("ParquetStatisticsRDD - collect statistics for empty file") {
     withTempDir { dir =>
       // all values are in single file
