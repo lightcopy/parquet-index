@@ -28,7 +28,8 @@ import org.apache.spark.sql.types._
  */
 object ParquetSchemaUtils {
   // Supported top-level Spark SQL data types
-  val SUPPORTED_TYPES: Set[DataType] = Set(IntegerType, LongType, StringType)
+  val SUPPORTED_TYPES: Set[DataType] =
+    Set(IntegerType, LongType, StringType, DateType, TimestampType)
 
   /**
    * Validate input schema as `StructType` and throw exception if schema does not match expected

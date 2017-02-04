@@ -33,7 +33,7 @@ import org.apache.parquet.hadoop.api.ReadSupport.ReadContext
 // top level.
 
 abstract class Container {
-  def setString(ordinal: Int, value: String): Unit
+  def setBinary(ordinal: Int, value: Binary): Unit
   def setBoolean(ordinal: Int, value: Boolean): Unit
   def setDouble(ordinal: Int, value: Double): Unit
   def setInt(ordinal: Int, value: Int): Unit
@@ -47,7 +47,7 @@ private[parquet] class MapContainer extends Container {
   // buffer to store values in container, column index - value
   private var buffer: JHashMap[Int, Any] = null
 
-  override def setString(ordinal: Int, value: String): Unit = buffer.put(ordinal, value)
+  override def setBinary(ordinal: Int, value: Binary): Unit = buffer.put(ordinal, value)
   override def setBoolean(ordinal: Int, value: Boolean): Unit = buffer.put(ordinal, value)
   override def setDouble(ordinal: Int, value: Double): Unit = buffer.put(ordinal, value)
   override def setInt(ordinal: Int, value: Int): Unit = buffer.put(ordinal, value)
@@ -76,7 +76,7 @@ class ParquetIndexPrimitiveConverter(
     val updater: Container)
   extends PrimitiveConverter {
 
-  override def addBinary(value: Binary): Unit = updater.setString(ordinal, value.toStringUsingUTF8)
+  override def addBinary(value: Binary): Unit = updater.setBinary(ordinal, value)
   override def addBoolean(value: Boolean): Unit = updater.setBoolean(ordinal, value)
   override def addDouble(value: Double): Unit = updater.setDouble(ordinal, value)
   override def addInt(value: Int): Unit = updater.setInt(ordinal, value)

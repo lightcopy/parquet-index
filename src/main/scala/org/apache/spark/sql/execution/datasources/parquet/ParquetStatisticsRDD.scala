@@ -100,10 +100,10 @@ class ParquetStatisticsRDD(
     // convert schema of struct type into Parquet schema
     val indexSchema: MessageType = new ParquetSchemaConverter().convert(schema)
     logDebug(s"""
-      | == Indexed schema ==
-      | ${schema.simpleString}
-      | == Converted Parquet schema ==
-      | $indexSchema
+      |== Indexed schema ==
+      |${schema.simpleString}
+      |== Converted Parquet schema ==
+      |$indexSchema
       """.stripMargin)
     // resolve filter directory as root for all column filter statistics. If path is defined,
     // then use it to store serialized filter data, otherwise it is assumed that filter
