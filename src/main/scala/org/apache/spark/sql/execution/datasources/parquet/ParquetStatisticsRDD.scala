@@ -19,6 +19,7 @@ package org.apache.spark.sql.execution.datasources.parquet
 import java.util.UUID
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.{HashMap => MutableMap}
 import scala.reflect.ClassTag
 
 import org.apache.hadoop.conf.Configuration
@@ -91,6 +92,29 @@ class ParquetStatisticsRDD(
     slices.indices.map { i =>
       new ParquetStatisticsPartition(id, i, slices(i))
     }.toArray
+  }
+
+  override def getPreferredLocations(split: Partition): Seq[String] = {
+    // Adapted from `FileScanRDD` - collect bytes per host to determine preferred locations,
+    // based on pull request https://github.com/apache/spark/pull/12527
+    val statuses = split.asInstanceOf[ParquetStatisticsPartition].values
+    // Computes total number of bytes can be retrieved from each host.
+    val hostToNumBytes = new MutableMap[String, Long]()
+    statuses.foreach { status =>
+      status.blockLocations.foreach { block =>
+        // Refer to mentioned above PR for a reason of filtering out localhost
+        block.hosts.filter(_ != "localhost").foreach { host =>
+          hostToNumBytes.put(host, hostToNumBytes.getOrElse(host, 0L) + block.length)
+        }
+      }
+    }
+    // Sort in descending order by number of bytes.
+    // Take first 3 hosts with the most data to be retrieved
+    hostToNumBytes.toSeq.sortBy {
+      case (host, numBytes) => -numBytes
+    }.take(3).map {
+      case (host, numBytes) => host
+    }
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[ParquetFileStatus] = {

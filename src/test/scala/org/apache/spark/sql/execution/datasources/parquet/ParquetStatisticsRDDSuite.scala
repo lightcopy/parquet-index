@@ -23,7 +23,7 @@ import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 
-import com.github.lightcopy.util.SerializableFileStatus
+import com.github.lightcopy.util.{SerializableBlockLocation, SerializableFileStatus}
 import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
 import com.github.lightcopy.testutil.implicits._
 
@@ -34,6 +34,16 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
 
   override def afterAll {
     stopSparkSession()
+  }
+
+  // Block location with size in bytes and hosts
+  def block(size: Long, hosts: String*): SerializableBlockLocation = {
+    SerializableBlockLocation(hosts.toArray, hosts.toArray, 1L, size)
+  }
+
+  // File status with provided blocks
+  def file(blocks: SerializableBlockLocation*): SerializableFileStatus = {
+    SerializableFileStatus("path", 1L, false, 1, 128L, 0L, 0L, blockLocations = blocks.toArray)
   }
 
   test("ParquetStatisticsPartition - hashCode") {
@@ -367,5 +377,97 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       filter2.mightContain(9L) should be (false)
       filter2.mightContain("abc") should be (true)
     }
+  }
+
+  test("ParquetStatisticsRDD - getPreferredLocations, many files with blocks") {
+    val partition = new ParquetStatisticsPartition(123, 0,
+      file(block(100L, "host1", "host2")) ::
+      file(block(200L, "host2", "host3")) ::
+      file(block(400L, "host3", "host4")) :: Nil)
+    val rdd = new ParquetStatisticsRDD(
+      spark.sparkContext,
+      spark.sessionState.newHadoopConf(),
+      schema = StructType(StructField("a", StringType) :: Nil),
+      data = Seq.empty,
+      numPartitions = 8)
+
+    val hosts = rdd.getPreferredLocations(partition)
+    hosts should be (Seq("host3", "host4", "host2"))
+  }
+
+  test("ParquetStatisticsRDD - getPreferredLocations, many files with blocks + localhost") {
+    val partition = new ParquetStatisticsPartition(123, 0,
+      file(block(100L, "localhost", "host2")) ::
+      file(block(200L, "host2", "localhost")) ::
+      file(block(400L, "localhost", "host4")) :: Nil)
+    val rdd = new ParquetStatisticsRDD(
+      spark.sparkContext,
+      spark.sessionState.newHadoopConf(),
+      schema = StructType(StructField("a", StringType) :: Nil),
+      data = Seq.empty,
+      numPartitions = 8)
+
+    val hosts = rdd.getPreferredLocations(partition)
+    hosts should be (Seq("host4", "host2"))
+  }
+
+  test("ParquetStatisticsRDD - getPreferredLocations, all locations are localhost") {
+    val partition = new ParquetStatisticsPartition(123, 0,
+      file(block(100L, "localhost")) ::
+      file(block(200L, "localhost")) ::
+      file(block(400L, "localhost")) :: Nil)
+    val rdd = new ParquetStatisticsRDD(
+      spark.sparkContext,
+      spark.sessionState.newHadoopConf(),
+      schema = StructType(StructField("a", StringType) :: Nil),
+      data = Seq.empty,
+      numPartitions = 8)
+
+    val hosts = rdd.getPreferredLocations(partition)
+    hosts should be (Nil)
+  }
+
+  test("ParquetStatisticsRDD - getPreferredLocations, single file with many blocks") {
+    val partition = new ParquetStatisticsPartition(123, 0,
+      file(
+        block(100L, "localhost", "host1", "host2"),
+        block(200L, "localhost", "host2", "host3"),
+        block(400L, "localhost", "host4")) :: Nil)
+    val rdd = new ParquetStatisticsRDD(
+      spark.sparkContext,
+      spark.sessionState.newHadoopConf(),
+      schema = StructType(StructField("a", StringType) :: Nil),
+      data = Seq.empty,
+      numPartitions = 8)
+
+    val hosts = rdd.getPreferredLocations(partition)
+    hosts should be (Seq("host4", "host2", "host3"))
+  }
+
+  test("ParquetStatisticsRDD - getPreferredLocations, single file with single block") {
+    val partition = new ParquetStatisticsPartition(123, 0,
+      file(block(100L, "host1")) :: Nil)
+    val rdd = new ParquetStatisticsRDD(
+      spark.sparkContext,
+      spark.sessionState.newHadoopConf(),
+      schema = StructType(StructField("a", StringType) :: Nil),
+      data = Seq.empty,
+      numPartitions = 8)
+
+    val hosts = rdd.getPreferredLocations(partition)
+    hosts should be (Seq("host1"))
+  }
+
+  test("ParquetStatisticsRDD - getPreferredLocations, single file with empty blocks") {
+    val partition = new ParquetStatisticsPartition(123, 0, file() :: Nil)
+    val rdd = new ParquetStatisticsRDD(
+      spark.sparkContext,
+      spark.sessionState.newHadoopConf(),
+      schema = StructType(StructField("a", StringType) :: Nil),
+      data = Seq.empty,
+      numPartitions = 8)
+
+    val hosts = rdd.getPreferredLocations(partition)
+    hosts should be (Nil)
   }
 }
