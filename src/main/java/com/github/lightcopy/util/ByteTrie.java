@@ -229,8 +229,8 @@ public class ByteTrie {
    * converted into direct index lookup without hash function.
    */
   public static class ByteTrieTable {
-    private final static int INITIAL_SIZE = 16;
-    private final static int MAX_SIZE = 256;
+    public final static int INITIAL_SIZE = 16;
+    public final static int MAX_SIZE = 256;
 
     private int size = INITIAL_SIZE;
     // underlying resizable array
