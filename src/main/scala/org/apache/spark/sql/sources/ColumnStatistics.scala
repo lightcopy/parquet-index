@@ -81,11 +81,11 @@ abstract class ColumnStatistics extends Serializable {
   /**
    * Update statistics with non-null value, min and max should be updated according to column type,
    * e.g. sorting of bytes for strings, etc. It is guaranteed that method will be called for
-   * defined value. If type does not match defaults to no-op.
+   * defined value. If type does not match, exception is thrown.
    */
   def updateMinMax(value: Any): Unit = {
     updateMinMaxFunc.applyOrElse[Any, Unit](value, { case other =>
-      // type mismatch, default to no-op
+      throw new IllegalArgumentException(s"$this does not support value $other for update")
     })
   }
 

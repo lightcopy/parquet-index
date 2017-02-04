@@ -30,6 +30,8 @@ import org.apache.parquet.io.api._
 import org.apache.parquet.hadoop.api.ReadSupport
 import org.apache.parquet.hadoop.api.ReadSupport.ReadContext
 
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
+
 // Parquet read support and simple record materializer for index statistics and filters, e.g. bloom
 // filters. File schema is MessageType (GroupType), record materializer defines GroupConverter that
 // allows to traverse fields and invoke either group converter or primitive converter.
@@ -54,19 +56,8 @@ abstract class RecordContainer {
 }
 
 private[parquet] class BufferRecordContainer extends RecordContainer {
-  val JULIAN_DAY_OF_EPOCH = 2440588
-  val SECONDS_PER_DAY = 60 * 60 * 24L
-  val MICROS_PER_SECOND = 1000L * 1000L
-
   // buffer to store values in container, column index - value
   private var buffer: Array[Any] = null
-
-  /** Returns the number of microseconds since epoch from Julian day and nanoseconds in a day */
-  private def fromJulianDay(day: Int, nanoseconds: Long): Long = {
-    // use Long to avoid rounding errors
-    val seconds = (day - JULIAN_DAY_OF_EPOCH).toLong * SECONDS_PER_DAY
-    seconds * MICROS_PER_SECOND + nanoseconds / 1000L
-  }
 
   override def setParquetBinary(ordinal: Int, field: PrimitiveType, value: Binary): Unit = {
     field.getPrimitiveTypeName match {
@@ -77,7 +68,9 @@ private[parquet] class BufferRecordContainer extends RecordContainer {
         val buf = value.toByteBuffer.order(ByteOrder.LITTLE_ENDIAN)
         val timeOfDayNanos = buf.getLong
         val julianDay = buf.getInt
-        setTimestamp(ordinal, new SQLTimestamp(fromJulianDay(julianDay, timeOfDayNanos)))
+        // microseconds since epoch
+        val micros = DateTimeUtils.fromJulianDay(julianDay, timeOfDayNanos)
+        setTimestamp(ordinal, DateTimeUtils.toJavaTimestamp(micros))
       // all other types are treated as UTF8 string
       case _ =>
         setString(ordinal, value.toStringUsingUTF8)
@@ -88,7 +81,8 @@ private[parquet] class BufferRecordContainer extends RecordContainer {
     field.getPrimitiveTypeName match {
       case INT32 =>
         field.getOriginalType match {
-          case DATE => setDate(ordinal, new SQLDate(value.toLong))
+          case DATE =>
+            setDate(ordinal, DateTimeUtils.toJavaDate(value))
           // all other values are parsed as signed int32
           case _ => setInt(ordinal, value)
         }
@@ -123,7 +117,8 @@ private[parquet] class BufferRecordContainer extends RecordContainer {
   override def close(): Unit = { }
 
   override def toString(): String = {
-    s"${getClass.getSimpleName}(buffer=$buffer)"
+    val str = if (buffer == null) "null" else buffer.mkString("[", ", ", "]")
+    s"${getClass.getSimpleName}(buffer=$str)"
   }
 }
 
