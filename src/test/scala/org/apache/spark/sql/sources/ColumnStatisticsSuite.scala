@@ -868,7 +868,8 @@ class ColumnStatisticsSuite extends UnitTestSuite {
 
     stats.updateMinMax(new SQLDate(1L))
     stats.incrementNumNulls()
-    stats.toString should be ("DateColumnStatistics[min=1970-01-01, max=1970-01-01, nulls=1]")
+    val expected = s"DateColumnStatistics[min=${new SQLDate(1L)}, max=${new SQLDate(1L)}, nulls=1]"
+    stats.toString should be (expected)
   }
 
   test("DateColumnStatistics - contains") {
@@ -1109,8 +1110,8 @@ class ColumnStatisticsSuite extends UnitTestSuite {
 
     stats.updateMinMax(new SQLTimestamp(1L))
     stats.incrementNumNulls()
-    val expected = "TimestampColumnStatistics[min=1970-01-01 12:00:00.001, " +
-      "max=1970-01-01 12:00:00.001, nulls=1]"
+    val expected = "TimestampColumnStatistics" +
+      s"[min=${new SQLTimestamp(1L)}, max=${new SQLTimestamp(1L)}, nulls=1]"
     stats.toString should be (expected)
   }
 
