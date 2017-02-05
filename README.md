@@ -41,6 +41,8 @@ Currently only these types are supported for indexed columns:
 - `IntegerType`
 - `LongType`
 - `StringType`
+- `DateType`
+- `TimestampType`
 
 ### Limitations
 - Indexed columns must be top level primitive columns with types above
