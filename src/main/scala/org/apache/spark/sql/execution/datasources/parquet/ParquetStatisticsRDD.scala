@@ -124,10 +124,10 @@ class ParquetStatisticsRDD(
     // convert schema of struct type into Parquet schema
     val indexSchema: MessageType = new ParquetSchemaConverter().convert(schema)
     logDebug(s"""
-      | == Indexed schema ==
-      | ${schema.simpleString}
-      | == Converted Parquet schema ==
-      | $indexSchema
+      |== Indexed schema ==
+      |${schema.simpleString}
+      |== Converted Parquet schema ==
+      |$indexSchema
       """.stripMargin)
     // resolve filter directory as root for all column filter statistics. If path is defined,
     // then use it to store serialized filter data, otherwise it is assumed that filter
@@ -201,7 +201,7 @@ class ParquetStatisticsRDD(
           attemptContext.getConfiguration.set(ParquetMetastoreSupport.READ_SCHEMA,
             indexSchema.toString)
 
-          val reader = new ParquetRecordReader[Container](new ParquetIndexReadSupport())
+          val reader = new ParquetRecordReader[RecordContainer](new ParquetIndexReadSupport())
           try {
             reader.initialize(parquetSplit, attemptContext)
             // current block index, when row count > record count we select next block

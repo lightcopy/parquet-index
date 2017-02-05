@@ -81,11 +81,11 @@ abstract class ColumnStatistics extends Serializable {
   /**
    * Update statistics with non-null value, min and max should be updated according to column type,
    * e.g. sorting of bytes for strings, etc. It is guaranteed that method will be called for
-   * defined value. If type does not match defaults to no-op.
+   * defined value. If type does not match, exception is thrown.
    */
   def updateMinMax(value: Any): Unit = {
     updateMinMaxFunc.applyOrElse[Any, Unit](value, { case other =>
-      // type mismatch, default to no-op
+      throw new IllegalArgumentException(s"$this does not support value $other for update")
     })
   }
 
@@ -152,6 +152,8 @@ object ColumnStatistics {
     case IntegerType => IntColumnStatistics()
     case LongType => LongColumnStatistics()
     case StringType => StringColumnStatistics()
+    case DateType => DateColumnStatistics()
+    case TimestampType => TimestampColumnStatistics()
     case other => throw new UnsupportedOperationException(
       s"Column statistics do not exist for type $other")
   }
@@ -295,4 +297,106 @@ case class StringColumnStatistics() extends ColumnStatistics {
   override def getMin(): Any = min
 
   override def getMax(): Any = max
+}
+
+/**
+ * [[DateColumnStatistics]] keep track of min/max/nulls for Date column, which is a Parquet int32
+ * field, but converted into java.sql.Date instance in record container.
+ */
+case class DateColumnStatistics() extends ColumnStatistics {
+  private var min: java.sql.Date = null
+  private var max: java.sql.Date = null
+  private var isSet: Boolean = false
+
+  override protected def updateMinMaxFunc: PartialFunction[Any, Unit] = {
+    case dateValue: java.sql.Date => {
+      if (!isSet) {
+        min = dateValue
+        max = dateValue
+        isSet = true
+      } else {
+        if (min.after(dateValue)) min = dateValue
+        if (max.before(dateValue)) max = dateValue
+      }
+    }
+  }
+
+  override protected def containsFunc: PartialFunction[Any, Boolean] = {
+    case dateValue: java.sql.Date if isSet => {
+      dateValue.after(min) && dateValue.before(max) ||
+        dateValue.equals(min) || dateValue.equals(max)
+    }
+  }
+
+  override protected def isLessThanMinFunc: PartialFunction[Any, Boolean] = {
+    case dateValue: java.sql.Date if isSet => dateValue.before(min)
+  }
+
+  override protected def isGreaterThanMaxFunc: PartialFunction[Any, Boolean] = {
+    case dateValue: java.sql.Date if isSet => dateValue.after(max)
+  }
+
+  override protected def isEqualToMinFunc: PartialFunction[Any, Boolean] = {
+    case dateValue: java.sql.Date if isSet => dateValue.equals(min)
+  }
+
+  override protected def isEqualToMaxFunc: PartialFunction[Any, Boolean] = {
+    case dateValue: java.sql.Date if isSet => dateValue.equals(max)
+  }
+
+  override def getMin(): Any = if (isSet) min else null
+
+  override def getMax(): Any = if (isSet) max else null
+}
+
+/**
+ * [[TimestampColumnStatistics]] keep track of min/max/nulls for timestamp column, which is int96
+ * in Parquet, but passed into statistics as java.sql.Timestamp value. See `RecordContainer` for
+ * more information.
+ */
+case class TimestampColumnStatistics() extends ColumnStatistics {
+  private var min: java.sql.Timestamp = null
+  private var max: java.sql.Timestamp = null
+  private var isSet: Boolean = false
+
+  // When reading Parquet file values are stored as int96, which returned by container as Binary
+  override protected def updateMinMaxFunc: PartialFunction[Any, Unit] = {
+    case timeValue: java.sql.Timestamp => {
+      if (!isSet) {
+        min = timeValue
+        max = timeValue
+        isSet = true
+      } else {
+        if (min.after(timeValue)) min = timeValue
+        if (max.before(timeValue)) max = timeValue
+      }
+    }
+  }
+
+  override protected def containsFunc: PartialFunction[Any, Boolean] = {
+    case timeValue: java.sql.Timestamp if isSet => {
+      timeValue.after(min) && timeValue.before(max) ||
+        timeValue.equals(min) || timeValue.equals(max)
+    }
+  }
+
+  override protected def isLessThanMinFunc: PartialFunction[Any, Boolean] = {
+    case timeValue: java.sql.Timestamp if isSet => timeValue.before(min)
+  }
+
+  override protected def isGreaterThanMaxFunc: PartialFunction[Any, Boolean] = {
+    case timeValue: java.sql.Timestamp if isSet => timeValue.after(max)
+  }
+
+  override protected def isEqualToMinFunc: PartialFunction[Any, Boolean] = {
+    case timeValue: java.sql.Timestamp if isSet => timeValue.equals(min)
+  }
+
+  override protected def isEqualToMaxFunc: PartialFunction[Any, Boolean] = {
+    case timeValue: java.sql.Timestamp if isSet => timeValue.equals(max)
+  }
+
+  override def getMin(): Any = if (isSet) min else null
+
+  override def getMax(): Any = if (isSet) max else null
 }

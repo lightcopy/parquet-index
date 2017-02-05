@@ -23,6 +23,7 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 
 import org.apache.spark.SparkConf
 import org.apache.spark.serializer.KryoSerializer
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.util.sketch.BloomFilter
 
 /**
@@ -167,9 +168,23 @@ case class BloomFilterStatistics(numRows: Long = 1024L) extends ColumnFilterStat
     }
   @transient private var hasLoadedData: Boolean = false
 
-  override def update(value: Any): Unit = bloomFilter.put(value)
+  override def update(value: Any): Unit = value match {
+    case date: java.sql.Date =>
+      bloomFilter.put(DateTimeUtils.fromJavaDate(date))
+    case time: java.sql.Timestamp =>
+      bloomFilter.put(DateTimeUtils.fromJavaTimestamp(time))
+    case _ =>
+      bloomFilter.put(value)
+  }
 
-  override def mightContain(value: Any): Boolean = bloomFilter.mightContain(value)
+  override def mightContain(value: Any): Boolean = value match {
+    case date: java.sql.Date =>
+      bloomFilter.mightContain(DateTimeUtils.fromJavaDate(date))
+    case time: java.sql.Timestamp =>
+      bloomFilter.mightContain(DateTimeUtils.fromJavaTimestamp(time))
+    case _ =>
+      bloomFilter.mightContain(value)
+  }
 
   override protected def needToReadData(): Boolean = !hasLoadedData
 

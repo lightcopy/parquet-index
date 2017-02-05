@@ -112,6 +112,14 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
     filter.mightContain(1024L) should be (true)
   }
 
+  test("BloomFilterStatistics - supported types") {
+    for (i <- Seq(1, 1L, "abc", new java.sql.Date(1L), new java.sql.Timestamp(1L))) {
+      val filter = BloomFilterStatistics()
+      filter.update(i)
+      filter.mightContain(i) should be (true)
+    }
+  }
+
   test("BloomFilterStatistics - unsupported types") {
     val filter = BloomFilterStatistics()
     // boolean is not supported by bloom filter
@@ -230,6 +238,14 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
     filter.mightContain("abc") should be (false)
     filter.mightContain(true) should be (false)
     filter.mightContain(1024L) should be (false)
+  }
+
+  test("DictionaryFilterStatistics - supported types") {
+    for (i <- Seq(1, 1L, "abc", new java.sql.Date(1L), new java.sql.Timestamp(1L))) {
+      val filter = DictionaryFilterStatistics()
+      filter.update(i)
+      filter.mightContain(i) should be (true)
+    }
   }
 
   test("DictionaryFilterStatistics - mightContain on empty filter") {
