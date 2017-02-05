@@ -367,12 +367,12 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         import sqlContext.implicits._
         val df = Seq(
           (new java.sql.Date(200000000L), new java.sql.Timestamp(110000000000L), "abc", 1),
-          (new java.sql.Date(300000000L), new java.sql.Timestamp(220000000000L), "abc", 1),
-          (new java.sql.Date(400000000L), new java.sql.Timestamp(330000000000L), "abc", 1)
+          (new java.sql.Date(300000000L), new java.sql.Timestamp(220000000000L), "def", 2),
+          (new java.sql.Date(400000000L), new java.sql.Timestamp(330000000000L), "ghi", 3)
         ).toDF("col1", "col2", "col3", "col4")
         df.write.parquet(dir.toString / "test")
 
-        spark.index.create.indexBy("col1").parquet(dir.toString / "test")
+        spark.index.create.indexBy("col1", "col2").parquet(dir.toString / "test")
         val df1 = spark.index.parquet(dir.toString / "test").filter(
           col("col1") === new java.sql.Date(300000000L) ||
           col("col2") === new java.sql.Timestamp(330000000000L))
@@ -394,12 +394,12 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         import sqlContext.implicits._
         val df = Seq(
           (new java.sql.Date(200000000L), new java.sql.Timestamp(110000000000L), "abc", 1),
-          (new java.sql.Date(300000000L), new java.sql.Timestamp(220000000000L), "abc", 1),
-          (new java.sql.Date(400000000L), new java.sql.Timestamp(330000000000L), "abc", 1)
+          (new java.sql.Date(300000000L), new java.sql.Timestamp(220000000000L), "def", 2),
+          (new java.sql.Date(400000000L), new java.sql.Timestamp(330000000000L), "ghi", 3)
         ).toDF("col1", "col2", "col3", "col4")
         df.write.parquet(dir.toString / "test")
 
-        spark.index.create.indexBy("col1").parquet(dir.toString / "test")
+        spark.index.create.indexBy("col1", "col2").parquet(dir.toString / "test")
         val df1 = spark.index.parquet(dir.toString / "test").filter(
           col("col1") > new java.sql.Date(300000000L) &&
           col("col2") >= new java.sql.Timestamp(330000000000L))
@@ -551,12 +551,12 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         import sqlContext.implicits._
         val df = Seq(
           (new java.sql.Date(200000000L), new java.sql.Timestamp(110000000000L), "abc", 1),
-          (new java.sql.Date(300000000L), new java.sql.Timestamp(220000000000L), "abc", 1),
-          (new java.sql.Date(400000000L), new java.sql.Timestamp(330000000000L), "abc", 1)
+          (new java.sql.Date(300000000L), new java.sql.Timestamp(220000000000L), "def", 2),
+          (new java.sql.Date(400000000L), new java.sql.Timestamp(330000000000L), "ghi", 3)
         ).toDF("col1", "col2", "col3", "col4")
         df.write.parquet(dir.toString / "test")
 
-        spark.index.create.indexBy("col1").parquet(dir.toString / "test")
+        spark.index.create.indexBy("col1", "col2").parquet(dir.toString / "test")
         val df1 = spark.index.parquet(dir.toString / "test").filter(
           col("col1") === new java.sql.Date(300000000L) ||
           col("col2") === new java.sql.Timestamp(330000000000L))
@@ -578,12 +578,12 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         import sqlContext.implicits._
         val df = Seq(
           (new java.sql.Date(200000000L), new java.sql.Timestamp(110000000000L), "abc", 1),
-          (new java.sql.Date(300000000L), new java.sql.Timestamp(220000000000L), "abc", 1),
-          (new java.sql.Date(400000000L), new java.sql.Timestamp(330000000000L), "abc", 1)
+          (new java.sql.Date(300000000L), new java.sql.Timestamp(220000000000L), "def", 2),
+          (new java.sql.Date(400000000L), new java.sql.Timestamp(330000000000L), "ghi", 3)
         ).toDF("col1", "col2", "col3", "col4")
         df.write.parquet(dir.toString / "test")
 
-        spark.index.create.indexBy("col1").parquet(dir.toString / "test")
+        spark.index.create.indexBy("col1", "col2").parquet(dir.toString / "test")
         val df1 = spark.index.parquet(dir.toString / "test").filter(
           col("col1") > new java.sql.Date(300000000L) &&
           col("col2") >= new java.sql.Timestamp(330000000000L))
