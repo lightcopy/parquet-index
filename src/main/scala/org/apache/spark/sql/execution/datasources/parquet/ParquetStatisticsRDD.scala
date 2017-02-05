@@ -19,6 +19,7 @@ package org.apache.spark.sql.execution.datasources.parquet
 import java.util.UUID
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.{HashMap => MutableMap}
 import scala.reflect.ClassTag
 
 import org.apache.hadoop.conf.Configuration
@@ -93,6 +94,29 @@ class ParquetStatisticsRDD(
     }.toArray
   }
 
+  override def getPreferredLocations(split: Partition): Seq[String] = {
+    // Adapted from `FileScanRDD` - collect bytes per host to determine preferred locations,
+    // based on pull request https://github.com/apache/spark/pull/12527
+    val statuses = split.asInstanceOf[ParquetStatisticsPartition].values
+    // Computes total number of bytes can be retrieved from each host.
+    val hostToNumBytes = new MutableMap[String, Long]()
+    statuses.foreach { status =>
+      status.blockLocations.foreach { block =>
+        // Refer to mentioned above PR for a reason of filtering out localhost
+        block.hosts.filter(_ != "localhost").foreach { host =>
+          hostToNumBytes.put(host, hostToNumBytes.getOrElse(host, 0L) + block.length)
+        }
+      }
+    }
+    // Sort in descending order by number of bytes.
+    // Take first 3 hosts with the most data to be retrieved
+    hostToNumBytes.toSeq.sortBy {
+      case (host, numBytes) => -numBytes
+    }.take(3).map {
+      case (host, numBytes) => host
+    }
+  }
+
   override def compute(split: Partition, context: TaskContext): Iterator[ParquetFileStatus] = {
     val configuration = hadoopConfiguration
     val fs = FileSystem.get(configuration)
@@ -131,7 +155,10 @@ class ParquetStatisticsRDD(
       override def next(): ParquetFileStatus = {
         val serdeStatus = iter.next
         val parquetStatus = SerializableFileStatus.toFileStatus(serdeStatus)
-        logDebug(s"Reading file ${parquetStatus.getPath}")
+        // extract hosts for status block locations
+        val statusHosts = serdeStatus.blockLocations.flatMap(_.hosts).distinct
+        logDebug(s"Reading file ${parquetStatus.getPath}, " +
+          s"locations ${statusHosts.mkString("[", ", ", "]")}")
         val attemptContext = ParquetStatisticsRDD.taskAttemptContext(configuration)
         // read metadata from the file footer
         val metadata = ParquetFileReader.readFooter(configuration, parquetStatus, NO_FILTER)
@@ -167,8 +194,7 @@ class ParquetStatisticsRDD(
         // blocks can be empty for empty Parquet file, in this case we just skip the reader step
         val blockMetadata: Array[ParquetBlockMetadata] = if (blocks.nonEmpty) {
           // create reader and run statistics using blocks
-          // TODO: pass locations from file status, currently it is an empty array
-          val split = new FileSplit(parquetStatus.getPath, 0, parquetStatus.getLen, Array.empty)
+          val split = new FileSplit(parquetStatus.getPath, 0, parquetStatus.getLen, statusHosts)
           val parquetSplit = new ParquetInputSplit(split.getPath, split.getStart,
             split.getStart + split.getLength, split.getLength, split.getLocations, null)
           // make index schema to be available for record reader
