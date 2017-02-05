@@ -61,11 +61,24 @@ object IndexSourceStrategy extends Strategy with Logging {
       logInfo(s"Pruning directories with: ${partitionKeyFilters.mkString(",")}")
 
       // Resolve index schema and extract index filters
+      // Filters will only be applied for indexed columns that allow predicate to be separately
+      // evaluated for those columns, e.g. And(Eq(col1, value1), Eq(col2, value2)), when all
+      // columns in Or are indexed.
+      // In the case when filter cannot be split, for example, when filter is
+      // Or(Eq(col1, value1), Eq(col2, value2)) and index exists only on one of the columns (col1),
+      // selected filters will be empty, otherwise Or evaluation would be incomplete.
       val indexColumns = l.resolve(catalog.indexSchema, resolver)
       val indexSet = AttributeSet(indexColumns)
       val indexFilters = normalizedFilters.filter(_.references.subsetOf(indexSet)).
         flatMap(DataSourceStrategy.translateFilter)
       logInfo(s"Applying index filters: ${indexFilters.mkString(",")}")
+      if (indexFilters.isEmpty) {
+        logWarning(s"Cannot extract predicate for indexed columns $indexColumns from normalized " +
+          s"filters $normalizedFilters, predicate will have to be evaluated as part of scan. " +
+          "Try to index all columns that appear in normalized filters and/or update predicate " +
+          "to use indexed columns in combination with other filters using 'And'; when using " +
+          "'Or' make sure that both branches contain indexed columns")
+      }
 
       // select relevant partitions based on index filters and partition keys
       val selectedPartitions =
