@@ -16,6 +16,8 @@
 
 package org.apache.spark.sql.sources
 
+import java.sql.{Date => SQLDate, Timestamp => SQLTimestamp}
+
 import org.apache.spark.sql.types._
 
 import com.github.lightcopy.testutil.UnitTestSuite
@@ -26,6 +28,8 @@ class ColumnStatisticsSuite extends UnitTestSuite {
     ColumnStatistics.getStatisticsForType(IntegerType) should be (IntColumnStatistics())
     ColumnStatistics.getStatisticsForType(LongType) should be (LongColumnStatistics())
     ColumnStatistics.getStatisticsForType(StringType) should be (StringColumnStatistics())
+    ColumnStatistics.getStatisticsForType(DateType) should be (DateColumnStatistics())
+    ColumnStatistics.getStatisticsForType(TimestampType) should be (TimestampColumnStatistics())
   }
 
   test("ColumnStatistics - getStatisticsForType, fail for invalid numeric type") {
@@ -36,18 +40,6 @@ class ColumnStatisticsSuite extends UnitTestSuite {
 
     err = intercept[UnsupportedOperationException] {
       ColumnStatistics.getStatisticsForType(ByteType)
-    }
-    assert(err.getMessage.contains("Column statistics do not exist for type"))
-  }
-
-  test("ColumnStatistics - getStatisticsForType, fail for date type") {
-    var err = intercept[UnsupportedOperationException] {
-      ColumnStatistics.getStatisticsForType(DateType)
-    }
-    assert(err.getMessage.contains("Column statistics do not exist for type"))
-
-    err = intercept[UnsupportedOperationException] {
-      ColumnStatistics.getStatisticsForType(TimestampType)
     }
     assert(err.getMessage.contains("Column statistics do not exist for type"))
   }
@@ -64,7 +56,10 @@ class ColumnStatisticsSuite extends UnitTestSuite {
     assert(err.getMessage.contains("Column statistics do not exist for type"))
   }
 
+  //////////////////////////////////////////////////////////////
   // == IntColumnStatistics ==
+  //////////////////////////////////////////////////////////////
+
   test("IntColumnStatistics - initialize nulls") {
     val stats = IntColumnStatistics()
     stats.getNumNulls should be (0)
@@ -125,11 +120,12 @@ class ColumnStatisticsSuite extends UnitTestSuite {
 
   test("IntColumnStatistics - update statistics with wrong types") {
     val stats = IntColumnStatistics()
-    for (x <- Seq("abc", null, 1L, Array(1, 2, 3), 123)) {
-      stats.updateMinMax(x)
+    for (x <- Seq("abc", null, 1L, Array(1, 2, 3))) {
+      val err = intercept[IllegalArgumentException] {
+        stats.updateMinMax(x)
+      }
+      assert(err.getMessage.contains("does not support value"))
     }
-    assert(stats.getMin === 123)
-    assert(stats.getMax === 123)
   }
 
   test("IntColumnStatistics - contains") {
@@ -355,11 +351,12 @@ class ColumnStatisticsSuite extends UnitTestSuite {
 
   test("LongColumnStatistics - update statistics with wrong types") {
     val stats = LongColumnStatistics()
-    for (x <- Seq("abc", null, 1, Array(1, 2, 3), 321L)) {
-      stats.updateMinMax(x)
+    for (x <- Seq("abc", null, 1, Array(1, 2, 3))) {
+      val err = intercept[IllegalArgumentException] {
+        stats.updateMinMax(x)
+      }
+      assert(err.getMessage.contains("does not support value"))
     }
-    assert(stats.getMin === 321L)
-    assert(stats.getMax === 321L)
   }
 
   test("LongColumnStatistics - toString") {
@@ -609,11 +606,12 @@ class ColumnStatisticsSuite extends UnitTestSuite {
 
   test("StringColumnStatistics - update statistics with wrong types") {
     val stats = StringColumnStatistics()
-    for (x <- Seq(1, null, 1L, Array(1, 2, 3), 123, "abc")) {
-      stats.updateMinMax(x)
+    for (x <- Seq(1, null, 1L, Array(1, 2, 3), 123)) {
+      val err = intercept[IllegalArgumentException] {
+        stats.updateMinMax(x)
+      }
+      assert(err.getMessage.contains("does not support value"))
     }
-    assert(stats.getMin === "abc")
-    assert(stats.getMax === "abc")
   }
 
   test("StringColumnStatistics - toString") {
@@ -809,5 +807,489 @@ class ColumnStatisticsSuite extends UnitTestSuite {
 
     stats.isEqualToMax(1L) should be (false)
     stats.isEqualToMax(Array(1, 2, 3)) should be (false)
+  }
+
+  //////////////////////////////////////////////////////////////
+  // == DateColumnStatistics ==
+  //////////////////////////////////////////////////////////////
+
+  test("DateColumnStatistics - initialize nulls") {
+    val stats = DateColumnStatistics()
+    stats.getNumNulls should be (0)
+    stats.hasNull should be (false)
+  }
+
+  test("DateColumnStatistics - increment nulls") {
+    val stats = DateColumnStatistics()
+    stats.incrementNumNulls()
+    stats.getNumNulls should be (1)
+    stats.hasNull should be (true)
+
+    stats.incrementNumNulls()
+    stats.getNumNulls should be (2)
+    stats.hasNull should be (true)
+  }
+
+  test("DateColumnStatistics - getMin/getMax when not set") {
+    val stats = DateColumnStatistics()
+    assert(stats.getMin === null)
+    assert(stats.getMax === null)
+  }
+
+  test("DateColumnStatistics - update statistics when not set") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(1L))
+    assert(stats.getMin === new SQLDate(1L))
+    assert(stats.getMax === new SQLDate(1L))
+  }
+
+  test("DateColumnStatistics - update statistics when set") {
+    val stats = DateColumnStatistics()
+    for (x <- Seq(new SQLDate(2L), new SQLDate(1L), new SQLDate(3L))) {
+      stats.updateMinMax(x)
+    }
+    assert(stats.getMin === new SQLDate(1L))
+    assert(stats.getMax === new SQLDate(3L))
+  }
+
+  test("DateColumnStatistics - update statistics with wrong types") {
+    val stats = DateColumnStatistics()
+    for (x <- Seq(1, null, 1L, Array(1, 2, 3), 123, "1990-01-01")) {
+      val err = intercept[IllegalArgumentException] {
+        stats.updateMinMax(x)
+      }
+      assert(err.getMessage.contains("does not support value"))
+    }
+  }
+
+  test("DateColumnStatistics - toString") {
+    val stats = DateColumnStatistics()
+    stats.toString should be ("DateColumnStatistics[min=null, max=null, nulls=0]")
+
+    stats.updateMinMax(new SQLDate(1L))
+    stats.incrementNumNulls()
+    stats.toString should be ("DateColumnStatistics[min=1970-01-01, max=1970-01-01, nulls=1]")
+  }
+
+  test("DateColumnStatistics - contains") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(1L))
+    stats.updateMinMax(new SQLDate(3L))
+    stats.incrementNumNulls()
+
+    // different contains checks
+    stats.contains(new SQLDate(1L)) should be (true)
+    stats.contains(new SQLDate(2L)) should be (true)
+    stats.contains(new SQLDate(3L)) should be (true)
+    stats.contains(new SQLDate(0L)) should be (false)
+    stats.contains(new SQLDate(4L)) should be (false)
+  }
+
+  test("DateColumnStatistics - contains nulls") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(1L))
+
+    stats.contains(null) should be (false)
+    stats.incrementNumNulls()
+    stats.contains(null) should be (true)
+  }
+
+  test("DateColumnStatistics - contains nulls when not initialized") {
+    val stats = DateColumnStatistics()
+    stats.contains(null) should be (false)
+    stats.incrementNumNulls()
+    stats.contains(null) should be (true)
+  }
+
+  test("DateColumnStatistics - contains other types") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(1L))
+    stats.incrementNumNulls()
+
+    stats.contains(Long.MinValue) should be (false)
+    stats.contains(Int.MinValue) should be (false)
+    stats.contains(Int.MaxValue) should be (false)
+    stats.contains(Long.MaxValue) should be (false)
+    stats.contains(Array(1, 2, 3)) should be (false)
+    stats.contains(true) should be (false)
+    stats.contains(false) should be (false)
+    stats.contains("1990-01-01") should be (false)
+  }
+
+  // date statistics - isLessThanMin
+
+  test("DateColumnStatistics - isLessThanMin") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+    stats.incrementNumNulls()
+
+    stats.isLessThanMin(new SQLDate(1L)) should be (true)
+    stats.isLessThanMin(new SQLDate(2L)) should be (false)
+    stats.isLessThanMin(new SQLDate(3L)) should be (false)
+    stats.isLessThanMin(new SQLDate(4L)) should be (false)
+    stats.isLessThanMin(new SQLDate(5L)) should be (false)
+  }
+
+  test("DateColumnStatistics - isLessThanMin, null") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+
+    stats.isLessThanMin(null) should be (false)
+    stats.incrementNumNulls()
+    stats.isLessThanMin(null) should be (false)
+  }
+
+  test("DateColumnStatistics - isLessThanMin, other types") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+    stats.incrementNumNulls()
+
+    stats.isLessThanMin(1L) should be (false)
+    stats.isLessThanMin("1960-01-01") should be (false)
+  }
+
+  // date statistics - isEqualToMin
+
+  test("DateColumnStatistics - isEqualToMin") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+    stats.incrementNumNulls()
+
+    stats.isEqualToMin(new SQLDate(2L)) should be (true)
+    stats.isEqualToMin(new SQLDate(4L)) should be (false)
+  }
+
+  test("DateColumnStatistics - isEqualToMin, null") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+
+    stats.isEqualToMin(null) should be (false)
+    stats.incrementNumNulls()
+    stats.isEqualToMin(null) should be (false)
+  }
+
+  test("DateColumnStatistics - isEqualToMin, other types") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+    stats.incrementNumNulls()
+
+    stats.isEqualToMin(2L) should be (false)
+    stats.isEqualToMin("1970-01-01") should be (false)
+  }
+
+  // date statistics - isGreaterThanMax
+
+  test("DateColumnStatistics - isGreaterThanMax") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+    stats.incrementNumNulls()
+
+    stats.isGreaterThanMax(new SQLDate(5L)) should be (true)
+    stats.isGreaterThanMax(new SQLDate(2L)) should be (false)
+    stats.isGreaterThanMax(new SQLDate(3L)) should be (false)
+    stats.isGreaterThanMax(new SQLDate(4L)) should be (false)
+  }
+
+  test("DateColumnStatistics - isGreaterThanMax, null") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+
+    stats.isGreaterThanMax(null) should be (false)
+    stats.incrementNumNulls()
+    stats.isGreaterThanMax(null) should be (false)
+  }
+
+  test("DateColumnStatistics - isGreaterThanMax, other types") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+    stats.incrementNumNulls()
+
+    stats.isGreaterThanMax(1L) should be (false)
+    stats.isGreaterThanMax("1990-01-01") should be (false)
+  }
+
+  // date statistics - isEqualToMax
+
+  test("DateColumnStatistics - isEqualToMax") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+    stats.incrementNumNulls()
+
+    stats.isEqualToMax(new SQLDate(2L)) should be (false)
+    stats.isEqualToMax(new SQLDate(3L)) should be (false)
+    stats.isEqualToMax(new SQLDate(4L)) should be (true)
+  }
+
+  test("DateColumnStatistics - isEqualToMax, null") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+
+    stats.isEqualToMax(null) should be (false)
+    stats.incrementNumNulls()
+    stats.isEqualToMax(null) should be (false)
+  }
+
+  test("DateColumnStatistics - isEqualToMax, other types") {
+    val stats = DateColumnStatistics()
+    stats.updateMinMax(new SQLDate(2L))
+    stats.updateMinMax(new SQLDate(4L))
+    stats.incrementNumNulls()
+
+    stats.isEqualToMax(1L) should be (false)
+    stats.isEqualToMax("1990-01-01") should be (false)
+  }
+
+  //////////////////////////////////////////////////////////////
+  // == TimestampColumnStatistics ==
+  //////////////////////////////////////////////////////////////
+
+  test("TimestampColumnStatistics - initialize nulls") {
+    val stats = TimestampColumnStatistics()
+    stats.getNumNulls should be (0)
+    stats.hasNull should be (false)
+  }
+
+  test("TimestampColumnStatistics - increment nulls") {
+    val stats = TimestampColumnStatistics()
+    stats.incrementNumNulls()
+    stats.getNumNulls should be (1)
+    stats.hasNull should be (true)
+
+    stats.incrementNumNulls()
+    stats.getNumNulls should be (2)
+    stats.hasNull should be (true)
+  }
+
+  test("TimestampColumnStatistics - getMin/getMax when not set") {
+    val stats = TimestampColumnStatistics()
+    assert(stats.getMin === null)
+    assert(stats.getMax === null)
+  }
+
+  test("TimestampColumnStatistics - update statistics when not set") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(1L))
+    assert(stats.getMin === new SQLTimestamp(1L))
+    assert(stats.getMax === new SQLTimestamp(1L))
+  }
+
+  test("TimestampColumnStatistics - update statistics when set") {
+    val stats = TimestampColumnStatistics()
+    for (x <- Seq(new SQLTimestamp(2L), new SQLTimestamp(1L), new SQLTimestamp(3L))) {
+      stats.updateMinMax(x)
+    }
+    assert(stats.getMin === new SQLTimestamp(1L))
+    assert(stats.getMax === new SQLTimestamp(3L))
+  }
+
+  test("TimestampColumnStatistics - update statistics with wrong types") {
+    val stats = TimestampColumnStatistics()
+    for (x <- Seq(1, null, 1L, Array(1, 2, 3), 123, "1990-01-01 00:00:00")) {
+      val err = intercept[IllegalArgumentException] {
+        stats.updateMinMax(x)
+      }
+      assert(err.getMessage.contains("does not support value"))
+    }
+  }
+
+  test("TimestampColumnStatistics - toString") {
+    val stats = TimestampColumnStatistics()
+    stats.toString should be ("TimestampColumnStatistics[min=null, max=null, nulls=0]")
+
+    stats.updateMinMax(new SQLTimestamp(1L))
+    stats.incrementNumNulls()
+    val expected = "TimestampColumnStatistics[min=1970-01-01 12:00:00.001, " +
+      "max=1970-01-01 12:00:00.001, nulls=1]"
+    stats.toString should be (expected)
+  }
+
+  test("TimestampColumnStatistics - contains") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(1L))
+    stats.updateMinMax(new SQLTimestamp(3L))
+    stats.incrementNumNulls()
+
+    // different contains checks
+    stats.contains(new SQLTimestamp(1L)) should be (true)
+    stats.contains(new SQLTimestamp(2L)) should be (true)
+    stats.contains(new SQLTimestamp(3L)) should be (true)
+    stats.contains(new SQLTimestamp(0L)) should be (false)
+    stats.contains(new SQLTimestamp(4L)) should be (false)
+  }
+
+  test("TimestampColumnStatistics - contains nulls") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(1L))
+
+    stats.contains(null) should be (false)
+    stats.incrementNumNulls()
+    stats.contains(null) should be (true)
+  }
+
+  test("TimestampColumnStatistics - contains nulls when not initialized") {
+    val stats = TimestampColumnStatistics()
+    stats.contains(null) should be (false)
+    stats.incrementNumNulls()
+    stats.contains(null) should be (true)
+  }
+
+  test("TimestampColumnStatistics - contains other types") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(1L))
+    stats.incrementNumNulls()
+
+    stats.contains(Long.MinValue) should be (false)
+    stats.contains(Int.MinValue) should be (false)
+    stats.contains(Int.MaxValue) should be (false)
+    stats.contains(Long.MaxValue) should be (false)
+    stats.contains(Array(1, 2, 3)) should be (false)
+    stats.contains(true) should be (false)
+    stats.contains(false) should be (false)
+    stats.contains("1990-01-01 00:00:00") should be (false)
+  }
+
+  // timestamp statistics - isLessThanMin
+
+  test("TimestampColumnStatistics - isLessThanMin") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+    stats.incrementNumNulls()
+
+    stats.isLessThanMin(new SQLTimestamp(1L)) should be (true)
+    stats.isLessThanMin(new SQLTimestamp(2L)) should be (false)
+    stats.isLessThanMin(new SQLTimestamp(3L)) should be (false)
+    stats.isLessThanMin(new SQLTimestamp(4L)) should be (false)
+    stats.isLessThanMin(new SQLTimestamp(5L)) should be (false)
+  }
+
+  test("TimestampColumnStatistics - isLessThanMin, null") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+
+    stats.isLessThanMin(null) should be (false)
+    stats.incrementNumNulls()
+    stats.isLessThanMin(null) should be (false)
+  }
+
+  test("TimestampColumnStatistics - isLessThanMin, other types") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+    stats.incrementNumNulls()
+
+    stats.isLessThanMin(1L) should be (false)
+    stats.isLessThanMin("1960-01-01 00:00:00") should be (false)
+  }
+
+  // timestamp statistics - isEqualToMin
+
+  test("TimestampColumnStatistics - isEqualToMin") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+    stats.incrementNumNulls()
+
+    stats.isEqualToMin(new SQLTimestamp(2L)) should be (true)
+    stats.isEqualToMin(new SQLTimestamp(4L)) should be (false)
+  }
+
+  test("TimestampColumnStatistics - isEqualToMin, null") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+
+    stats.isEqualToMin(null) should be (false)
+    stats.incrementNumNulls()
+    stats.isEqualToMin(null) should be (false)
+  }
+
+  test("TimestampColumnStatistics - isEqualToMin, other types") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+    stats.incrementNumNulls()
+
+    stats.isEqualToMin(2L) should be (false)
+    stats.isEqualToMin("1970-01-01") should be (false)
+  }
+
+  // timestamp statistics - isGreaterThanMax
+
+  test("TimestampColumnStatistics - isGreaterThanMax") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+    stats.incrementNumNulls()
+
+    stats.isGreaterThanMax(new SQLTimestamp(5L)) should be (true)
+    stats.isGreaterThanMax(new SQLTimestamp(2L)) should be (false)
+    stats.isGreaterThanMax(new SQLTimestamp(3L)) should be (false)
+    stats.isGreaterThanMax(new SQLTimestamp(4L)) should be (false)
+  }
+
+  test("TimestampColumnStatistics - isGreaterThanMax, null") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+
+    stats.isGreaterThanMax(null) should be (false)
+    stats.incrementNumNulls()
+    stats.isGreaterThanMax(null) should be (false)
+  }
+
+  test("TimestampColumnStatistics - isGreaterThanMax, other types") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+    stats.incrementNumNulls()
+
+    stats.isGreaterThanMax(1L) should be (false)
+    stats.isGreaterThanMax("1990-01-01 00:00:00") should be (false)
+  }
+
+  // timestamp statistics - isEqualToMax
+
+  test("TimestampColumnStatistics - isEqualToMax") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+    stats.incrementNumNulls()
+
+    stats.isEqualToMax(new SQLTimestamp(2L)) should be (false)
+    stats.isEqualToMax(new SQLTimestamp(3L)) should be (false)
+    stats.isEqualToMax(new SQLTimestamp(4L)) should be (true)
+  }
+
+  test("TimestampColumnStatistics - isEqualToMax, null") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+
+    stats.isEqualToMax(null) should be (false)
+    stats.incrementNumNulls()
+    stats.isEqualToMax(null) should be (false)
+  }
+
+  test("TimestampColumnStatistics - isEqualToMax, other types") {
+    val stats = TimestampColumnStatistics()
+    stats.updateMinMax(new SQLTimestamp(2L))
+    stats.updateMinMax(new SQLTimestamp(4L))
+    stats.incrementNumNulls()
+
+    stats.isEqualToMax(1L) should be (false)
+    stats.isEqualToMax("1990-01-01 00:00:00") should be (false)
   }
 }
