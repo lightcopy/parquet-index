@@ -93,6 +93,16 @@ class ParquetIndexReadSupportSuite extends UnitTestSuite {
     container.getByIndex(0).isInstanceOf[java.sql.Date] should be (true)
   }
 
+  test("BufferRecordContainer - fail to parse Integer with unsupported Primitive Type") {
+    val container = new BufferRecordContainer()
+    container.init(numFields = 1)
+    val err = intercept[IllegalArgumentException] {
+      container.setParquetInteger(0, new PrimitiveType(REQUIRED, INT64, "a"), 1)
+    }
+    assert(err.getMessage.contains(
+      "Field required int64 a with value 1 at position 0 cannot be parsed as Parquet Integer"))
+  }
+
   test("BufferRecordContainer - set Parquet Integer type as Int") {
     val container = new BufferRecordContainer()
     container.init(numFields = 1)
