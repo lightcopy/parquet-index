@@ -54,22 +54,22 @@ Currently only these types are supported for indexed columns:
 | Spark version | `parquet-index` latest version |
 |---------------|--------------------------------|
 | 1.6.x | Not supported |
-| 2.0.0 | [0.2.0](http://spark-packages.org/package/lightcopy/parquet-index) |
-| 2.0.1 | [0.2.0](http://spark-packages.org/package/lightcopy/parquet-index) |
-| 2.0.2 | [0.2.0](http://spark-packages.org/package/lightcopy/parquet-index) |
+| 2.0.0 | [0.2.1](http://spark-packages.org/package/lightcopy/parquet-index) |
+| 2.0.1 | [0.2.1](http://spark-packages.org/package/lightcopy/parquet-index) |
+| 2.0.2 | [0.2.1](http://spark-packages.org/package/lightcopy/parquet-index) |
 | 2.1.x | Not supported |
 
 ## Linking
 The `parquet-index` package can be added to Spark by using the `--packages` command line option.
 For example, run this to include it when starting `spark-shell` (Scala 2.11.x):
 ```shell
- $SPARK_HOME/bin/spark-shell --packages lightcopy:parquet-index:0.2.0-s_2.11
+ $SPARK_HOME/bin/spark-shell --packages lightcopy:parquet-index:0.2.1-s_2.11
 ```
 Or for `pyspark` to use Python API (see section below):
 ```shell
-$SPARK_HOME/bin/pyspark --packages lightcopy:parquet-index:0.2.1-SNAPSHOT-s_2.11
+$SPARK_HOME/bin/pyspark --packages lightcopy:parquet-index:0.2.1-s_2.11
 ```
-Change to `lightcopy:parquet-index:0.2.0-s_2.10` for Scala 2.10.x
+Change to `lightcopy:parquet-index:0.2.1-s_2.10` for Scala 2.10.x
 
 ## Options
 Currently supported options, use `--conf key=value` on a command line to provide options similar to
