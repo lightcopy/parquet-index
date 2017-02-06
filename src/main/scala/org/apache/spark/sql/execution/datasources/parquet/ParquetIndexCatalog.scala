@@ -67,7 +67,11 @@ class ParquetIndexCatalog(
     val filteredPartitions = if (indexFilters.isEmpty) {
       selectedPartitions
     } else {
-      pruneIndexedPartitions(indexFilters, selectedPartitions)
+      val startTime = System.nanoTime
+      val indexedPartitions = pruneIndexedPartitions(indexFilters, selectedPartitions)
+      val endTime = System.nanoTime
+      logInfo(s"Partition selection with index filters took ${(endTime - startTime)/1e6} ms")
+      indexedPartitions
     }
 
     logDebug("Selected files after index filtering:\n\t" + filteredPartitions.mkString("\n\t"))
