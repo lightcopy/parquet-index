@@ -69,8 +69,9 @@ class ParquetIndexCatalog(
     } else {
       val startTime = System.nanoTime
       val indexedPartitions = pruneIndexedPartitions(indexFilters, selectedPartitions)
-      val endTime = System.nanoTime
-      logInfo(s"Partition selection with index filters took ${(endTime - startTime)/1e6} ms")
+      val endTime = System.nanoTime()
+      def timeMs: Double = (endTime - startTime).toDouble / 1000000
+      logInfo(s"Filtered indexed partitions in $timeMs ms")
       indexedPartitions
     }
 
