@@ -168,6 +168,9 @@ case class BloomFilterStatistics(numRows: Long = 1024L) extends ColumnFilterStat
     }
   @transient private var hasLoadedData: Boolean = false
 
+  // Read and check of dates should be consistent with reading java.sql.Date and java.sql.Timestamp
+  // Currently we use DateTimeUtils.toJavaDate in read container and DateTimeUtils.fromJavaDate to
+  // convert in bloom filter
   override def update(value: Any): Unit = value match {
     case date: java.sql.Date =>
       bloomFilter.put(DateTimeUtils.fromJavaDate(date))
@@ -177,6 +180,8 @@ case class BloomFilterStatistics(numRows: Long = 1024L) extends ColumnFilterStat
       bloomFilter.put(value)
   }
 
+  // Similar to `update` method, this should be consistent across filter statistics implementation
+  // and container code to read date/timestamp
   override def mightContain(value: Any): Boolean = value match {
     case date: java.sql.Date =>
       bloomFilter.mightContain(DateTimeUtils.fromJavaDate(date))
