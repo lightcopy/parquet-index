@@ -14,8 +14,8 @@ metastore instead of inferring schema every time datasource is created.
 
 > Project is **experimental and is in active development**. Any feedback, issues or PRs are welcome.
 
-> Documentation reflects changes in `master` branch, for a documentation for specific version,
-> please select version tag or branch.
+> Documentation reflects changes in `master` branch, for documentation on a specific version,
+> please select corresponding version tag or branch.
 
 ### Metastore
 Metastore keeps information about all indexed tables and can be created on local file system or HDFS
@@ -103,7 +103,7 @@ import com.github.lightcopy.implicits._
 // you can configure different options - see table above
 
 // All Spark SQL modes are available ('append', 'overwrite', 'ignore', 'error')
-// You can also use `.indexByAll` instead to choose all columns in schema that
+// You can also use `.indexByAll` to choose all columns in schema that
 // can be indexed
 spark.index.create.
   mode("overwrite").indexBy($"id", $"code").parquet("temp/codes.parquet")
