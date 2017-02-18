@@ -47,6 +47,98 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
     assert(err.getMessage.contains("Unsupported filter statistics type "))
   }
 
+  test("FilterStatisticsMetadata - init") {
+    val meta = new FilterStatisticsMetadata()
+    meta.enabled should be (false)
+  }
+
+  test("FilterStatisticsMetadata - setDirectory/getDirectory/getPath, fail for disabled") {
+    // set None as directory
+    val meta = new FilterStatisticsMetadata()
+    meta.setDirectory(None)
+    val err = intercept[IllegalArgumentException] {
+      meta.getDirectory()
+    }
+    assert(err.getMessage.contains("Failed to extract directory for disabled metadata"))
+  }
+
+  test("FilterStatisticsMetadata - setFilterType/getFilterType, fail for unsupported type") {
+    val meta = new FilterStatisticsMetadata()
+    meta.setFilterType(None)
+    var err = intercept[IllegalArgumentException] {
+      meta.getFilterType()
+    }
+    assert(err.getMessage.contains("Failed to extract filter type for disabled metadata"))
+
+    meta.setFilterType(Some("test"))
+    err = intercept[IllegalArgumentException] {
+      meta.getFilterType()
+    }
+    assert(err.getMessage.contains("Failed to extract filter type for disabled metadata"))
+  }
+
+  test("FilterStatisticsMetadata - setters and getters") {
+    withTempDir { dir =>
+      var status = fs.getFileStatus(dir)
+      val meta = new FilterStatisticsMetadata()
+      meta.setDirectory(Some(status))
+      meta.setFilterType(Some("bloom"))
+      meta.getDirectory() should be (status)
+      meta.getPath() should be (status.getPath)
+      meta.getFilterType() should be ("bloom")
+    }
+  }
+
+  test("FilterStatisticsMetadata - enabled, if directory and type are set") {
+    withTempDir { dir =>
+      var status = fs.getFileStatus(dir)
+      val meta = new FilterStatisticsMetadata()
+      meta.setDirectory(Some(status))
+      meta.setFilterType(Some("bloom"))
+      meta.enabled should be (true)
+    }
+  }
+
+  test("FilterStatisticsMetadata - disabled, if directory or type are not set") {
+    withTempDir { dir =>
+      var status = fs.getFileStatus(dir)
+      val meta = new FilterStatisticsMetadata()
+      meta.enabled should be (false)
+
+      meta.setDirectory(Some(status))
+      meta.setFilterType(None)
+      meta.enabled should be (false)
+
+      meta.setDirectory(None)
+      meta.setFilterType(Some("bloom"))
+      meta.enabled should be (false)
+
+      meta.setDirectory(Some(status))
+      meta.setFilterType(Some("bloom"))
+      meta.enabled should be (true)
+    }
+  }
+
+  test("FilterStatisticsMetadata - toString") {
+    withTempDir { dir =>
+      var status = fs.getFileStatus(dir)
+      val meta = new FilterStatisticsMetadata()
+      meta.toString should be ("(enabled=false, none)")
+
+      meta.setDirectory(Some(status))
+      meta.setFilterType(None)
+      meta.toString should be ("(enabled=false, none)")
+
+      meta.setDirectory(None)
+      meta.setFilterType(Some("bloom"))
+      meta.toString should be ("(enabled=false, none)")
+
+      meta.setDirectory(Some(status))
+      meta.setFilterType(Some("bloom"))
+      meta.toString should be (s"(enabled=true, directory=$status, type=bloom)")
+    }
+  }
+
   test("BloomFilterStatistics - initialize") {
     val filter = BloomFilterStatistics()
     filter.getNumRows should be (1024)

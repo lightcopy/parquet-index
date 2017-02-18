@@ -183,13 +183,14 @@ class FilterStatisticsMetadata {
   }
 
   /**
-   * Set filter type from provided option. If value is None, then filter type is set to null, which
-   * will result in disabled filter statistics. Type is validated for registered filters.
+   * Set filter type from provided option. If value is None or is not registered, then filter type
+   * is set to null, which will result in disabled filter statistics.
+   * Type is validated against registered filters.
    */
   def setFilterType(tpe: Option[String]) = tpe match {
     case Some(value) if ColumnFilterStatistics.REGISTERED_FILTERS.contains(value) =>
       filterType = value
-    case None =>
+    case other =>
       filterType = null
   }
 
