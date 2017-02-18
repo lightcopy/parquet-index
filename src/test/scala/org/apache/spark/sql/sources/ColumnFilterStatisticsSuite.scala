@@ -16,33 +16,46 @@
 
 package org.apache.spark.sql.sources
 
+import org.apache.spark.sql.types._
+
 import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
 
 class ColumnFilterStatisticsSuite extends UnitTestSuite {
-  test("ColumnFilterStatistics - classForName, select BloomFilterStatistics") {
-    ColumnFilterStatistics.classForName("bloom") should be (classOf[BloomFilterStatistics])
-    ColumnFilterStatistics.classForName("dict") should be (classOf[DictionaryFilterStatistics])
+  test("ColumnFilterStatistics - getColumnFilter for filter type and data type") {
+    ColumnFilterStatistics.getColumnFilter(StringType, ColumnFilterStatistics.BLOOM_FILTER_TYPE,
+      1L).getClass should be (classOf[BloomFilterStatistics])
+    ColumnFilterStatistics.getColumnFilter(LongType, ColumnFilterStatistics.BLOOM_FILTER_TYPE,
+      1L).getClass should be (classOf[BloomFilterStatistics])
+    ColumnFilterStatistics.getColumnFilter(IntegerType, ColumnFilterStatistics.BLOOM_FILTER_TYPE,
+      1L).getClass should be (classOf[BloomFilterStatistics])
+
+    ColumnFilterStatistics.getColumnFilter(StringType, ColumnFilterStatistics.DICT_FILTER_TYPE,
+      1L).getClass should be (classOf[DictionaryFilterStatistics])
+    ColumnFilterStatistics.getColumnFilter(LongType, ColumnFilterStatistics.DICT_FILTER_TYPE,
+      1L).getClass should be (classOf[DictionaryFilterStatistics])
+    ColumnFilterStatistics.getColumnFilter(IntegerType, ColumnFilterStatistics.DICT_FILTER_TYPE,
+      1L).getClass should be (classOf[BitmapFilterStatistics])
   }
 
-  test("ColumnFilterStatistics - classForName, throw error if name is not registered") {
+  test("ColumnFilterStatistics - getColumnFilter, throw error if name is not registered") {
     var err = intercept[RuntimeException] {
-      ColumnFilterStatistics.classForName("BLOOM")
+      ColumnFilterStatistics.getColumnFilter(StringType, "BLOOM", 1L)
     }
     assert(err.getMessage.contains("Unsupported filter statistics type BLOOM"))
 
     err = intercept[RuntimeException] {
-      ColumnFilterStatistics.classForName("DICT")
+      ColumnFilterStatistics.getColumnFilter(StringType, "DICT", 1L)
     }
     assert(err.getMessage.contains("Unsupported filter statistics type DICT"))
 
     err = intercept[RuntimeException] {
-      ColumnFilterStatistics.classForName("test")
+      ColumnFilterStatistics.getColumnFilter(StringType, "test", 1L)
     }
     assert(err.getMessage.contains("Unsupported filter statistics type test"))
 
     err = intercept[RuntimeException] {
-      ColumnFilterStatistics.classForName("")
+      ColumnFilterStatistics.getColumnFilter(StringType, "", 1L)
     }
     assert(err.getMessage.contains("Unsupported filter statistics type "))
   }

@@ -156,35 +156,27 @@ abstract class ColumnFilterStatistics extends Serializable {
 }
 
 object ColumnFilterStatistics {
+  val BLOOM_FILTER_TYPE = "bloom"
+  val DICT_FILTER_TYPE = "dict"
   // Registered classes of filter statistics, key is a short name used in configuration
-  val REGISTERED_FILTERS = Map(
-    "bloom" -> classOf[BloomFilterStatistics],
-    "dict" -> classOf[DictionaryFilterStatistics])
-
-  /**
-   * Get [[ColumnFilterStatistics]] class for short name, used for selecting filter type in
-   * configuration. If short name is not found, throws runtime exception; note that name string is
-   * not modified to find a match (compared as is).
-   */
-  def classForName(name: String): Class[_] = {
-    REGISTERED_FILTERS.getOrElse(name, sys.error(
-      s"Unsupported filter statistics type $name, must be one of " +
-      s"${REGISTERED_FILTERS.keys.mkString("[", ", ", "]")}"))
-  }
+  val REGISTERED_FILTERS = Seq(BLOOM_FILTER_TYPE, DICT_FILTER_TYPE)
 
   /** Get column filter for provided filter type and date type */
   def getColumnFilter(
       dataType: DataType,
       filterType: String,
       blockRowCount: Long): ColumnFilterStatistics = {
-    classForName(filterType) match {
-      case clazz if clazz == classOf[BloomFilterStatistics] =>
+    filterType match {
+      case BLOOM_FILTER_TYPE =>
         BloomFilterStatistics(blockRowCount)
-      case clazz if clazz == classOf[DictionaryFilterStatistics] =>
+      case DICT_FILTER_TYPE =>
         dataType match {
           case IntegerType => BitmapFilterStatistics()
           case _ => DictionaryFilterStatistics()
         }
+      case other =>
+        sys.error(s"Unsupported filter statistics type $other, must be one of " +
+          s"${REGISTERED_FILTERS.mkString("[", ", ", "]")}")
     }
   }
 }
