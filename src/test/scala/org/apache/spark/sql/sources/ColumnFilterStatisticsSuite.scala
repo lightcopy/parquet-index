@@ -412,4 +412,129 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
       filter2.mightContain(1) should be (true)
     }
   }
+
+  test("BitmapFilterStatistics - initialize") {
+    val filter = BitmapFilterStatistics()
+    filter.isLoaded should be (false)
+  }
+
+  test("BitmapFilterStatistics - toString") {
+    val filter = BitmapFilterStatistics()
+    filter.toString should be ("BitmapFilterStatistics")
+  }
+
+  test("BitmapFilterStatistics - setPath/getPath") {
+    withTempDir { dir =>
+      val filter = BitmapFilterStatistics()
+      filter.setPath(dir)
+      filter.getPath should be (dir)
+    }
+  }
+
+  test("BitmapFilterStatistics - fail to set null path") {
+    val filter = BitmapFilterStatistics()
+    intercept[IllegalArgumentException] {
+      filter.setPath(null)
+    }
+  }
+
+  test("BitmapFilterStatistics - fail to extract path before it is set") {
+    val filter = BitmapFilterStatistics()
+    intercept[IllegalArgumentException] {
+      filter.getPath
+    }
+  }
+
+  test("BitmapFilterStatistics - update/mightContain") {
+    val filter = BitmapFilterStatistics()
+    for (i <- 1 to 1024) {
+      filter.update(i)
+    }
+    filter.mightContain(1) should be (true)
+    filter.mightContain(1024) should be (true)
+    filter.mightContain(1025) should be (false)
+  }
+
+  test("BitmapFilterStatistics - unsupported types") {
+    val filter = BitmapFilterStatistics()
+    var err = intercept[UnsupportedOperationException] {
+      filter.mightContain(true)
+    }
+    assert(err.getMessage.contains("BitmapFilterStatistics does not support value true"))
+
+    err = intercept[UnsupportedOperationException] {
+      filter.mightContain("abc")
+    }
+    assert(err.getMessage.contains("BitmapFilterStatistics does not support value abc"))
+
+    err = intercept[UnsupportedOperationException] {
+      filter.mightContain(1L)
+    }
+    assert(err.getMessage.contains("BitmapFilterStatistics does not support value 1"))
+  }
+
+  test("BitmapFilterStatistics - mightContain on empty filter") {
+    val filter = BitmapFilterStatistics()
+    filter.mightContain(1) should be (false)
+    filter.mightContain(1024) should be (false)
+    filter.mightContain(1025) should be (false)
+  }
+
+  test("BitmapFilterStatistics - writeData/readData") {
+    withTempDir { dir =>
+      val filter = BitmapFilterStatistics()
+      for (i <- 1 to 1024) {
+        filter.update(i)
+      }
+      filter.setPath(dir / "filter")
+      filter.writeData(fs)
+
+      fs.exists(filter.getPath) should be (true)
+
+      val filter2 = BitmapFilterStatistics()
+      filter2.setPath(dir / "filter")
+      filter2.readData(fs)
+      filter2.isLoaded should be (true)
+
+      filter2.mightContain(1) should be (true)
+      filter2.mightContain(1024) should be (true)
+      filter2.mightContain(1025) should be (false)
+    }
+  }
+
+  test("BitmapFilterStatistics - fail to write data for null path, do not close null stream") {
+    val filter = BitmapFilterStatistics()
+    intercept[IllegalArgumentException] {
+      filter.writeData(fs)
+    }
+  }
+
+  test("BitmapFilterStatistics - fail to read data for null path, do not close null stream") {
+    val filter = BitmapFilterStatistics()
+    intercept[IllegalArgumentException] {
+      filter.readData(fs)
+    }
+  }
+
+  test("BitmapFilterStatistics - call 'readData' multiple times") {
+    withTempDir { dir =>
+      val filter = BitmapFilterStatistics()
+      filter.update(1)
+      filter.setPath(dir / "filter")
+      filter.writeData(fs)
+
+      val filter2 = BitmapFilterStatistics()
+      filter2.setPath(dir / "filter")
+      filter2.readData(fs)
+      filter2.isLoaded should be (true)
+      filter2.mightContain(1) should be (true)
+
+      // delete path
+      fs.delete(filter2.getPath, true) should be (true)
+      // this call should result in no-op and use already instantiated filter
+      filter2.readData(fs)
+      filter2.isLoaded should be (true)
+      filter2.mightContain(1) should be (true)
+    }
+  }
 }

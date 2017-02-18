@@ -16,7 +16,7 @@
 
 package org.apache.spark.sql.sources
 
-import java.io.{InputStream, OutputStream}
+import java.io.{DataInputStream, DataOutputStream, InputStream, OutputStream}
 import java.util.{HashSet => JHashSet}
 
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
@@ -26,6 +26,8 @@ import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.types._
 import org.apache.spark.util.sketch.BloomFilter
+
+import org.roaringbitmap.RoaringBitmap
 
 /**
  * [[ColumnFilterStatistics]] is interface for column-based filters, provides some generic method
@@ -179,7 +181,10 @@ object ColumnFilterStatistics {
       case clazz if clazz == classOf[BloomFilterStatistics] =>
         BloomFilterStatistics(blockRowCount)
       case clazz if clazz == classOf[DictionaryFilterStatistics] =>
-        DictionaryFilterStatistics()
+        dataType match {
+          case IntegerType => BitmapFilterStatistics()
+          case _ => DictionaryFilterStatistics()
+        }
     }
   }
 }
@@ -358,4 +363,30 @@ case class DictionaryFilterStatistics() extends ColumnFilterStatistics {
 
   /** Get value of `set`, for testing */
   private[sources] def getSet(): JHashSet[Any] = set
+}
+
+/**
+ * [[BitmapFilterStatistics]] supports very efficient update and contains check on integer types.
+ * Enabled for integer types as subtype of dictionary filter.
+ */
+case class BitmapFilterStatistics() extends ColumnFilterStatistics {
+  @transient private var bitmap: RoaringBitmap = new RoaringBitmap()
+
+  override protected def updateFunc: PartialFunction[Any, Unit] = {
+    case int: Int => bitmap.add(int)
+  }
+
+  override protected def mightContainFunc: PartialFunction[Any, Boolean] = {
+    case int: Int => bitmap.contains(int)
+  }
+
+  override protected def serializeData(out: OutputStream): Unit = {
+    val dout = new DataOutputStream(out)
+    bitmap.serialize(dout)
+  }
+
+  override protected def deserializeData(in: InputStream): Unit = {
+    val din = new DataInputStream(in)
+    bitmap.deserialize(din)
+  }
 }
