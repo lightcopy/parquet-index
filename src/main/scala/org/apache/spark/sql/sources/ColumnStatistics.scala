@@ -85,7 +85,7 @@ abstract class ColumnStatistics extends Serializable {
    */
   def updateMinMax(value: Any): Unit = {
     updateMinMaxFunc.applyOrElse[Any, Unit](value, { case other =>
-      throw new IllegalArgumentException(s"$this does not support value $other for update")
+      throw new UnsupportedOperationException(s"$this does not support value $other for update")
     })
   }
 

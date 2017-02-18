@@ -25,11 +25,16 @@ import com.github.lightcopy.testutil.implicits._
 
 /** Test in-filter that returns true, if value in provided sequence */
 private[parquet] case class TestInFilter(values: Seq[Any]) extends ColumnFilterStatistics {
-  override def update(value: Any): Unit = { }
-  override def mightContain(value: Any): Boolean = values.contains(value)
-  override protected def needToReadData(): Boolean = false
+  override protected def updateFunc: PartialFunction[Any, Unit] = {
+    case value => // no-op
+  }
+  override protected def mightContainFunc: PartialFunction[Any, Boolean] = {
+    case value => values.contains(value)
+  }
   override protected def serializeData(out: OutputStream): Unit = { }
   override protected def deserializeData(in: InputStream): Unit = { }
+  // overwrite this method for tests only, we do not need to load test filter statistics
+  override def isLoaded: Boolean = true
 }
 
 private[parquet] case class TestUnsupportedFilter() extends Filter

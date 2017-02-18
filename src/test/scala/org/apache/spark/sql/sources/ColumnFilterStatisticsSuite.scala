@@ -16,47 +16,152 @@
 
 package org.apache.spark.sql.sources
 
+import org.apache.spark.sql.types._
+
 import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
 
 class ColumnFilterStatisticsSuite extends UnitTestSuite {
-  test("ColumnFilterStatistics - classForName, select BloomFilterStatistics") {
-    ColumnFilterStatistics.classForName("bloom") should be (classOf[BloomFilterStatistics])
-    ColumnFilterStatistics.classForName("dict") should be (classOf[DictionaryFilterStatistics])
+  test("ColumnFilterStatistics - getColumnFilter for filter type and data type") {
+    ColumnFilterStatistics.getColumnFilter(StringType, ColumnFilterStatistics.BLOOM_FILTER_TYPE,
+      1L).getClass should be (classOf[BloomFilterStatistics])
+    ColumnFilterStatistics.getColumnFilter(LongType, ColumnFilterStatistics.BLOOM_FILTER_TYPE,
+      1L).getClass should be (classOf[BloomFilterStatistics])
+    ColumnFilterStatistics.getColumnFilter(IntegerType, ColumnFilterStatistics.BLOOM_FILTER_TYPE,
+      1L).getClass should be (classOf[BloomFilterStatistics])
+
+    ColumnFilterStatistics.getColumnFilter(StringType, ColumnFilterStatistics.DICT_FILTER_TYPE,
+      1L).getClass should be (classOf[DictionaryFilterStatistics])
+    ColumnFilterStatistics.getColumnFilter(LongType, ColumnFilterStatistics.DICT_FILTER_TYPE,
+      1L).getClass should be (classOf[DictionaryFilterStatistics])
+    ColumnFilterStatistics.getColumnFilter(IntegerType, ColumnFilterStatistics.DICT_FILTER_TYPE,
+      1L).getClass should be (classOf[BitmapFilterStatistics])
   }
 
-  test("ColumnFilterStatistics - classForName, throw error if name is not registered") {
+  test("ColumnFilterStatistics - getColumnFilter, throw error if name is not registered") {
     var err = intercept[RuntimeException] {
-      ColumnFilterStatistics.classForName("BLOOM")
+      ColumnFilterStatistics.getColumnFilter(StringType, "BLOOM", 1L)
     }
     assert(err.getMessage.contains("Unsupported filter statistics type BLOOM"))
 
     err = intercept[RuntimeException] {
-      ColumnFilterStatistics.classForName("DICT")
+      ColumnFilterStatistics.getColumnFilter(StringType, "DICT", 1L)
     }
     assert(err.getMessage.contains("Unsupported filter statistics type DICT"))
 
     err = intercept[RuntimeException] {
-      ColumnFilterStatistics.classForName("test")
+      ColumnFilterStatistics.getColumnFilter(StringType, "test", 1L)
     }
     assert(err.getMessage.contains("Unsupported filter statistics type test"))
 
     err = intercept[RuntimeException] {
-      ColumnFilterStatistics.classForName("")
+      ColumnFilterStatistics.getColumnFilter(StringType, "", 1L)
     }
     assert(err.getMessage.contains("Unsupported filter statistics type "))
+  }
+
+  test("FilterStatisticsMetadata - init") {
+    val meta = new FilterStatisticsMetadata()
+    meta.enabled should be (false)
+  }
+
+  test("FilterStatisticsMetadata - setDirectory/getDirectory/getPath, fail for disabled") {
+    // set None as directory
+    val meta = new FilterStatisticsMetadata()
+    meta.setDirectory(None)
+    val err = intercept[IllegalArgumentException] {
+      meta.getDirectory()
+    }
+    assert(err.getMessage.contains("Failed to extract directory for disabled metadata"))
+  }
+
+  test("FilterStatisticsMetadata - setFilterType/getFilterType, fail for unsupported type") {
+    val meta = new FilterStatisticsMetadata()
+    meta.setFilterType(None)
+    var err = intercept[IllegalArgumentException] {
+      meta.getFilterType()
+    }
+    assert(err.getMessage.contains("Failed to extract filter type for disabled metadata"))
+
+    meta.setFilterType(Some("test"))
+    err = intercept[IllegalArgumentException] {
+      meta.getFilterType()
+    }
+    assert(err.getMessage.contains("Failed to extract filter type for disabled metadata"))
+  }
+
+  test("FilterStatisticsMetadata - setters and getters") {
+    withTempDir { dir =>
+      var status = fs.getFileStatus(dir)
+      val meta = new FilterStatisticsMetadata()
+      meta.setDirectory(Some(status))
+      meta.setFilterType(Some("bloom"))
+      meta.getDirectory() should be (status)
+      meta.getPath() should be (status.getPath)
+      meta.getFilterType() should be ("bloom")
+    }
+  }
+
+  test("FilterStatisticsMetadata - enabled, if directory and type are set") {
+    withTempDir { dir =>
+      var status = fs.getFileStatus(dir)
+      val meta = new FilterStatisticsMetadata()
+      meta.setDirectory(Some(status))
+      meta.setFilterType(Some("bloom"))
+      meta.enabled should be (true)
+    }
+  }
+
+  test("FilterStatisticsMetadata - disabled, if directory or type are not set") {
+    withTempDir { dir =>
+      var status = fs.getFileStatus(dir)
+      val meta = new FilterStatisticsMetadata()
+      meta.enabled should be (false)
+
+      meta.setDirectory(Some(status))
+      meta.setFilterType(None)
+      meta.enabled should be (false)
+
+      meta.setDirectory(None)
+      meta.setFilterType(Some("bloom"))
+      meta.enabled should be (false)
+
+      meta.setDirectory(Some(status))
+      meta.setFilterType(Some("bloom"))
+      meta.enabled should be (true)
+    }
+  }
+
+  test("FilterStatisticsMetadata - toString") {
+    withTempDir { dir =>
+      var status = fs.getFileStatus(dir)
+      val meta = new FilterStatisticsMetadata()
+      meta.toString should be ("(enabled=false, none)")
+
+      meta.setDirectory(Some(status))
+      meta.setFilterType(None)
+      meta.toString should be ("(enabled=false, none)")
+
+      meta.setDirectory(None)
+      meta.setFilterType(Some("bloom"))
+      meta.toString should be ("(enabled=false, none)")
+
+      meta.setDirectory(Some(status))
+      meta.setFilterType(Some("bloom"))
+      meta.toString should be (s"(enabled=true, directory=$status, type=bloom)")
+    }
   }
 
   test("BloomFilterStatistics - initialize") {
     val filter = BloomFilterStatistics()
     filter.getNumRows should be (1024)
-    filter.getHasLoadedData should be (false)
+    filter.isLoaded should be (false)
   }
 
   test("BloomFilterStatistics - initialize with numRows") {
     val filter = BloomFilterStatistics(1024L * 1024L)
     filter.getNumRows should be (1024L * 1024L)
-    filter.getHasLoadedData should be (false)
+    filter.isLoaded should be (false)
   }
 
   test("BloomFilterStatistics - toString") {
@@ -123,10 +228,10 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
   test("BloomFilterStatistics - unsupported types") {
     val filter = BloomFilterStatistics()
     // boolean is not supported by bloom filter
-    var err = intercept[IllegalArgumentException] {
+    var err = intercept[UnsupportedOperationException] {
       filter.mightContain(true)
     }
-    assert(err.getMessage.contains("Unsupported data type java.lang.Boolean"))
+    assert(err.getMessage.contains("BloomFilterStatistics does not support value true"))
   }
 
   test("BloomFilterStatistics - mightContain on empty filter") {
@@ -197,7 +302,7 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
   test("DictionaryFilterStatistics - initialize") {
     val filter = DictionaryFilterStatistics()
     filter.getSet.isEmpty should be (true)
-    filter.getHasLoadedData should be (false)
+    filter.isLoaded should be (false)
   }
 
   test("DictionaryFilterStatistics - toString") {
@@ -236,7 +341,6 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
     filter.mightContain(1024) should be (true)
     filter.mightContain(1025) should be (false)
     filter.mightContain("abc") should be (false)
-    filter.mightContain(true) should be (false)
     filter.mightContain(1024L) should be (false)
   }
 
@@ -246,6 +350,15 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
       filter.update(i)
       filter.mightContain(i) should be (true)
     }
+  }
+
+  test("DictionaryFilterStatistics - unsupported types") {
+    val filter = DictionaryFilterStatistics()
+    // boolean is not supported by dictionary filter
+    var err = intercept[UnsupportedOperationException] {
+      filter.mightContain(true)
+    }
+    assert(err.getMessage.contains("DictionaryFilterStatistics does not support value true"))
   }
 
   test("DictionaryFilterStatistics - mightContain on empty filter") {
@@ -299,6 +412,131 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
       filter.writeData(fs)
 
       val filter2 = DictionaryFilterStatistics()
+      filter2.setPath(dir / "filter")
+      filter2.readData(fs)
+      filter2.isLoaded should be (true)
+      filter2.mightContain(1) should be (true)
+
+      // delete path
+      fs.delete(filter2.getPath, true) should be (true)
+      // this call should result in no-op and use already instantiated filter
+      filter2.readData(fs)
+      filter2.isLoaded should be (true)
+      filter2.mightContain(1) should be (true)
+    }
+  }
+
+  test("BitmapFilterStatistics - initialize") {
+    val filter = BitmapFilterStatistics()
+    filter.isLoaded should be (false)
+  }
+
+  test("BitmapFilterStatistics - toString") {
+    val filter = BitmapFilterStatistics()
+    filter.toString should be ("BitmapFilterStatistics")
+  }
+
+  test("BitmapFilterStatistics - setPath/getPath") {
+    withTempDir { dir =>
+      val filter = BitmapFilterStatistics()
+      filter.setPath(dir)
+      filter.getPath should be (dir)
+    }
+  }
+
+  test("BitmapFilterStatistics - fail to set null path") {
+    val filter = BitmapFilterStatistics()
+    intercept[IllegalArgumentException] {
+      filter.setPath(null)
+    }
+  }
+
+  test("BitmapFilterStatistics - fail to extract path before it is set") {
+    val filter = BitmapFilterStatistics()
+    intercept[IllegalArgumentException] {
+      filter.getPath
+    }
+  }
+
+  test("BitmapFilterStatistics - update/mightContain") {
+    val filter = BitmapFilterStatistics()
+    for (i <- 1 to 1024) {
+      filter.update(i)
+    }
+    filter.mightContain(1) should be (true)
+    filter.mightContain(1024) should be (true)
+    filter.mightContain(1025) should be (false)
+  }
+
+  test("BitmapFilterStatistics - unsupported types") {
+    val filter = BitmapFilterStatistics()
+    var err = intercept[UnsupportedOperationException] {
+      filter.mightContain(true)
+    }
+    assert(err.getMessage.contains("BitmapFilterStatistics does not support value true"))
+
+    err = intercept[UnsupportedOperationException] {
+      filter.mightContain("abc")
+    }
+    assert(err.getMessage.contains("BitmapFilterStatistics does not support value abc"))
+
+    err = intercept[UnsupportedOperationException] {
+      filter.mightContain(1L)
+    }
+    assert(err.getMessage.contains("BitmapFilterStatistics does not support value 1"))
+  }
+
+  test("BitmapFilterStatistics - mightContain on empty filter") {
+    val filter = BitmapFilterStatistics()
+    filter.mightContain(1) should be (false)
+    filter.mightContain(1024) should be (false)
+    filter.mightContain(1025) should be (false)
+  }
+
+  test("BitmapFilterStatistics - writeData/readData") {
+    withTempDir { dir =>
+      val filter = BitmapFilterStatistics()
+      for (i <- 1 to 1024) {
+        filter.update(i)
+      }
+      filter.setPath(dir / "filter")
+      filter.writeData(fs)
+
+      fs.exists(filter.getPath) should be (true)
+
+      val filter2 = BitmapFilterStatistics()
+      filter2.setPath(dir / "filter")
+      filter2.readData(fs)
+      filter2.isLoaded should be (true)
+
+      filter2.mightContain(1) should be (true)
+      filter2.mightContain(1024) should be (true)
+      filter2.mightContain(1025) should be (false)
+    }
+  }
+
+  test("BitmapFilterStatistics - fail to write data for null path, do not close null stream") {
+    val filter = BitmapFilterStatistics()
+    intercept[IllegalArgumentException] {
+      filter.writeData(fs)
+    }
+  }
+
+  test("BitmapFilterStatistics - fail to read data for null path, do not close null stream") {
+    val filter = BitmapFilterStatistics()
+    intercept[IllegalArgumentException] {
+      filter.readData(fs)
+    }
+  }
+
+  test("BitmapFilterStatistics - call 'readData' multiple times") {
+    withTempDir { dir =>
+      val filter = BitmapFilterStatistics()
+      filter.update(1)
+      filter.setPath(dir / "filter")
+      filter.writeData(fs)
+
+      val filter2 = BitmapFilterStatistics()
       filter2.setPath(dir / "filter")
       filter2.readData(fs)
       filter2.isLoaded should be (true)

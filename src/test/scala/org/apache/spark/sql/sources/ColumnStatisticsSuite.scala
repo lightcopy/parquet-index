@@ -121,7 +121,7 @@ class ColumnStatisticsSuite extends UnitTestSuite {
   test("IntColumnStatistics - update statistics with wrong types") {
     val stats = IntColumnStatistics()
     for (x <- Seq("abc", null, 1L, Array(1, 2, 3))) {
-      val err = intercept[IllegalArgumentException] {
+      val err = intercept[UnsupportedOperationException] {
         stats.updateMinMax(x)
       }
       assert(err.getMessage.contains("does not support value"))
@@ -352,7 +352,7 @@ class ColumnStatisticsSuite extends UnitTestSuite {
   test("LongColumnStatistics - update statistics with wrong types") {
     val stats = LongColumnStatistics()
     for (x <- Seq("abc", null, 1, Array(1, 2, 3))) {
-      val err = intercept[IllegalArgumentException] {
+      val err = intercept[UnsupportedOperationException] {
         stats.updateMinMax(x)
       }
       assert(err.getMessage.contains("does not support value"))
@@ -607,7 +607,7 @@ class ColumnStatisticsSuite extends UnitTestSuite {
   test("StringColumnStatistics - update statistics with wrong types") {
     val stats = StringColumnStatistics()
     for (x <- Seq(1, null, 1L, Array(1, 2, 3), 123)) {
-      val err = intercept[IllegalArgumentException] {
+      val err = intercept[UnsupportedOperationException] {
         stats.updateMinMax(x)
       }
       assert(err.getMessage.contains("does not support value"))
@@ -855,7 +855,7 @@ class ColumnStatisticsSuite extends UnitTestSuite {
   test("DateColumnStatistics - update statistics with wrong types") {
     val stats = DateColumnStatistics()
     for (x <- Seq(1, null, 1L, Array(1, 2, 3), 123, "1990-01-01")) {
-      val err = intercept[IllegalArgumentException] {
+      val err = intercept[UnsupportedOperationException] {
         stats.updateMinMax(x)
       }
       assert(err.getMessage.contains("does not support value"))
@@ -1097,7 +1097,7 @@ class ColumnStatisticsSuite extends UnitTestSuite {
   test("TimestampColumnStatistics - update statistics with wrong types") {
     val stats = TimestampColumnStatistics()
     for (x <- Seq(1, null, 1L, Array(1, 2, 3), 123, "1990-01-01 00:00:00")) {
-      val err = intercept[IllegalArgumentException] {
+      val err = intercept[UnsupportedOperationException] {
         stats.updateMinMax(x)
       }
       assert(err.getMessage.contains("does not support value"))
