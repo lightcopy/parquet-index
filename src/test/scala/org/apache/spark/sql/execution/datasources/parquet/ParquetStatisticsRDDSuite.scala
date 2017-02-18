@@ -158,6 +158,47 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
+  test("ParquetStatisticsRDD - schemaBasedStatistics, empty schema") {
+    val res = ParquetStatisticsRDD.schemaBasedStatistics(StructType(Nil),
+      new BlockMetaData(), new FilterStatisticsMetadata())
+    res should be (Map.empty)
+  }
+
+  test("ParquetStatisticsRDD - schemaBasedStatistics, duplicated top-level column names") {
+    val res = ParquetStatisticsRDD.schemaBasedStatistics(
+      StructType(StructField("col1", IntegerType) :: StructField("col1", LongType) :: Nil),
+      new BlockMetaData(),
+      new FilterStatisticsMetadata())
+    res should be (Map("col1" -> (LongColumnStatistics(), None)))
+  }
+
+  test("ParquetStatisticsRDD - schemaBasedStatistics, disabled column filters") {
+    val res = ParquetStatisticsRDD.schemaBasedStatistics(
+      StructType(StructField("col1", IntegerType) :: StructField("col2", LongType) :: Nil),
+      new BlockMetaData(),
+      new FilterStatisticsMetadata())
+    res.size should be (2)
+    res.foreach { case (column, (stats, filter)) => filter should be (None) }
+  }
+
+  test("ParquetStatisticsRDD - schemaBasedStatistics, enabled column filters") {
+    withTempDir { dir =>
+      val filterMetadata = new FilterStatisticsMetadata()
+      filterMetadata.setDirectory(Some(fs.getFileStatus(dir)))
+      filterMetadata.setFilterType(Some("bloom"))
+
+      val block = new BlockMetaData()
+      block.setRowCount(123L)
+
+      val res = ParquetStatisticsRDD.schemaBasedStatistics(
+        StructType(StructField("col1", IntegerType) :: StructField("col2", LongType) :: Nil),
+        block,
+        filterMetadata)
+      res.size should be (2)
+      res.foreach { case (column, (stats, filter)) => filter.isDefined should be (true) }
+    }
+  }
+
   test("ParquetStatisticsRDD - convertBlocks, empty sequence") {
     ParquetStatisticsRDD.convertBlocks(Seq.empty) should be (Array.empty)
   }
@@ -237,33 +278,6 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     val name = ParquetStatisticsRDD.newFilterFile(123, "a/b/c\\d   e")
     assert(name.contains("block00123"))
     assert(name.contains("col_a_b_c_d___e"))
-  }
-
-  test("ParquetStatisticsRDD - newFilter, fail to extract statistics class") {
-    var err = intercept[RuntimeException] {
-      ParquetStatisticsRDD.newFilter("abc", null)
-    }
-    assert(err.getMessage.contains("Unsupported filter statistics type abc"))
-
-    err = intercept[RuntimeException] {
-      ParquetStatisticsRDD.newFilter(null, null)
-    }
-    assert(err.getMessage.contains("Unsupported filter statistics type null"))
-  }
-
-  test("ParquetStatisticsRDD - newFilter, select BloomFilterStatistics") {
-    val metadata = new BlockMetaData()
-    metadata.setRowCount(123L)
-    val filter = ParquetStatisticsRDD.newFilter("bloom", metadata)
-    filter.isInstanceOf[BloomFilterStatistics] should be (true)
-    filter.asInstanceOf[BloomFilterStatistics].numRows should be (123L)
-  }
-
-  test("ParquetStatisticsRDD - newFilter, select DictionaryFilterStatistics") {
-    val metadata = new BlockMetaData()
-    metadata.setRowCount(123L)
-    val filter = ParquetStatisticsRDD.newFilter("dict", metadata)
-    filter.isInstanceOf[DictionaryFilterStatistics] should be (true)
   }
 
   test("ParquetStatisticsRDD - collect statistics for empty file") {

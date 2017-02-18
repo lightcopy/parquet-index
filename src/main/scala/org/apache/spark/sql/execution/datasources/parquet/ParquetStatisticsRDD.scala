@@ -68,7 +68,7 @@ private[parquet] class ParquetStatisticsPartition(
  * @param hadoopConf Hadoop configuration, normally 'sc.hadoopConfiguration'
  * @param schema columns to compute index for
  * @param data list of Parquet file statuses
- * @param numPartitions number of partitions on use
+ * @param numPartitions number of partitions to use
  */
 class ParquetStatisticsRDD(
     @transient private val sc: SparkContext,
@@ -141,9 +141,11 @@ class ParquetStatisticsRDD(
         fs.mkdirs(filterPath)
         fs.getFileStatus(filterPath)
       }
-    logDebug(s"Filter directory enabled: ${filterDirectory.isDefined}")
-    val filterType = configuration.get(ParquetMetastoreSupport.FILTER_TYPE)
-    logDebug(s"Filter type selected: ${filterType}")
+    val filterType = Option(configuration.get(ParquetMetastoreSupport.FILTER_TYPE))
+    val filterMetadata = new FilterStatisticsMetadata()
+    filterMetadata.setDirectory(filterDirectory)
+    filterMetadata.setFilterType(filterType)
+    logInfo(s"Filter statistics: $filterMetadata")
     // files iterator
     val iter = partition.iterator
 
@@ -170,25 +172,25 @@ class ParquetStatisticsRDD(
         // blocks map one-to-one to the Parquet block metadata, filters and statistics are
         // maintained per block
         val blocks = metadata.getBlocks.asScala.zipWithIndex.map { case (block, blockIndex) =>
-          // prepare statistics map
-          val statisticsMap = ParquetStatisticsRDD.schemaBasedStatistics(schema)
-          // prepare statistics-filter map, this adds column filter to each statistics, if available
-          val statFilterMap = statisticsMap.map { case (columnName, statistics) =>
+          // prepare statistics map (including filter statistics resolution)
+          val statMap = ParquetStatisticsRDD.schemaBasedStatistics(schema, block, filterMetadata)
+          val indexedStatMap = statMap.map { case (columnName, (statistics, filter)) =>
             val columnIndex = topLevelColumns.getOrElse(columnName,
               sys.error(s"Failed to look up $columnName, top-level columns = $topLevelColumns"))
-            filterDirectory match {
-              case Some(filterStatus) =>
+            filter match {
+              case Some(columnFilter) if filterMetadata.enabled =>
                 // filename must uniquely identify filter file (file -> block -> column)
                 val filename = ParquetStatisticsRDD.newFilterFile(blockIndex, columnName)
-                val columnFilter = ParquetStatisticsRDD.newFilter(filterType, block)
-                columnFilter.setPath(filterStatus.getPath.suffix(s"${Path.SEPARATOR}$filename"))
+                columnFilter.setPath(filterMetadata.getPath.suffix(s"${Path.SEPARATOR}$filename"))
                 (columnIndex, (columnName, statistics, Some(columnFilter)))
-              case None =>
+              case other =>
+                // disable column filter, even if it is provided by statistics map, but filter
+                // metadata is disabled.
                 (columnIndex, (columnName, statistics, None))
             }
           }.toMap
 
-          (block.getRowCount, statFilterMap)
+          (block.getRowCount, indexedStatMap)
         }
 
         // blocks can be empty for empty Parquet file, in this case we just skip the reader step
@@ -286,8 +288,8 @@ private[parquet] object ParquetStatisticsRDD {
   }
 
   /**
-   * Generate new unique filter filename to store filter data, e.g. for bloom filters, based on
-   * block index and column name. All special characters are replaced with '_'.
+   * Generate new unique filename for column filter, based on block index and column name.
+   * All special characters are replaced with '_'.
    */
   def newFilterFile(blockIndex: Int, columnName: String): String = {
     val blockSuffix = String.format("%05d", blockIndex.asInstanceOf[Object])
@@ -295,21 +297,6 @@ private[parquet] object ParquetStatisticsRDD {
       if (t == '/' || t == '\\' || Character.isWhitespace(t)) '_' else t
     }
     s"filter_${UUID.randomUUID}_block${blockSuffix}_col_${colSuffix}"
-  }
-
-  /**
-   * Return new instance of column filter statistics for short name and block metadata.
-   * Block metadata can be used to add additional information about data, e.g. row count for bloom
-   * filter.
-   * We do not add exhaustive match case, because `classForName` checks if short name is invalid.
-   */
-  def newFilter(filterType: String, block: BlockMetaData): ColumnFilterStatistics = {
-    ColumnFilterStatistics.classForName(filterType) match {
-      case clazz if clazz == classOf[BloomFilterStatistics] =>
-        BloomFilterStatistics(block.getRowCount)
-      case clazz if clazz == classOf[DictionaryFilterStatistics] =>
-        DictionaryFilterStatistics()
-    }
   }
 
   /**
@@ -326,9 +313,21 @@ private[parquet] object ParquetStatisticsRDD {
    * Parse schema into map of column names and column statistics.
    * Method does not verify if schema has duplicate fields.
    */
-  def schemaBasedStatistics(schema: StructType): Map[String, ColumnStatistics] = {
+  def schemaBasedStatistics(
+      schema: StructType,
+      block: BlockMetaData,
+      metadata: FilterStatisticsMetadata):
+    Map[String, (ColumnStatistics, Option[ColumnFilterStatistics])] = {
+
     schema.fields.map { field =>
-      (field.name, ColumnStatistics.getStatisticsForType(field.dataType))
+      val columnStatistics = ColumnStatistics.getStatisticsForType(field.dataType)
+      val columnFilterOption = if (metadata.enabled) {
+        Some(ColumnFilterStatistics.getColumnFilter(field.dataType, metadata.getFilterType,
+          block.getRowCount))
+      } else {
+        None
+      }
+      (field.name, (columnStatistics, columnFilterOption))
     }.toMap
   }
 

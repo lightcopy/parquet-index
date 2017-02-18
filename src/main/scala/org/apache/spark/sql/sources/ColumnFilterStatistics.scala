@@ -19,11 +19,12 @@ package org.apache.spark.sql.sources
 import java.io.{InputStream, OutputStream}
 import java.util.{HashSet => JHashSet}
 
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 
 import org.apache.spark.SparkConf
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
+import org.apache.spark.sql.types._
 import org.apache.spark.util.sketch.BloomFilter
 
 /**
@@ -147,7 +148,80 @@ object ColumnFilterStatistics {
       s"Unsupported filter statistics type $name, must be one of " +
       s"${REGISTERED_FILTERS.keys.mkString("[", ", ", "]")}"))
   }
+
+  def getColumnFilter(
+      dataType: DataType,
+      filterType: String,
+      blockRowCount: Long): ColumnFilterStatistics = {
+    classForName(filterType) match {
+      case clazz if clazz == classOf[BloomFilterStatistics] =>
+        BloomFilterStatistics(blockRowCount)
+      case clazz if clazz == classOf[DictionaryFilterStatistics] =>
+        DictionaryFilterStatistics()
+    }
+  }
 }
+
+/**
+ * [[FilterStatisticsMetadata]] maintains information about type and location of all column filter
+ * statistics that are created during the computation of [[ParquetStatisticsRDD]].
+ */
+class FilterStatisticsMetadata {
+  private var filterDirectory: FileStatus = null
+  private var filterType: String = null
+
+  /**
+   * Set directory as root for all filter statistics for this job. Method always overwrites
+   * previous value. If directory is None, then it is resolved as no directory provided, and will
+   * disable filter statistics.
+   */
+  def setDirectory(dir: Option[FileStatus]): Unit = dir match {
+    case Some(status) =>
+      filterDirectory = status
+    case None =>
+      filterDirectory = null
+  }
+
+  /**
+   * Set filter type from provided option. If value is None, then filter type is set to null, which
+   * will result in disabled filter statistics. Type is validated for registered filters.
+   */
+  def setFilterType(tpe: Option[String]) = tpe match {
+    case Some(value) if ColumnFilterStatistics.REGISTERED_FILTERS.contains(value) =>
+      filterType = value
+    case None =>
+      filterType = null
+  }
+
+  /** Whether or not filter statistics are enabled for this metadata */
+  def enabled: Boolean = {
+    filterDirectory != null && filterType != null
+  }
+
+  /** Get directory. If disabled, will throw an exception */
+  def getDirectory(): FileStatus = {
+    require(enabled, s"Failed to extract directory for disabled metadata $this")
+    filterDirectory
+  }
+
+  /** Shortcut to get Hadoop path instance from file status */
+  def getPath(): Path = getDirectory.getPath
+
+  /** Get filter type. If disabled, will throw an exception */
+  def getFilterType(): String = {
+    require(enabled, s"Failed to extract filter type for disabled metadata $this")
+    filterType
+  }
+
+  override def toString(): String = {
+    val content = if (enabled) s"directory=$filterDirectory, type=$filterType" else "none"
+    s"(enabled=$enabled, $content)"
+  }
+}
+
+////////////////////////////////////////////////////////////////
+// Column filter statistics implementation
+////////////////////////////////////////////////////////////////
 
 /**
  * [[BloomFilterStatistics]] provides filter statistics based on bloom filter per column.
