@@ -37,17 +37,19 @@ abstract class ColumnFilterStatistics extends Serializable {
   private var path: String = null
 
   /**
-   * Update filter statistics with value that is not null.
-   * Value is not guaranteed to be unique, and can be the same as previous method call.
+   * Update method for any supported type. Each column filter implementation should provide at least
+   * one partial function for data type they handle. Input values are guaranteed to be non-null and
+   * might be non-unique, e.g. filter might receive duplicate values. Note that this partial
+   * function is called on already initialized filter.
    */
-  def update(value: Any): Unit
+  protected def updateFunc: PartialFunction[Any, Unit]
 
   /**
-   * Whether or not value is in column.
-   * Provided parameter is non-null, defined value. When not sure if filter contains value, return
-   * `true`. Method is called on already initialized filter only.
+   * Contains method for any supported type. Each column filter implementation should provide at
+   * least one partial function. Input values are guaranteed to be non-null. When not sure if
+   * filter contains value, return `true`. Note that method is called on already initialized filter.
    */
-  def mightContain(value: Any): Boolean
+  protected def mightContainFunc: PartialFunction[Any, Boolean]
 
   /**
    * Whether or not filter requires loading serialized data.
@@ -68,6 +70,27 @@ abstract class ColumnFilterStatistics extends Serializable {
    * handled upstream.
    */
   protected def deserializeData(in: InputStream): Unit
+
+  /**
+   * Update filter statistics with value that is not null.
+   * Value is not guaranteed to be unique, and can be the same as previous method call.
+   */
+  def update(value: Any): Unit = {
+    updateFunc.applyOrElse[Any, Unit](value, { case other =>
+      throw new UnsupportedOperationException(s"$this does not support value $other")
+    })
+  }
+
+  /**
+   * Whether or not value is in column.
+   * Provided parameter is non-null, defined value. When not sure if filter contains value, return
+   * `true`. Method is called on already initialized filter only.
+   */
+  def mightContain(value: Any): Boolean = {
+    mightContainFunc.applyOrElse[Any, Boolean](value, { case other =>
+      throw new UnsupportedOperationException(s"$this does not support value $other")
+    })
+  }
 
   /**
    * Set path for serialized data, when done writing to disk.
@@ -243,27 +266,36 @@ case class BloomFilterStatistics(numRows: Long = 1024L) extends ColumnFilterStat
     }
   @transient private var hasLoadedData: Boolean = false
 
-  // Read and check of dates should be consistent with reading java.sql.Date and java.sql.Timestamp
-  // Currently we use DateTimeUtils.toJavaDate in read container and DateTimeUtils.fromJavaDate to
-  // convert in bloom filter
-  override def update(value: Any): Unit = value match {
+  // Read and check of dates should be consistent with Spark reading of java.sql.Date and
+  // java.sql.Timestamp. Currently we use DateTimeUtils.fromJavaDate and
+  // DateTimeUtils.fromJavaTimestamp to convert date or timestamp into long value that we can store
+  // in bloom filter
+  override protected def updateFunc: PartialFunction[Any, Unit] = {
+    case int: Int =>
+      bloomFilter.put(int)
+    case long: Long =>
+      bloomFilter.put(long)
+    case string: String =>
+      bloomFilter.put(string)
     case date: java.sql.Date =>
       bloomFilter.put(DateTimeUtils.fromJavaDate(date))
     case time: java.sql.Timestamp =>
       bloomFilter.put(DateTimeUtils.fromJavaTimestamp(time))
-    case _ =>
-      bloomFilter.put(value)
   }
 
-  // Similar to `update` method, this should be consistent across filter statistics implementation
-  // and container code to read date/timestamp
-  override def mightContain(value: Any): Boolean = value match {
+  // Similar to `updateFunc`, this method should be consistent with Spark reading of java.sql.Date
+  // and java.sql.Timestamp.
+  override protected def mightContainFunc: PartialFunction[Any, Boolean] = {
+    case int: Int =>
+      bloomFilter.mightContain(int)
+    case long: Long =>
+      bloomFilter.mightContain(long)
+    case string: String =>
+      bloomFilter.mightContain(string)
     case date: java.sql.Date =>
       bloomFilter.mightContain(DateTimeUtils.fromJavaDate(date))
     case time: java.sql.Timestamp =>
       bloomFilter.mightContain(DateTimeUtils.fromJavaTimestamp(time))
-    case _ =>
-      bloomFilter.mightContain(value)
   }
 
   override protected def needToReadData(): Boolean = !hasLoadedData
@@ -296,9 +328,21 @@ case class DictionaryFilterStatistics() extends ColumnFilterStatistics {
   /** Get new Spark configuration without loading defaults from system properties */
   private def getConf(): SparkConf = new SparkConf(false)
 
-  override def update(value: Any): Unit = set.add(value)
+  override protected def updateFunc: PartialFunction[Any, Unit] = {
+    case int: Int => set.add(int)
+    case long: Long => set.add(long)
+    case string: String => set.add(string)
+    case date: java.sql.Date => set.add(date)
+    case time: java.sql.Timestamp => set.add(time)
+  }
 
-  override def mightContain(value: Any): Boolean = set.contains(value)
+  override protected def mightContainFunc: PartialFunction[Any, Boolean] = {
+    case int: Int => set.contains(int)
+    case long: Long => set.contains(long)
+    case string: String => set.contains(string)
+    case date: java.sql.Date => set.contains(date)
+    case time: java.sql.Timestamp => set.contains(time)
+  }
 
   override protected def needToReadData(): Boolean = !hasLoadedData
 

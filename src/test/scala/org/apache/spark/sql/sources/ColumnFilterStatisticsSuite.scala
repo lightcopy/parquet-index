@@ -215,10 +215,10 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
   test("BloomFilterStatistics - unsupported types") {
     val filter = BloomFilterStatistics()
     // boolean is not supported by bloom filter
-    var err = intercept[IllegalArgumentException] {
+    var err = intercept[UnsupportedOperationException] {
       filter.mightContain(true)
     }
-    assert(err.getMessage.contains("Unsupported data type java.lang.Boolean"))
+    assert(err.getMessage.contains("BloomFilterStatistics does not support value true"))
   }
 
   test("BloomFilterStatistics - mightContain on empty filter") {
@@ -328,7 +328,6 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
     filter.mightContain(1024) should be (true)
     filter.mightContain(1025) should be (false)
     filter.mightContain("abc") should be (false)
-    filter.mightContain(true) should be (false)
     filter.mightContain(1024L) should be (false)
   }
 
@@ -338,6 +337,15 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
       filter.update(i)
       filter.mightContain(i) should be (true)
     }
+  }
+
+  test("DictionaryFilterStatistics - unsupported types") {
+    val filter = DictionaryFilterStatistics()
+    // boolean is not supported by dictionary filter
+    var err = intercept[UnsupportedOperationException] {
+      filter.mightContain(true)
+    }
+    assert(err.getMessage.contains("DictionaryFilterStatistics does not support value true"))
   }
 
   test("DictionaryFilterStatistics - mightContain on empty filter") {
