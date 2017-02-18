@@ -31,9 +31,10 @@ private[parquet] case class TestInFilter(values: Seq[Any]) extends ColumnFilterS
   override protected def mightContainFunc: PartialFunction[Any, Boolean] = {
     case value => values.contains(value)
   }
-  override protected def needToReadData(): Boolean = false
   override protected def serializeData(out: OutputStream): Unit = { }
   override protected def deserializeData(in: InputStream): Unit = { }
+  // overwrite this method for tests only, we do not need to load test filter statistics
+  override def isLoaded: Boolean = true
 }
 
 private[parquet] case class TestUnsupportedFilter() extends Filter

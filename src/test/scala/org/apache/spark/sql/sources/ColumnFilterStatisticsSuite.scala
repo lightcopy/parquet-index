@@ -142,13 +142,13 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
   test("BloomFilterStatistics - initialize") {
     val filter = BloomFilterStatistics()
     filter.getNumRows should be (1024)
-    filter.getHasLoadedData should be (false)
+    filter.isLoaded should be (false)
   }
 
   test("BloomFilterStatistics - initialize with numRows") {
     val filter = BloomFilterStatistics(1024L * 1024L)
     filter.getNumRows should be (1024L * 1024L)
-    filter.getHasLoadedData should be (false)
+    filter.isLoaded should be (false)
   }
 
   test("BloomFilterStatistics - toString") {
@@ -289,7 +289,7 @@ class ColumnFilterStatisticsSuite extends UnitTestSuite {
   test("DictionaryFilterStatistics - initialize") {
     val filter = DictionaryFilterStatistics()
     filter.getSet.isEmpty should be (true)
-    filter.getHasLoadedData should be (false)
+    filter.isLoaded should be (false)
   }
 
   test("DictionaryFilterStatistics - toString") {

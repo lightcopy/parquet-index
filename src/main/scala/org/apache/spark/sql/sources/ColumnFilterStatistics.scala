@@ -35,6 +35,8 @@ import org.apache.spark.util.sketch.BloomFilter
 abstract class ColumnFilterStatistics extends Serializable {
   // path to the serialized data for filter
   private var path: String = null
+  // whether or not filter has been loaded, should be kept as transient
+  @transient private var isFilterLoaded: Boolean = false
 
   /**
    * Update method for any supported type. Each column filter implementation should provide at least
@@ -50,12 +52,6 @@ abstract class ColumnFilterStatistics extends Serializable {
    * filter contains value, return `true`. Note that method is called on already initialized filter.
    */
   protected def mightContainFunc: PartialFunction[Any, Boolean]
-
-  /**
-   * Whether or not filter requires loading serialized data.
-   * Can be called multiple times to determine state of filter.
-   */
-  protected def needToReadData(): Boolean
 
   /**
    * Serialize data into output stream. For example, bloom filter statistics can write bloom filter
@@ -112,20 +108,22 @@ abstract class ColumnFilterStatistics extends Serializable {
    * Whether or not filter is loaded into memory, implemented as function instead of lazy val.
    * Added for testing purposes.
    */
-  private[sql] def isLoaded(): Boolean = {
-    !needToReadData()
-  }
+  def isLoaded: Boolean = isFilterLoaded
+
+  /** Mark this filter as loaded */
+  def markLoaded: Unit = isFilterLoaded = true
 
   /**
    * Read data from disk to load filter. Operation is done once, so it is safe to call this method
    * many times, it will check if filter requires loading, otherwise will be no-op.
    */
   def readData(fs: FileSystem): Unit = {
-    if (needToReadData) {
+    if (!isLoaded) {
       var in: InputStream = null
       try {
         in = fs.open(getPath)
         deserializeData(in)
+        markLoaded
       } finally {
         if (in != null) {
           in.close()
@@ -172,6 +170,7 @@ object ColumnFilterStatistics {
       s"${REGISTERED_FILTERS.keys.mkString("[", ", ", "]")}"))
   }
 
+  /** Get column filter for provided filter type and date type */
   def getColumnFilter(
       dataType: DataType,
       filterType: String,
@@ -264,7 +263,6 @@ case class BloomFilterStatistics(numRows: Long = 1024L) extends ColumnFilterStat
           "Consider reducing partition size and/or number of filters/indexed columns").
           initCause(oom)
     }
-  @transient private var hasLoadedData: Boolean = false
 
   // Read and check of dates should be consistent with Spark reading of java.sql.Date and
   // java.sql.Timestamp. Currently we use DateTimeUtils.fromJavaDate and
@@ -298,22 +296,16 @@ case class BloomFilterStatistics(numRows: Long = 1024L) extends ColumnFilterStat
       bloomFilter.mightContain(DateTimeUtils.fromJavaTimestamp(time))
   }
 
-  override protected def needToReadData(): Boolean = !hasLoadedData
-
   override protected def serializeData(out: OutputStream): Unit = {
     bloomFilter.writeTo(out)
   }
 
   override protected def deserializeData(in: InputStream): Unit = {
     bloomFilter = BloomFilter.readFrom(in)
-    hasLoadedData = true
   }
 
   /** Get number of rows, for testing */
   private[sources] def getNumRows(): Long = numRows
-
-  /** Get value of `hasLoadedData`, for testing */
-  private[sources] def getHasLoadedData(): Boolean = hasLoadedData
 }
 
 /**
@@ -323,7 +315,6 @@ case class BloomFilterStatistics(numRows: Long = 1024L) extends ColumnFilterStat
  */
 case class DictionaryFilterStatistics() extends ColumnFilterStatistics {
   @transient private var set = new JHashSet[Any]()
-  @transient private var hasLoadedData = false
 
   /** Get new Spark configuration without loading defaults from system properties */
   private def getConf(): SparkConf = new SparkConf(false)
@@ -344,8 +335,6 @@ case class DictionaryFilterStatistics() extends ColumnFilterStatistics {
     case time: java.sql.Timestamp => set.contains(time)
   }
 
-  override protected def needToReadData(): Boolean = !hasLoadedData
-
   override protected def serializeData(out: OutputStream): Unit = {
     val kryo = new KryoSerializer(getConf())
     val serializedStream = kryo.newInstance().serializeStream(out)
@@ -361,15 +350,11 @@ case class DictionaryFilterStatistics() extends ColumnFilterStatistics {
     val deserializedStream = kryo.newInstance.deserializeStream(in)
     try {
       set = deserializedStream.readObject()
-      hasLoadedData = true
     } finally {
       // despite method closing external stream, we ensure that kryo stream is closed
       deserializedStream.close()
     }
   }
-
-  /** Get value of `hasLoadedData`, for testing */
-  private[sources] def getHasLoadedData(): Boolean = hasLoadedData
 
   /** Get value of `set`, for testing */
   private[sources] def getSet(): JHashSet[Any] = set
