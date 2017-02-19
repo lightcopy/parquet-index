@@ -19,10 +19,10 @@ package org.apache.spark.sql.execution.datasources.parquet
 import java.io.IOException
 import java.util.Arrays
 
-import scala.util.control.NonFatal
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext
+import scala.util.control.NonFatal
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 
@@ -266,6 +266,8 @@ object ParquetMetastoreSupport extends Logging {
     }
 
     // Merge into final schema
-    schemas.reduceOption { (left, right) => left.merge(right) }.getOrElse(StructType(Nil))
+    schemas.reduceOption { (left, right) =>
+      ParquetSchemaUtils.merge(left, right)
+    }.getOrElse(StructType(Nil))
   }
 }

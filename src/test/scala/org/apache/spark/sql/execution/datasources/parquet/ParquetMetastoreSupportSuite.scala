@@ -21,7 +21,7 @@ import java.io.IOException
 import org.apache.spark.sql.execution.datasources.TestMetastore
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.internal.IndexConf._
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types._
 
 import com.github.lightcopy.implicits._
 import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
@@ -97,6 +97,163 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
 
   test("ParquetMetastoreSupport - inferSchema, return empty struct if no statuses provided") {
     ParquetMetastoreSupport.inferSchema(spark, Array.empty) should be (StructType(Nil))
+  }
+
+  test("ParquetMetastoreSupport - inferSchema, merge when only fileSchema is available") {
+    val fileSchema = """
+      | message spark_schema {
+      |   required int32 id;
+      |   required binary str (UTF8);
+      | }""".stripMargin
+    val statuses = Array(
+      ParquetFileStatus(null, fileSchema, Array.empty, None),
+      ParquetFileStatus(null, fileSchema, Array.empty, None))
+
+    ParquetMetastoreSupport.inferSchema(spark, statuses) should be (
+      StructType(Nil).
+        add("id", IntegerType, false, Metadata.empty).
+        add("str", StringType, false, Metadata.empty))
+  }
+
+  test("ParquetMetastoreSupport - inferSchema, merge when sqlSchema is available") {
+    // we do not need fileSchema to be set, since we parse sqlSchema
+    val sqlSchema = """
+    {
+      "type" : "struct",
+      "fields" : [ {
+        "name" : "id",
+        "type" : "integer",
+        "nullable" : false,
+        "metadata" : {
+          "key" : "value1"
+        }
+      }, {
+        "name" : "str",
+        "type" : "string",
+        "nullable" : false,
+        "metadata" : {
+          "key" : "value2"
+        }
+      } ]
+    }
+    """
+    val statuses = Array(
+      ParquetFileStatus(null, "", Array.empty, Some(sqlSchema)),
+      ParquetFileStatus(null, "", Array.empty, Some(sqlSchema)))
+
+    ParquetMetastoreSupport.inferSchema(spark, statuses) should be (
+      StructType(Nil).
+        add("id", IntegerType, false, new MetadataBuilder().putString("key", "value1").build()).
+        add("str", StringType, false, new MetadataBuilder().putString("key", "value2").build()))
+  }
+
+  test("ParquetMetastoreSupport - fall back to fileSchema, if sqlSchema is corrupted") {
+    val fileSchema = """
+      | message spark_schema {
+      |   required int32 id;
+      |   required binary str (UTF8);
+      | }""".stripMargin
+    val sqlSchema = """abcdefg"""
+    val statuses = Array(
+      ParquetFileStatus(null, fileSchema, Array.empty, Some(sqlSchema)),
+      ParquetFileStatus(null, fileSchema, Array.empty, Some(sqlSchema)))
+
+    ParquetMetastoreSupport.inferSchema(spark, statuses) should be (
+      StructType(Nil).
+        add("id", IntegerType, false, Metadata.empty).
+        add("str", StringType, false, Metadata.empty))
+  }
+
+  // One schema has metadata, the other one does not have metadata
+  test("ParquetMetastoreSupport - merge schemas with different metadata 1") {
+    val fileSchema = """
+      | message spark_schema {
+      |   required int32 id;
+      |   required binary str (UTF8);
+      | }""".stripMargin
+    val sqlSchema = """
+    {
+      "type" : "struct",
+      "fields" : [ {
+        "name" : "id",
+        "type" : "integer",
+        "nullable" : false,
+        "metadata" : {
+          "key" : "value1"
+        }
+      }, {
+        "name" : "str",
+        "type" : "string",
+        "nullable" : false,
+        "metadata" : {
+          "key" : "value2"
+        }
+      } ]
+    }
+    """
+    val statuses = Array(
+      ParquetFileStatus(null, fileSchema, Array.empty, None),
+      ParquetFileStatus(null, fileSchema, Array.empty, Some(sqlSchema)))
+
+    ParquetMetastoreSupport.inferSchema(spark, statuses) should be (
+      StructType(Nil).
+        add("id", IntegerType, false, new MetadataBuilder().putString("key", "value1").build()).
+        add("str", StringType, false, new MetadataBuilder().putString("key", "value2").build()))
+  }
+
+  // Both schemas have metadata with different content
+  test("ParquetMetastoreSupport - merge schemas with different metadata 2") {
+    val sqlSchema1 = """
+    {
+      "type" : "struct",
+      "fields" : [ {
+        "name" : "id",
+        "type" : "integer",
+        "nullable" : false,
+        "metadata" : {
+          "key" : "value1"
+        }
+      }, {
+        "name" : "str",
+        "type" : "string",
+        "nullable" : false,
+        "metadata" : {
+          "key" : "value2"
+        }
+      } ]
+    }
+    """
+
+    val sqlSchema2 = """
+    {
+      "type" : "struct",
+      "fields" : [ {
+        "name" : "id",
+        "type" : "integer",
+        "nullable" : false,
+        "metadata" : {
+          "key2" : "value12"
+        }
+      }, {
+        "name" : "str",
+        "type" : "string",
+        "nullable" : false,
+        "metadata" : {
+          "key2" : "value22"
+        }
+      } ]
+    }
+    """
+    val statuses = Array(
+      ParquetFileStatus(null, "", Array.empty, Some(sqlSchema1)),
+      ParquetFileStatus(null, "", Array.empty, Some(sqlSchema2)))
+
+    ParquetMetastoreSupport.inferSchema(spark, statuses) should be (
+      StructType(Nil).
+        add("id", IntegerType, false,
+          new MetadataBuilder().putString("key", "value1").putString("key2", "value12").build()).
+        add("str", StringType, false,
+          new MetadataBuilder().putString("key", "value2").putString("key2", "value22").build()))
   }
 
   test("invoke loadIndex without eager loading") {

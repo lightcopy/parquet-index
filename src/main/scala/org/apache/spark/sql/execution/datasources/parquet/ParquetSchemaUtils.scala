@@ -84,4 +84,8 @@ object ParquetSchemaUtils {
       (field.getName, index)
     }
   }
+
+  def merge(schema1: StructType, schema2: StructType): StructType = {
+    schema1.merge(schema2)
+  }
 }
