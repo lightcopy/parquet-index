@@ -150,4 +150,55 @@ class ParquetSchemaUtilsSuite extends UnitTestSuite {
     }
     assert(err.getMessage.contains("[required int32 id] with duplicate column name id"))
   }
+
+  test("merge - two identical schemas") {
+    val schema1 = StructType(Nil)
+      .add("col1", StringType, false, new MetadataBuilder().putString("a", "b").build)
+      .add("col2", StringType, true, new MetadataBuilder().putString("c", "d").build)
+    val schema2 = schema1
+
+    ParquetSchemaUtils.merge(schema1, schema2) should be (schema1)
+  }
+
+  test("merge - two different schemas") {
+    val schema1 = StructType(Nil)
+      .add("col1", StringType, false, new MetadataBuilder().putString("a", "1").build)
+    val schema2 = StructType(Nil)
+      .add("col2", StringType, true, new MetadataBuilder().putString("b", "1").build)
+
+    val result = StructType(Nil)
+      .add("col1", StringType, false, new MetadataBuilder().putString("a", "1").build)
+      .add("col2", StringType, true, new MetadataBuilder().putString("b", "1").build)
+
+    ParquetSchemaUtils.merge(schema1, schema2) should be (result)
+  }
+
+  test("merge - two interleaved schemas") {
+    val schema1 = StructType(Nil)
+      .add("col1", StringType, false, new MetadataBuilder().putString("a", "1").build)
+      .add("col2", StringType, false, new MetadataBuilder().putString("b", "1").build)
+    val schema2 = StructType(Nil)
+      .add("col2", StringType, true, new MetadataBuilder().putString("c", "1").build)
+
+    val result = StructType(Nil)
+      .add("col1", StringType, false, new MetadataBuilder().putString("a", "1").build)
+      .add("col2", StringType, true,
+        new MetadataBuilder().putString("b", "1").putString("c", "1").build)
+
+    ParquetSchemaUtils.merge(schema1, schema2) should be (result)
+  }
+
+  test("merge - two interleaved schemas with merged metadata for the same key") {
+    val schema1 = StructType(Nil)
+      .add("col1", StringType, false, new MetadataBuilder().putString("a", "1").build)
+      .add("col2", StringType, false, new MetadataBuilder().putString("b", "1").build)
+    val schema2 = StructType(Nil)
+      .add("col2", StringType, true, new MetadataBuilder().putString("b", "2").build)
+
+    val result = StructType(Nil)
+      .add("col1", StringType, false, new MetadataBuilder().putString("a", "1").build)
+      .add("col2", StringType, true, new MetadataBuilder().putString("b", "2").build)
+
+    ParquetSchemaUtils.merge(schema1, schema2) should be (result)
+  }
 }

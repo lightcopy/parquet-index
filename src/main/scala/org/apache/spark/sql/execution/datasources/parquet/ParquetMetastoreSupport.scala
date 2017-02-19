@@ -19,10 +19,10 @@ package org.apache.spark.sql.execution.datasources.parquet
 import java.io.IOException
 import java.util.Arrays
 
-import scala.util.control.NonFatal
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext
+import scala.util.control.NonFatal
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 
@@ -33,7 +33,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.{Column, SparkSession}
 import org.apache.spark.sql.execution.datasources._
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{DataType, StructType}
 
 import com.github.lightcopy.util.{SerializableFileStatus, IOUtils}
 
@@ -216,18 +216,24 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
   }
 }
 
-object ParquetMetastoreSupport {
+object ParquetMetastoreSupport extends Logging {
   // internal Hadoop configuration option to set schema for Parquet reader
   private[sql] val READ_SCHEMA = "spark.sql.hadoop.index.parquet.read.schema"
   // internal Hadoop configuration option to specify filter directory
   private[sql] val FILTER_DIR = "spark.sql.hadoop.index.parquet.filter.dir"
   // internal Hadoop configuration option to specify filter name/type
   private[sql] val FILTER_TYPE = "spark.sql.hadoop.index.parquet.filter.type"
+  // internal footer metadata key for Spark SQL schema
+  private[sql] val SPARK_METADATA_KEY = "org.apache.spark.sql.parquet.row.metadata"
   // metadata name
   val TABLE_METADATA = "_table_metadata"
 
-  /** Partition columns are automatically added when reading file format */
+  /**
+   * Infer schema from collected statistics.
+   * Partition columns are automatically added when reading file format
+   */
   def inferSchema(sparkSession: SparkSession, statistics: Array[ParquetFileStatus]): StructType = {
+    // create converter to fall back to Parquet schema parsing
     val assumeBinaryIsString = sparkSession.sessionState.conf.isParquetBinaryAsString
     val assumeInt96IsTimestamp = sparkSession.sessionState.conf.isParquetINT96AsTimestamp
     val writeLegacyParquetFormat = sparkSession.sessionState.conf.writeLegacyParquetFormat
@@ -236,14 +242,32 @@ object ParquetMetastoreSupport {
       assumeInt96IsTimestamp = assumeInt96IsTimestamp,
       writeLegacyParquetFormat = writeLegacyParquetFormat)
 
-    if (statistics.isEmpty) {
-      StructType(Seq.empty)
-    } else {
-      val schema = converter.convert(MessageTypeParser.parseMessageType(statistics.head.fileSchema))
-      statistics.tail.foreach { stats =>
-        schema.merge(converter.convert(MessageTypeParser.parseMessageType(stats.fileSchema)))
-      }
-      schema
+    // util to convert Parquet schema into Spark SQL schema using global converter
+    def parquetToStructType(parquetSchema: String): StructType = {
+      converter.convert(MessageTypeParser.parseMessageType(parquetSchema))
     }
+
+    // Parse Spark SQL schema, if found, otherwise fall back to the Parquet schema
+    val schemas: Array[StructType] = statistics.map { status =>
+      val parquetSchema = status.fileSchema
+      status.sqlSchema match {
+        case Some(serializedSchema) =>
+          try {
+            DataType.fromJson(serializedSchema).asInstanceOf[StructType]
+          } catch {
+            case NonFatal(err) =>
+              logWarning(s"Failed to parse Spark SQL serialized schema $serializedSchema, " +
+                s"reason: $err. Using Parquet file schema")
+              parquetToStructType(status.fileSchema)
+          }
+        case None =>
+          parquetToStructType(status.fileSchema)
+      }
+    }
+
+    // Merge into final schema
+    schemas.reduceOption { (left, right) =>
+      ParquetSchemaUtils.merge(left, right)
+    }.getOrElse(StructType(Nil))
   }
 }

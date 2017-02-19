@@ -18,6 +18,7 @@ package org.apache.spark.sql.execution.datasources.parquet
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.util.Try
 
 import org.apache.parquet.schema.MessageType
 
@@ -83,5 +84,42 @@ object ParquetSchemaUtils {
       val index = schema.getFieldIndex(field.getName)
       (field.getName, index)
     }
+  }
+
+  /** Update field with provided metadata, performs replacement, not merge */
+  private def withMetadata(field: StructField, metadata: Metadata): StructField = {
+    StructField(field.name, field.dataType, field.nullable, metadata)
+  }
+
+  /**
+   * Merge schemas with preserved metadata for top-level fields.
+   * TODO: implement merge for nested types.
+   */
+  def merge(schema1: StructType, schema2: StructType): StructType = {
+    // perform field merge, this does not merge metadata
+    val mergedSchema = schema1.merge(schema2)
+
+    // update field with extracted and merged metadata
+    val updatedFields = mergedSchema.map { field =>
+      val field1 = Try(schema1(field.name)).toOption
+      val field2 = Try(schema2(field.name)).toOption
+
+      (field1, field2) match {
+        case (Some(value1), Some(value2)) =>
+          val metadata = new MetadataBuilder().
+            withMetadata(value1.metadata).
+            withMetadata(value2.metadata).build
+          if (metadata == field.metadata) field else withMetadata(field, metadata)
+        case (Some(value1), None) =>
+          if (value1 == field) field else withMetadata(field, value1.metadata)
+        case (None, Some(value2)) =>
+          if (value2 == field) field else withMetadata(field, value2.metadata)
+        case other =>
+          field
+      }
+    }
+
+    // return final merged schema
+    StructType(updatedFields)
   }
 }

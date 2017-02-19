@@ -165,6 +165,8 @@ class ParquetStatisticsRDD(
         // read metadata from the file footer
         val metadata = ParquetFileReader.readFooter(configuration, parquetStatus, NO_FILTER)
         val fileSchema = metadata.getFileMetaData.getSchema
+        val sqlSchema = metadata.getFileMetaData.getKeyValueMetaData.asScala.
+          get(ParquetMetastoreSupport.SPARK_METADATA_KEY)
         // check that requested schema is part of the file schema
         fileSchema.checkContains(indexSchema)
         // extract unique map of top level columns
@@ -263,7 +265,7 @@ class ParquetStatisticsRDD(
         // currently global Parquet schema is merged and inferred on a driver, which is suboptimal
         // since we can reduce schema during metadata collection.
         // TODO: Partially merge schema during each task
-        ParquetFileStatus(serdeStatus, fileSchema.toString, blockMetadata)
+        ParquetFileStatus(serdeStatus, fileSchema.toString, blockMetadata, sqlSchema = sqlSchema)
       }
     }
   }

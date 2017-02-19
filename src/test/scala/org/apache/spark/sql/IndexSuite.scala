@@ -828,4 +828,56 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
       }
     }
   }
+
+  //////////////////////////////////////////////////////////////
+  // General schema correctness tests
+  //////////////////////////////////////////////////////////////
+
+  test("index schema and original Parquet schema have metadata") {
+    withTempDir { dir =>
+      withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        // create table with metadata
+        val schema = StructType(Nil).
+          add("id", LongType, false, new MetadataBuilder().putString("key", "long col").build()).
+          add("name", StringType, true, new MetadataBuilder().putString("key", "str col").build())
+        val rdd = spark.sparkContext.
+          parallelize(Row(1L, "a") :: Row(2L, "b") :: Row(3L, "c") :: Nil)
+        val df = spark.createDataFrame(rdd, schema)
+        df.write.parquet(dir.toString / "table-with-metadata")
+        // build index for that table
+        spark.index.create.indexByAll.parquet(dir.toString / "table-with-metadata")
+
+        val df1 = spark.index.parquet(dir.toString / "table-with-metadata")
+        val df2 = spark.read.parquet(dir.toString / "table-with-metadata")
+        df1.schema should be (df2.schema)
+        df1.schema.fields.map(_.metadata) should be (df2.schema.fields.map(_.metadata))
+      }
+    }
+  }
+
+  test("index schema and original Parquet schema do not have metadata") {
+    withTempDir { dir =>
+      withSQLConf(METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        // create table with metadata
+        val schema = StructType(Nil).
+          add("id", LongType, false).
+          add("name", StringType, true)
+        val rdd = spark.sparkContext.
+          parallelize(Row(1L, "a") :: Row(2L, "b") :: Row(3L, "c") :: Nil)
+        val df = spark.createDataFrame(rdd, schema)
+        df.write.parquet(dir.toString / "table-no-metadata")
+        // build index for that table
+        spark.index.create.indexByAll.parquet(dir.toString / "table-no-metadata")
+
+        val df1 = spark.index.parquet(dir.toString / "table-no-metadata")
+        val df2 = spark.read.parquet(dir.toString / "table-no-metadata")
+        df1.schema should be (df2.schema)
+        df1.schema.fields.map(_.metadata) should be (df2.schema.fields.map(_.metadata))
+      }
+    }
+  }
 }
