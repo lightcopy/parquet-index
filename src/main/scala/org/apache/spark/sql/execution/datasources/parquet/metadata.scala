@@ -50,11 +50,15 @@ case class ParquetBlockMetadata(
     rowCount: Long,
     indexedColumns: Map[String, ParquetColumnMetadata])
 
-/** Extended Parquet file status to preserve schema and file status */
+/**
+ * Extended Parquet file status to preserve schema and file status. Also allows to set Spark SQL
+ * metadata from Parquet schema as `sqlSchema`.
+ */
 case class ParquetFileStatus(
     status: SerializableFileStatus,
     fileSchema: String,
-    blocks: Array[ParquetBlockMetadata]) {
+    blocks: Array[ParquetBlockMetadata],
+    sqlSchema: Option[String] = None) {
   def numRows(): Long = {
     if (blocks.isEmpty) 0 else blocks.map { _.rowCount }.sum
   }
