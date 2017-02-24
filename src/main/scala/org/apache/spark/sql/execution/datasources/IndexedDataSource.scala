@@ -34,7 +34,8 @@ case class IndexedDataSource(
     className: String,
     mode: SaveMode = SaveMode.ErrorIfExists,
     options: Map[String, String] = Map.empty,
-    bucketSpec: Option[BucketSpec] = None)
+    bucketSpec: Option[BucketSpec] = None,
+    catalogTable: Option[CatalogTableInfo] = None)
   extends Logging {
 
   lazy val providingClass: Class[_] = IndexedDataSource.lookupDataSource(className)
@@ -42,6 +43,17 @@ case class IndexedDataSource(
     val path = options.getOrElse("path", sys.error("path option is required"))
     IndexedDataSource.resolveTablePath(new Path(path),
       metastore.session.sparkContext.hadoopConfiguration)
+  }
+
+  /** Resolve location spec based on provided catalog table */
+  private def locationSpec(
+      identifier: String,
+      catalogTable: Option[CatalogTableInfo]): IndexLocationSpec = {
+    if (catalogTable.isDefined) {
+      CatalogLocationSpec(identifier)
+    } else {
+      SourceLocationSpec(identifier)
+    }
   }
 
   def resolveRelation(): BaseRelation = {
@@ -57,7 +69,7 @@ case class IndexedDataSource(
         }
         logInfo(s"Loading index for $s, table=${tablePath.getPath}")
 
-        val spec = SourceLocationSpec(s.identifier)
+        val spec = locationSpec(s.identifier, catalogTable)
         val indexCatalog = metastore.load(spec, tablePath.getPath) { status =>
           s.loadIndex(metastore, status)
         }
@@ -90,7 +102,7 @@ case class IndexedDataSource(
       val partitionSpec = catalog.partitionSpec
       // ignore filtering expression for partitions, fetch all available files
       val allFiles = catalog.listFiles(Nil)
-      val spec = SourceLocationSpec(s.identifier)
+      val spec = locationSpec(s.identifier, catalogTable)
       metastore.create(spec, tablePath.getPath, mode) { (status, isAppend) =>
         s.createIndex(metastore, status, tablePath, isAppend, partitionSpec, allFiles, columns)
       }
@@ -103,7 +115,7 @@ case class IndexedDataSource(
     case s: MetastoreSupport =>
       Try {
         logInfo(s"Check index for $s, table=${tablePath.getPath}")
-        val spec = SourceLocationSpec(s.identifier)
+        val spec = locationSpec(s.identifier, catalogTable)
         metastore.exists(spec, tablePath.getPath)
       } match {
         case Success(exists) =>
@@ -120,7 +132,7 @@ case class IndexedDataSource(
   def deleteIndex(): Unit = providingClass.newInstance() match {
     case s: MetastoreSupport =>
       logInfo(s"Delete index for $s, table=${tablePath.getPath}")
-      val spec = SourceLocationSpec(s.identifier)
+      val spec = locationSpec(s.identifier, catalogTable)
       metastore.delete(spec, tablePath.getPath) { case status =>
         s.deleteIndex(metastore, status) }
     case other =>
@@ -139,6 +151,7 @@ object IndexedDataSource {
   def resolveClassName(provider: String): String = provider match {
     case "parquet" => parquet
     case "org.apache.spark.sql.execution.datasources.parquet" => parquet
+    case "ParquetFormat" => parquet
     case other => other
   }
 

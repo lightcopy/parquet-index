@@ -18,7 +18,7 @@ package org.apache.spark.sql
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
 
-import org.apache.spark.sql.execution.datasources.{IndexedDataSource, Metastore}
+import org.apache.spark.sql.execution.datasources.{CatalogTableSource, IndexedDataSource, Metastore}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.StructType
 
@@ -81,7 +81,12 @@ class DataFrameIndexManager(sparkSession: SparkSession) {
    * @param tableName table name in catalog
    */
   def table(tableName: String): DataFrame = {
-    throw new UnsupportedOperationException()
+    sparkSession.baseRelationToDataFrame(
+      CatalogTableSource(
+        Metastore.getOrCreate(sparkSession),
+        tableName = tableName,
+        extraOptions = extraOptions.toMap).
+          asDataSource.resolveRelation())
   }
 
   /**
@@ -223,7 +228,11 @@ private[sql] case class CreateIndexCommand(
 
   /** Create index for Spark persistent table */
   def table(tableName: String): Unit = {
-    throw new UnsupportedOperationException()
+    CatalogTableSource(
+      Metastore.getOrCreate(sparkSession),
+      tableName = tableName,
+      extraOptions = this.options.toMap,
+      mode = mode).asDataSource.createIndex(this.columns)
   }
 
   /** Create index for Parquet table as datasource */
@@ -264,7 +273,10 @@ private[sql] case class ExistsIndexCommand(
 
   /** Check index for Spark persistent table */
   def table(tableName: String): Boolean = {
-    throw new UnsupportedOperationException()
+    CatalogTableSource(
+      Metastore.getOrCreate(sparkSession),
+      tableName = tableName,
+      extraOptions = this.options.toMap).asDataSource.existsIndex()
   }
 
   /** Check index for Parquet table as datasource */
@@ -300,7 +312,10 @@ private[sql] case class DeleteIndexCommand(
 
   /** Delete index for Spark persistent table */
   def table(tableName: String): Unit = {
-    throw new UnsupportedOperationException()
+    CatalogTableSource(
+      Metastore.getOrCreate(sparkSession),
+      tableName = tableName,
+      extraOptions = this.options.toMap).asDataSource.deleteIndex()
   }
 
   /** Delete index for Parquet table as datasource */
