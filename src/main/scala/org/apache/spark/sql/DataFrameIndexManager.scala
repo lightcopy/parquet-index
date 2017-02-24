@@ -211,7 +211,8 @@ private[sql] case class CreateIndexCommand(
     this
   }
 
-  private def createIndex(path: String): Unit = {
+  /** Public for Python API */
+  def createIndex(path: String): Unit = {
     this.options += "path" -> path
     IndexedDataSource(
       Metastore.getOrCreate(sparkSession),
@@ -252,7 +253,8 @@ private[sql] case class ExistsIndexCommand(
     private var source: String,
     private val options: MutableHashMap[String, String]) {
 
-  private def existsIndex(path: String): Boolean = {
+  /** Public for Python API */
+  def existsIndex(path: String): Boolean = {
     this.options += "path" -> path
     IndexedDataSource(
       Metastore.getOrCreate(sparkSession),
@@ -287,7 +289,8 @@ private[sql] case class DeleteIndexCommand(
     private var source: String,
     private val options: MutableHashMap[String, String]) {
 
-  private def deleteIndex(path: String): Unit = {
+  /** Public for Python API */
+  def deleteIndex(path: String): Unit = {
     this.options += "path" -> path
     IndexedDataSource(
       Metastore.getOrCreate(sparkSession),

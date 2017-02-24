@@ -75,7 +75,7 @@ class CreateIndexCommand(object):
         self._columns = None
         return self
 
-    def table(self, path):
+    def _createIndex(self, path):
         """
         Create index for table path.
 
@@ -91,7 +91,15 @@ class CreateIndexCommand(object):
             jcreate.indexByAll()
         else:
             jcreate.indexBy(self._columns)
-        jcreate.table(path)
+        jcreate.createIndex(path)
+
+    def table(self, tableName):
+        """
+        Create index for Spark persistent table.
+
+        :param table: table name that exists in catalog
+        """
+        raise NotImplementedError()
 
     def parquet(self, path):
         """
@@ -101,7 +109,7 @@ class CreateIndexCommand(object):
         :param path: path to the Parquet table
         """
         self._manager.format(Const.PARQUET_SOURCE)
-        self.table(path)
+        self._createIndex(path)
 
 class ExistsIndexCommand(object):
     """
@@ -110,7 +118,7 @@ class ExistsIndexCommand(object):
     def __init__(self, manager):
         self._manager = manager
 
-    def table(self, path):
+    def _existsIndex(self, path):
         """
         Load index from metastore for the table path and check its existence. Uses provided source
         from 'DataFrameIndexManager'.
@@ -118,7 +126,16 @@ class ExistsIndexCommand(object):
         :param path: path to the table
         :return: True if index exists, False otherwise
         """
-        return self._manager._jdim.exists().table(path)
+        return self._manager._jdim.exists().existsIndex(path)
+
+    def table(self, tableName):
+        """
+        Check existence of index for Spark persistent table.
+
+        :param tableName: table name in catalog
+        :return: True if index exists, False otherwise
+        """
+        raise NotImplementedError()
 
     def parquet(self, path):
         """
@@ -129,7 +146,7 @@ class ExistsIndexCommand(object):
         :return: True if index exists, False otherwise
         """
         self._manager.format(Const.PARQUET_SOURCE)
-        return self.table(path)
+        return self._existsIndex(path)
 
 class DeleteIndexCommand(object):
     """
@@ -139,14 +156,23 @@ class DeleteIndexCommand(object):
     def __init__(self, manager):
         self._manager = manager
 
-    def table(self, path):
+    def _deleteIndex(self, path):
         """
         Delete index from metastore for table path. If index does not exist, results in no-op.
         Uses provided source from 'DataFrameIndexManager'.
 
         :param path: path to the table
         """
-        self._manager._jdim.delete().table(path)
+        self._manager._jdim.delete().deleteIndex(path)
+
+    def table(self, tableName):
+        """
+        Delete index for Spark persistent table. Behaviour is similar to the datasource delete
+        command.
+
+        :param tableName: table name in catalog
+        """
+        raise NotImplementedError()
 
     def parquet(self, path):
         """
@@ -156,7 +182,7 @@ class DeleteIndexCommand(object):
         :param path: path to the Parquet table
         """
         self._manager.format(Const.PARQUET_SOURCE)
-        self.table(path)
+        self._deleteIndex(path)
 
 class DataFrameIndexManager(object):
     """
@@ -231,6 +257,16 @@ class DataFrameIndexManager(object):
         for (key, value) in opts.items():
             self.option(key, value)
         return self
+
+    def table(self, tableName):
+        """
+        Load index for Spark persistent table that exists in catalog. Behaviour is similar to the
+        datasource index loading.
+
+        :param tableName: table name in catalog
+        :return: DataFrame instance
+        """
+        raise NotImplementedError()
 
     def parquet(self, path):
         """
