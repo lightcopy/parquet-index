@@ -77,6 +77,14 @@ class DataFrameIndexManager(sparkSession: SparkSession) {
   }
 
   /**
+   * Load indexed DataFrame from persistent table.
+   * @param tableName table name in catalog
+   */
+  def table(tableName: String): DataFrame = {
+    throw new UnsupportedOperationException()
+  }
+
+  /**
    * Load indexed DataFrame from Parquet table.
    * @param path filepath to the Parquet table (directory)
    */
@@ -203,11 +211,7 @@ private[sql] case class CreateIndexCommand(
     this
   }
 
-  /**
-   * Path to the table to build index for, can be local file system or HDFS.
-   * @param path
-   */
-  def table(path: String): Unit = {
+  private def createIndex(path: String): Unit = {
     this.options += "path" -> path
     IndexedDataSource(
       Metastore.getOrCreate(sparkSession),
@@ -216,10 +220,15 @@ private[sql] case class CreateIndexCommand(
       options = this.options.toMap).createIndex(this.columns)
   }
 
-  /** Path to the parquet table, forces source to be Parquet */
+  /** Create index for Spark persistent table */
+  def table(tableName: String): Unit = {
+    throw new UnsupportedOperationException()
+  }
+
+  /** Create index for Parquet table as datasource */
   def parquet(path: String): Unit = {
     this.source = IndexedDataSource.parquet
-    table(path)
+    createIndex(path)
   }
 
   /** Get currently set source, for testing only */
@@ -243,8 +252,7 @@ private[sql] case class ExistsIndexCommand(
     private var source: String,
     private val options: MutableHashMap[String, String]) {
 
-  /** Path to the table to check index for */
-  def table(path: String): Boolean = {
+  private def existsIndex(path: String): Boolean = {
     this.options += "path" -> path
     IndexedDataSource(
       Metastore.getOrCreate(sparkSession),
@@ -252,10 +260,15 @@ private[sql] case class ExistsIndexCommand(
       options = this.options.toMap).existsIndex()
   }
 
-  /** Path to the parquet table to check existence of index for, forces Parquet source */
+  /** Check index for Spark persistent table */
+  def table(tableName: String): Boolean = {
+    throw new UnsupportedOperationException()
+  }
+
+  /** Check index for Parquet table as datasource */
   def parquet(path: String): Boolean = {
     this.source = IndexedDataSource.parquet
-    table(path)
+    existsIndex(path)
   }
 
   /** Get currently set source, for testing only */
@@ -274,8 +287,7 @@ private[sql] case class DeleteIndexCommand(
     private var source: String,
     private val options: MutableHashMap[String, String]) {
 
-  /** Path to the table to delete index for */
-  def table(path: String): Unit = {
+  private def deleteIndex(path: String): Unit = {
     this.options += "path" -> path
     IndexedDataSource(
       Metastore.getOrCreate(sparkSession),
@@ -283,10 +295,15 @@ private[sql] case class DeleteIndexCommand(
       options = this.options.toMap).deleteIndex()
   }
 
-  /** Path to the parquet table to delete index for, forces Parquet source */
+  /** Delete index for Spark persistent table */
+  def table(tableName: String): Unit = {
+    throw new UnsupportedOperationException()
+  }
+
+  /** Delete index for Parquet table as datasource */
   def parquet(path: String): Unit = {
     this.source = IndexedDataSource.parquet
-    table(path)
+    deleteIndex(path)
   }
 
   /** Get currently set source, for testing only */

@@ -151,8 +151,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
 
         // should result in no-op since original table already exists
         spark.range(11, 16).withColumn("str", lit("abc")).write.parquet(dir.toString / "test")
-        spark.index.create.mode("ignore").indexBy("id", "str").
-          table(dir.toString / "test")
+        spark.index.create.mode("ignore").indexBy("id", "str").parquet(dir.toString / "test")
         spark.index.exists.parquet(dir.toString / "test") should be (true)
         // check result by quering on different id
         spark.index.parquet(dir.toString / "test").filter(col("id") === 12).count should be (0)
