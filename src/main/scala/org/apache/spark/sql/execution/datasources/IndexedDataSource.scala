@@ -57,7 +57,8 @@ case class IndexedDataSource(
         }
         logInfo(s"Loading index for $s, table=${tablePath.getPath}")
 
-        val indexCatalog = metastore.load(s.identifier, tablePath.getPath) { status =>
+        val spec = SourceLocationSpec(s.identifier)
+        val indexCatalog = metastore.load(spec, tablePath.getPath) { status =>
           s.loadIndex(metastore, status)
         }
 
@@ -89,7 +90,8 @@ case class IndexedDataSource(
       val partitionSpec = catalog.partitionSpec
       // ignore filtering expression for partitions, fetch all available files
       val allFiles = catalog.listFiles(Nil)
-      metastore.create(s.identifier, tablePath.getPath, mode) { (status, isAppend) =>
+      val spec = SourceLocationSpec(s.identifier)
+      metastore.create(spec, tablePath.getPath, mode) { (status, isAppend) =>
         s.createIndex(metastore, status, tablePath, isAppend, partitionSpec, allFiles, columns)
       }
     case other =>
@@ -101,7 +103,8 @@ case class IndexedDataSource(
     case s: MetastoreSupport =>
       Try {
         logInfo(s"Check index for $s, table=${tablePath.getPath}")
-        metastore.exists(s.identifier, tablePath.getPath)
+        val spec = SourceLocationSpec(s.identifier)
+        metastore.exists(spec, tablePath.getPath)
       } match {
         case Success(exists) =>
           exists
@@ -117,7 +120,8 @@ case class IndexedDataSource(
   def deleteIndex(): Unit = providingClass.newInstance() match {
     case s: MetastoreSupport =>
       logInfo(s"Delete index for $s, table=${tablePath.getPath}")
-      metastore.delete(s.identifier, tablePath.getPath) { case status =>
+      val spec = SourceLocationSpec(s.identifier)
+      metastore.delete(spec, tablePath.getPath) { case status =>
         s.deleteIndex(metastore, status) }
     case other =>
       throw new UnsupportedOperationException(s"Deletion of index is not supported by $other")
