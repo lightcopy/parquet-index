@@ -29,20 +29,20 @@ sealed case class CatalogTableInfo(
 
 /** Source for catalog tables */
 case class CatalogTableSource(
-    private val metastore: Metastore,
-    private val tableName: String,
-    private val extraOptions: Map[String, String],
-    private val mode: SaveMode = SaveMode.ErrorIfExists) extends Logging {
+    val metastore: Metastore,
+    val tableName: String,
+    val options: Map[String, String],
+    val mode: SaveMode = SaveMode.ErrorIfExists) extends Logging {
   // metadata keys to extract
   val FORMAT = "Format"
   val INPUT_PATHS = "InputPaths"
   // parse table identifier and build logical plan
   val tableIdent = metastore.session.sessionState.sqlParser.parseTableIdentifier(tableName)
   val plan = metastore.session.sessionState.catalog.lookupRelation(tableIdent)
-  val info = executeBatchDataSourcePlan(plan)
+  val info = executeSourcePlan(plan)
   logInfo(s"Catalog table info $info")
 
-  private def executeBatchDataSourcePlan(plan: LogicalPlan): CatalogTableInfo = {
+  private def executeSourcePlan(plan: LogicalPlan): CatalogTableInfo = {
     val qe = metastore.session.sessionState.executePlan(plan)
     qe.assertAnalyzed
     qe.sparkPlan match {
@@ -52,8 +52,8 @@ case class CatalogTableSource(
         // expected only single path
         val inputPath = scanExec.metadata.
           getOrElse(INPUT_PATHS, sys.error(s"Failed to look up input path for $scanExec"))
-        val options = extraOptions + ("path" -> inputPath)
-        CatalogTableInfo(format, inputPath, options)
+        val extendedOptions = options + ("path" -> inputPath)
+        CatalogTableInfo(format, inputPath, extendedOptions)
       case other =>
         throw new UnsupportedOperationException(s"$other")
     }

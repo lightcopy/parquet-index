@@ -18,6 +18,7 @@ package org.apache.spark.sql
 
 import java.io.FileNotFoundException
 
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException
 import org.apache.spark.sql.internal.IndexConf._
 import org.apache.spark.sql.functions.{col, lit}
 import org.apache.spark.sql.types._
@@ -876,6 +877,105 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         val df2 = spark.read.parquet(dir.toString / "table-no-metadata")
         df1.schema should be (df2.schema)
         df1.schema.fields.map(_.metadata) should be (df2.schema.fields.map(_.metadata))
+      }
+    }
+  }
+
+  //////////////////////////////////////////////////////////////
+  // Catalog table index tests
+  //////////////////////////////////////////////////////////////
+
+  test("index catalog table in Parquet format") {
+    withTempDir { dir =>
+      withSQLConf(
+          "spark.sql.sources.default" -> "parquet",
+          METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = Seq(
+          ("a", 1, true),
+          ("b", 2, false),
+          ("c", 3, true)
+        ).toDF("col1", "col2", "col3")
+
+        val tableName = "test_parquet_table"
+        df.write.saveAsTable(tableName)
+        try {
+          spark.index.create.indexByAll.table(tableName)
+          spark.index.exists.table(tableName) should be (true)
+          val res1 = spark.index.table(tableName).filter("col1 = 2")
+          val res2 = spark.table(tableName).filter("col1 = 2")
+          checkAnswer(res1, res2)
+          spark.index.delete.table(tableName)
+          spark.index.exists.table(tableName) should be (false)
+        } finally {
+          spark.sql(s"drop table $tableName")
+        }
+      }
+    }
+  }
+
+  test("create different index for catalog table and datasource with same path") {
+    withTempDir { dir =>
+      withSQLConf(
+          "spark.sql.sources.default" -> "parquet",
+          METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        val df = spark.range(0, 10)
+        val tableName = "test_parquet_table"
+        df.write.saveAsTable(tableName)
+        val tableLocation = spark.conf.get("spark.sql.warehouse.dir").
+          replace("${system:user.dir}", fs.getWorkingDirectory.toString) / "test_parquet_table"
+        try {
+          spark.index.create.indexByAll.table(tableName)
+          spark.index.create.indexByAll.parquet(tableLocation)
+
+          spark.index.exists.table(tableName) should be (true)
+          spark.index.exists.parquet(tableLocation) should be (true)
+        } finally {
+          spark.sql(s"drop table $tableName")
+        }
+      }
+    }
+  }
+
+  test("overwrite index for catalog table") {
+    withTempDir { dir =>
+      withSQLConf(
+          "spark.sql.sources.default" -> "parquet",
+          METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        val df = spark.range(0, 10).withColumn("col1", lit("abc"))
+        val tableName = "test_parquet_table"
+        df.write.saveAsTable(tableName)
+        try {
+          spark.index.create.indexByAll.table(tableName)
+          spark.index.exists.table(tableName) should be (true)
+          spark.index.create.mode("overwrite").indexBy("id").table(tableName)
+          spark.index.exists.table(tableName) should be (true)
+        } finally {
+          spark.sql(s"drop table $tableName")
+        }
+      }
+    }
+  }
+
+  test("fail to query index when underlying catalog table is dropped") {
+    withTempDir { dir =>
+      withSQLConf(
+          "spark.sql.sources.default" -> "parquet",
+          METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        val df = spark.range(0, 10).withColumn("col1", lit("abc"))
+        val tableName = "test_parquet_table"
+        df.write.saveAsTable(tableName)
+        try {
+          spark.index.create.indexByAll.table(tableName)
+        } finally {
+          spark.sql(s"drop table $tableName")
+        }
+
+        val err = intercept[NoSuchTableException] {
+          spark.index.table(tableName)
+        }
+        err.getMessage.contains(s"Table or view '$tableName' not found in database")
       }
     }
   }

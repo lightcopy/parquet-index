@@ -289,6 +289,7 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
     val datasources = Seq(
       "parquet",
       "org.apache.spark.sql.execution.datasources.parquet",
+      "ParquetFormat",
       IndexedDataSource.parquet)
     for (source <- datasources) {
       IndexedDataSource.resolveClassName(source) should be (IndexedDataSource.parquet)

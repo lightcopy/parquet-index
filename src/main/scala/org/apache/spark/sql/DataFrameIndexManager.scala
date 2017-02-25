@@ -85,8 +85,7 @@ class DataFrameIndexManager(sparkSession: SparkSession) {
       CatalogTableSource(
         Metastore.getOrCreate(sparkSession),
         tableName = tableName,
-        extraOptions = extraOptions.toMap).
-          asDataSource.resolveRelation())
+        options = extraOptions.toMap).asDataSource.resolveRelation())
   }
 
   /**
@@ -231,7 +230,7 @@ private[sql] case class CreateIndexCommand(
     CatalogTableSource(
       Metastore.getOrCreate(sparkSession),
       tableName = tableName,
-      extraOptions = this.options.toMap,
+      options = this.options.toMap,
       mode = mode).asDataSource.createIndex(this.columns)
   }
 
@@ -276,7 +275,7 @@ private[sql] case class ExistsIndexCommand(
     CatalogTableSource(
       Metastore.getOrCreate(sparkSession),
       tableName = tableName,
-      extraOptions = this.options.toMap).asDataSource.existsIndex()
+      options = this.options.toMap).asDataSource.existsIndex()
   }
 
   /** Check index for Parquet table as datasource */
@@ -315,7 +314,7 @@ private[sql] case class DeleteIndexCommand(
     CatalogTableSource(
       Metastore.getOrCreate(sparkSession),
       tableName = tableName,
-      extraOptions = this.options.toMap).asDataSource.deleteIndex()
+      options = this.options.toMap).asDataSource.deleteIndex()
   }
 
   /** Delete index for Parquet table as datasource */
