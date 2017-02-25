@@ -196,7 +196,7 @@ context.index.delete.parquet('table.parquet')
 
 ### Persistent tables API
 Package also supports index for persistent tables that are saved using `saveAsTable()` in Parquet
-format and accessible using `spark.table(tableName)`. API is available in Scala and Java.
+format and accessible using `spark.table(tableName)`. API is available in Scala, Java and Python.
 
 #### Scala
 ```scala
