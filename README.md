@@ -6,7 +6,8 @@ Spark SQL index for Parquet tables
 [![Join the chat at https://gitter.im/lightcopy/parquet-index](https://badges.gitter.im/lightcopy/parquet-index.svg)](https://gitter.im/lightcopy/parquet-index?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 ## Overview
-Package allows to create index for Parquet tables to reduce query latency when used for
+Package allows to create index for Parquet tables (as [datasource](#example) and
+[persistent tables](#persistent-tables-api)) to reduce query latency when used for
 _almost interactive_ analysis or point queries in Spark SQL. It is designed for use case when table
 does not change frequently, but is used for queries often, e.g. using Thrift JDBC/ODBC server. When
 indexed, schema and list of files (including partitioning) will be automatically resolved from index
@@ -191,6 +192,49 @@ df = context.index.parquet('table.parquet').filter('col1 = 123')
 
 # Delete index from metastore, if index does not exist - no-op
 context.index.delete.parquet('table.parquet')
+```
+
+### Persistent tables API
+Package also supports index for persistent tables that are saved using `saveAsTable()` in Parquet
+format and accessible using `spark.table(tableName)`. API is available in Scala and Java.
+
+#### Scala
+```scala
+import com.github.lightcopy.implicits._
+
+// Create index for table name that exists in Spark catalog
+spark.index.create.indexByAll("col1", "col2", "col3").table("table_name")
+
+// Check if index exists for persistent table
+val exists: Boolean = spark.index.exists.table("table_name")
+
+// Query index for persistent table
+val df = spark.index.table("table_name").filter("col1 > 1")
+
+// Delete index for persistent table (does not drop table itself)
+spark.index.delete.table("table_name")
+```
+
+#### Java
+```java
+// Java API is very similar to Scala API
+import com.github.lightcopy.QueryContext;
+
+SparkSession spark = ...;
+
+QueryContext context = new QueryContext(spark);
+
+// Create index for persistent table
+context.index().create().indexByAll().table("table_name");
+
+// Check if index exists for persistent table
+boolean exists = context.index().exists().table("table_name");
+
+// Run query for indexed persistent table
+Dataset<Row> df = context.index().table("table_name").filter("col2 = 'c'");
+
+// Delete index from metastore (does not drop table)
+context.index().delete().table("table_name");
 ```
 
 ## Building From Source
