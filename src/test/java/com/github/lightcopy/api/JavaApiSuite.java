@@ -65,13 +65,23 @@ public class JavaApiSuite {
     }
   }
 
+  // create Parquet datasource table
   public Dataset<Row> sampleParquet(SparkSession spark, String tablePath) {
-    // create sample Parquet table
     Dataset<Row> df = spark.sql(
       "select 1 as col1, 'a' as col2 union " +
       "select 2 as col1, 'b' as col2 union " +
       "select 3 as col1, 'c' as col2").coalesce(1);
     df.write().parquet(tablePath);
+    return df;
+  }
+
+  // create managed Parquet table
+  public Dataset<Row> sampleTable(SparkSession spark, String tableName) {
+    Dataset<Row> df = spark.sql(
+      "select 1 as col1, 'a' as col2 union " +
+      "select 2 as col1, 'b' as col2 union " +
+      "select 3 as col1, 'c' as col2").coalesce(1);
+    df.write().saveAsTable(tableName);
     return df;
   }
 
@@ -109,7 +119,9 @@ public class JavaApiSuite {
     File tablePath = new File(dir.newFolder(), "table.parquet");
     sampleParquet(spark, tablePath.toString());
 
-    Column[] columns = new Column[] { new Column("col1"), new Column("col2") };
+    Column col1 = new Column("col1");
+    Column col2 = new Column("col2");
+    Column[] columns = new Column[] { col1, col2 };
     context.index().create().indexBy(columns).parquet(tablePath.toString());
     boolean exists = context.index().exists().parquet(tablePath.toString());
     assertEquals(exists, true);
@@ -156,5 +168,44 @@ public class JavaApiSuite {
     context.index().create().indexByAll().parquet(tablePath.toString());
     Dataset<Row> df = context.index().parquet(tablePath.toString()).filter("col2 = 'c'");
     assertEquals(df.count(), 1);
+  }
+
+  @Test
+  public void testCreateExistsDeleteCatalogIndex() throws IOException {
+    spark.conf().set("spark.sql.sources.default", "parquet");
+    // set metastore location to temp directory
+    spark.conf().set(METASTORE_LOCATION, new File(dir.newFolder(), "metastore").toString());
+    QueryContext context = new QueryContext(spark);
+    String tableName = "test_parquet_table";
+    sampleTable(spark, tableName);
+
+    try {
+      // create index for all available columns
+      context.index().create().indexByAll().table(tableName);
+      assertEquals(context.index().exists().table(tableName), true);
+      // delete index and check that it has been removed from metastore
+      context.index().delete().table(tableName);
+      assertEquals(context.index().exists().table(tableName), false);
+    } finally {
+      spark.sql("drop table " + tableName);
+    }
+  }
+
+  @Test
+  public void testCreateQueryCatalogIndex() throws IOException {
+    spark.conf().set("spark.sql.sources.default", "parquet");
+    // set metastore location to temp directory
+    spark.conf().set(METASTORE_LOCATION, new File(dir.newFolder(), "metastore").toString());
+    QueryContext context = new QueryContext(spark);
+    String tableName = "test_parquet_table";
+    sampleTable(spark, tableName);
+
+    try {
+      context.index().create().indexByAll().table(tableName);
+      Dataset<Row> df = context.index().table(tableName).filter("col2 = 'c'");
+      assertEquals(df.count(), 1);
+    } finally {
+      spark.sql("drop table " + tableName);
+    }
   }
 }
