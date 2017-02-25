@@ -6,8 +6,8 @@ Spark SQL index for Parquet tables
 [![Join the chat at https://gitter.im/lightcopy/parquet-index](https://badges.gitter.im/lightcopy/parquet-index.svg)](https://gitter.im/lightcopy/parquet-index?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 ## Overview
-Package allows to create index for Parquet tables (as [datasource](Example) and
-[persistent tables](Persistent tables API)) to reduce query latency when used for
+Package allows to create index for Parquet tables (as [datasource](#example) and
+[persistent tables](#persistent-tables-api)) to reduce query latency when used for
 _almost interactive_ analysis or point queries in Spark SQL. It is designed for use case when table
 does not change frequently, but is used for queries often, e.g. using Thrift JDBC/ODBC server. When
 indexed, schema and list of files (including partitioning) will be automatically resolved from index
