@@ -924,7 +924,7 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         val tableName = "test_parquet_table"
         df.write.saveAsTable(tableName)
         val tableLocation = spark.conf.get("spark.sql.warehouse.dir").
-          replace("${system:user.dir}", fs.getWorkingDirectory.toString) / "test_parquet_table"
+          replace("${system:user.dir}", System.getProperty("user.dir")) / "test_parquet_table"
         try {
           spark.index.create.indexByAll.table(tableName)
           spark.index.create.indexByAll.parquet(tableLocation)

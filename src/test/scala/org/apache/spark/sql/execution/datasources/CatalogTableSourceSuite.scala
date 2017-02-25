@@ -49,7 +49,7 @@ class CatalogTableSourceSuite extends UnitTestSuite with SparkLocal with TestMet
         val err = intercept[UnsupportedOperationException] {
           CatalogTableSource(metastore, view, options = Map.empty)
         }
-        assert(err.getMessage.contains("Range (0, 10, step=1"))
+        assert(err.getMessage.contains("Range (0, 10"))
       } finally {
         spark.catalog.dropTempView(view)
       }
