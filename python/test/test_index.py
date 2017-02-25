@@ -48,6 +48,7 @@ class IndexSuite(unittest.TestCase):
             .master('local[*]') \
             .appName('Pyspark test') \
             .config(Const.METASTORE_LOCATION, os.path.join(self.dirpath, 'metastore')) \
+            .config("spark.sql.sources.default", "parquet") \
             .getOrCreate()
 
     def tearDown(self):
@@ -172,6 +173,41 @@ class IndexSuite(unittest.TestCase):
         context.index.create.indexByAll().parquet(table_path)
         res = context.index.parquet(table_path).filter('id = 3').collect()
         self.assertEqual(res, [])
+
+    def test_create_delete_index_catalog_table(self):
+        context = QueryContext(self.spark)
+        tableName = "test_parquet_table"
+        self.spark.range(0, 10).withColumn('str', lit('abc')).write.saveAsTable(tableName)
+        try:
+            context.index.create.indexByAll().table(tableName)
+            self.assertTrue(context.index.exists.table(tableName))
+            context.index.delete.table(tableName)
+            self.assertFalse(context.index.exists.table(tableName))
+        finally:
+            self.spark.sql("drop table " + tableName)
+
+    def test_create_overwrite_index_catalog_table(self):
+        context = QueryContext(self.spark)
+        tableName = "test_parquet_table"
+        self.spark.range(0, 10).withColumn('str', lit('abc')).write.saveAsTable(tableName)
+        try:
+            context.index.create.indexByAll().table(tableName)
+            context.index.create.mode('overwrite').indexBy('id').table(tableName)
+            self.assertTrue(context.index.exists.table(tableName))
+        finally:
+            self.spark.sql("drop table " + tableName)
+
+    def test_create_query_index_catalog_table(self):
+        context = QueryContext(self.spark)
+        tableName = "test_parquet_table"
+        self.spark.range(0, 10).withColumn('str', lit('abc')).write.saveAsTable(tableName)
+        try:
+            context.index.create.indexByAll().table(tableName)
+            res1 = context.index.table(tableName).filter('id = 3').collect()
+            res2 = self.spark.table(tableName).filter('id = 3').collect()
+            self.assertEquals(res1, res2)
+        finally:
+            self.spark.sql("drop table " + tableName)
 
 # Load test suites
 def suites():

@@ -75,11 +75,11 @@ class CreateIndexCommand(object):
         self._columns = None
         return self
 
-    def _createIndex(self, path):
+    def _init_create_command(self):
         """
-        Create index for table path.
+        Consolidate options and return Java command to create index.
 
-        :param path: path to the table
+        :return: java create command
         """
         jcreate = self._manager._jdim.create()
         # set mode if available, otherwise will use default value in Scala code
@@ -91,6 +91,15 @@ class CreateIndexCommand(object):
             jcreate.indexByAll()
         else:
             jcreate.indexBy(self._columns)
+        return jcreate
+
+    def _createIndex(self, path):
+        """
+        Create index for table path.
+
+        :param path: path to the table
+        """
+        jcreate = self._init_create_command()
         jcreate.createIndex(path)
 
     def table(self, tableName):
@@ -99,7 +108,8 @@ class CreateIndexCommand(object):
 
         :param table: table name that exists in catalog
         """
-        raise NotImplementedError()
+        jcreate = self._init_create_command()
+        jcreate.table(tableName)
 
     def parquet(self, path):
         """
@@ -135,7 +145,7 @@ class ExistsIndexCommand(object):
         :param tableName: table name in catalog
         :return: True if index exists, False otherwise
         """
-        raise NotImplementedError()
+        return self._manager._jdim.exists().table(tableName)
 
     def parquet(self, path):
         """
@@ -172,7 +182,7 @@ class DeleteIndexCommand(object):
 
         :param tableName: table name in catalog
         """
-        raise NotImplementedError()
+        self._manager._jdim.delete().table(tableName)
 
     def parquet(self, path):
         """
@@ -266,7 +276,8 @@ class DataFrameIndexManager(object):
         :param tableName: table name in catalog
         :return: DataFrame instance
         """
-        raise NotImplementedError()
+        self._init_manager()
+        return DataFrame(self._jdim.table(tableName), self._sqlctx)
 
     def parquet(self, path):
         """
