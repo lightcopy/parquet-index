@@ -237,6 +237,25 @@ Dataset<Row> df = context.index().table("table_name").filter("col2 = 'c'");
 context.index().delete().table("table_name");
 ```
 
+#### Python
+```python
+from lightcopy.index import QueryContext
+
+context = QueryContext(spark)
+
+# Create index from Spark persistent table
+context.index.create.mode('overwrite').indexBy('col1', 'col2').table('table_name')
+
+# Check if index exists for persistent table. 'True' if exists in metastore, 'False' otherwise
+context.index.exists.table('table_name')
+
+# Query indexed persistent table
+df = context.index.table('table_name').filter('col1 = 123')
+
+# Delete index for persistent table (does not drop table)
+context.index.delete.table('table_name')
+```
+
 ## Building From Source
 This library is built using `sbt`, to build a JAR file simply run `sbt package` from project root.
 
