@@ -130,8 +130,8 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
   test("resolveRelation - fail if index directory does not contain SUCCESS file") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test")
-      val spec = SourceLocationSpec("test")
-      mkdirs(metastore.location(spec, dir))
+      val spec = SourceLocationSpec("test", dir)
+      mkdirs(metastore.location(spec))
       val source = IndexedDataSource(
         metastore,
         classOf[TestMetastoreSupport].getCanonicalName,
@@ -147,8 +147,8 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
   test("resolveRelation - return HadoopFsRelation for metastore support") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test")
-      val spec = SourceLocationSpec("test")
-      val location = metastore.location(spec, dir)
+      val spec = SourceLocationSpec("test", dir)
+      val location = metastore.location(spec)
       mkdirs(location)
       Metastore.markSuccess(fs, location)
       val source = IndexedDataSource(
@@ -214,7 +214,7 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
   test("existsIndex - return false if index directory does not contain SUCCESS file") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test")
-      val path = metastore.location(SourceLocationSpec("test"), dir)
+      val path = metastore.location(SourceLocationSpec("test", dir))
       // create directory in index metastore, do not mark it as success
       mkdirs(path)
       val source = IndexedDataSource(
@@ -228,7 +228,7 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
   test("existsIndex - return false if table path does not exist") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test")
-      val path = metastore.location(SourceLocationSpec("test"), dir)
+      val path = metastore.location(SourceLocationSpec("test", dir))
       // check index existince for non-existent table path
       val source = IndexedDataSource(
         metastore,
@@ -241,7 +241,7 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
   test("existsIndex - invoke metastore support method") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test")
-      val path = metastore.location(SourceLocationSpec("test"), dir)
+      val path = metastore.location(SourceLocationSpec("test", dir))
       // create directory in index metastore and mark it as success to check index existence
       mkdirs(path)
       Metastore.markSuccess(fs, path)
@@ -270,7 +270,7 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
   test("deleteIndex - invoke metastore support method") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test")
-      val path = metastore.location(SourceLocationSpec("test"), dir)
+      val path = metastore.location(SourceLocationSpec("test", dir))
       // create directory in index metastore, otherwise delete method is no-op
       mkdirs(path)
       val source = IndexedDataSource(

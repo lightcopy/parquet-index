@@ -268,8 +268,8 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
         spark.index.create.indexBy("id", "str").parquet(dir.toString / "table")
 
         val support = new ParquetMetastoreSupport()
-        val spec = SourceLocationSpec(support.identifier)
-        val location = metastore.location(spec, dir / "table")
+        val spec = SourceLocationSpec(support.identifier, dir / "table")
+        val location = metastore.location(spec)
 
         val catalog = support.loadIndex(metastore, fs.getFileStatus(location)).
           asInstanceOf[ParquetIndexCatalog]
@@ -303,8 +303,8 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
         spark.index.create.indexBy("id", "str").parquet(dir.toString / "table")
 
         val support = new ParquetMetastoreSupport()
-        val spec = SourceLocationSpec(support.identifier)
-        val location = metastore.location(spec, dir / "table")
+        val spec = SourceLocationSpec(support.identifier, dir / "table")
+        val location = metastore.location(spec)
 
         val catalog = support.loadIndex(metastore, fs.getFileStatus(location)).
           asInstanceOf[ParquetIndexCatalog]
@@ -339,8 +339,8 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
         spark.index.create.indexBy("id", "str").parquet(dir.toString / "table")
 
         val support = new ParquetMetastoreSupport()
-        val spec = SourceLocationSpec(support.identifier)
-        val location = metastore.location(spec, dir / "table")
+        val spec = SourceLocationSpec(support.identifier, dir / "table")
+        val location = metastore.location(spec)
 
         val catalog = support.loadIndex(metastore, fs.getFileStatus(location)).
           asInstanceOf[ParquetIndexCatalog]

@@ -117,21 +117,21 @@ private[sql] class Metastore(
   def metastoreLocation: String = metastore.toString
 
   /**
-   * Create target directory for specific table path and location spec. If index fails to create
-   * target directory is deleted. Method also supports save mode, and propagates boolean flag based
-   * on mode to the closure.
+   * Create target directory for specific table location spec. If index fails to create target
+   * directory is deleted. Method also supports save mode, and propagates boolean flag based on
+   * mode to the closure.
    *
    * Closure provides two parameters:
    * - path, file status to the index directory, exists when closure is called
-   * - isAppend, boolean flag indicating that directory already contains files for current index and
-   * format needs to append new data to the existing files
+   * - isAppend, boolean flag indicating that directory already contains files for current index
+   * and format needs to append new data to the existing files
    *
    * Cache is invalidated for index every time `create` method is called for that index.
    */
-  def create(spec: IndexLocationSpec, path: Path, mode: SaveMode)
+  def create(spec: IndexLocationSpec, mode: SaveMode)
       (func: (FileStatus, Boolean) => Unit): Unit = {
     // reconstruct path with metastore path as root directory
-    val resolvedPath = location(spec, path)
+    val resolvedPath = location(spec)
     cache.invalidate(resolvedPath)
     val pathExists = fs.exists(resolvedPath)
     val (continue, isAppend) = mode match {
@@ -179,23 +179,23 @@ private[sql] class Metastore(
   }
 
   /**
-   * Load index directory if exists, fail if none found for location spec.
+   * Load index directory if exists, fail if none found for table location spec.
    * If resolved path exists in memory, load from metastore cache, otherwise read from disk and
    * update cache. It still works in situation when flag is enabled to create index if one does not
    * exist, because if index exists, we just load it from cache, otherwise we create fresh index
    * that is definitely not in the cache yet.
    * Note that is this behaviour changes, cache should be updated accordingly.
    */
-  def load(spec: IndexLocationSpec, path: Path)
+  def load(spec: IndexLocationSpec)
       (func: FileStatus => MetastoreIndexCatalog): MetastoreIndexCatalog = {
-    val resolvedPath = location(spec, path)
+    val resolvedPath = location(spec)
     Option(cache.getIfPresent(resolvedPath)) match {
       case Some(cachedValue) =>
         logInfo(s"Loading $spec[$resolvedPath] from cache")
         cachedValue
       case None =>
         if (!fs.exists(resolvedPath)) {
-          throw new IOException(s"Index does not exist for $spec and path $path")
+          throw new IOException(s"Index does not exist for $spec")
         }
         if (!Metastore.checkSuccessFile(fs, resolvedPath)) {
           throw new IOException("Possibly corrupt index, could not find success mark for " +
@@ -212,8 +212,9 @@ private[sql] class Metastore(
    * in that directory is required. Cache is invalidated only if index already exists for resolved
    * path, otherwise no-op.
    */
-  def delete(spec: IndexLocationSpec, path: Path)(func: FileStatus => Unit): Unit = {
-    val resolvedPath = location(spec, path)
+  def delete(spec: IndexLocationSpec)
+      (func: FileStatus => Unit): Unit = {
+    val resolvedPath = location(spec)
     if (fs.exists(resolvedPath)) {
       try {
         cache.invalidate(resolvedPath)
@@ -232,12 +233,12 @@ private[sql] class Metastore(
   }
 
   /**
-   * Check whether or not location exists for given location spec and path.
+   * Check whether or not location exists for given table location spec.
    * This method should bypass cache, because we check directly in metastore if index exists, and
    * do not invalidate cache otherwise.
    */
-  def exists(spec: IndexLocationSpec, path: Path): Boolean = {
-    val resolvedPath = location(spec, path)
+  def exists(spec: IndexLocationSpec): Boolean = {
+    val resolvedPath = location(spec)
     val directoryExists = fs.exists(resolvedPath)
     val hasSuccessFile = Metastore.checkSuccessFile(fs, resolvedPath)
     if (directoryExists && !hasSuccessFile) {
@@ -250,13 +251,13 @@ private[sql] class Metastore(
    * Get path of index location for an identifier and path. Path is expected to be fully-qualified
    * filepath with scheme.
    */
-  private[datasources] def location(spec: IndexLocationSpec, path: Path): Path = {
-    val scheme = Option(path.toUri.getScheme).getOrElse(fs.getScheme)
+  private[datasources] def location(spec: IndexLocationSpec): Path = {
+    val scheme = Option(spec.sourcePath.toUri.getScheme).getOrElse(fs.getScheme)
     metastore.
       suffix(s"${Path.SEPARATOR}${spec.dataspace}").
       suffix(s"${Path.SEPARATOR}${spec.identifier}").
       suffix(s"${Path.SEPARATOR}$scheme").
-      suffix(s"${Path.SEPARATOR}${path.toUri.getPath}")
+      suffix(s"${Path.SEPARATOR}${spec.sourcePath.toUri.getPath}")
   }
 
   override def toString(): String = {
