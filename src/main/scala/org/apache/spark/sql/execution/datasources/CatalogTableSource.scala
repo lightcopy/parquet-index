@@ -47,11 +47,12 @@ case class CatalogTableSource(
     qe.assertAnalyzed
     qe.sparkPlan match {
       case scanExec: BatchedDataSourceScanExec =>
-        val format = scanExec.metadata.
-          getOrElse(FORMAT, sys.error(s"Failed to look up format for $scanExec"))
-        // expected only single path
-        val inputPath = scanExec.metadata.
-          getOrElse(INPUT_PATHS, sys.error(s"Failed to look up input path for $scanExec"))
+        assert(scanExec.metadata.contains(FORMAT), s"$FORMAT for $scanExec")
+        assert(scanExec.metadata.contains(INPUT_PATHS), s"$INPUT_PATHS for $scanExec")
+        // format describes subclass of FileFormat, and reference is slightly different from
+        // datasource API, also we expect only single path/directory
+        val format = scanExec.metadata(FORMAT)
+        val inputPath = scanExec.metadata(INPUT_PATHS)
         val extendedOptions = options + ("path" -> inputPath)
         CatalogTableInfo(format, inputPath, extendedOptions)
       case other =>
