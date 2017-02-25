@@ -16,6 +16,8 @@
 
 package org.apache.spark.sql.execution.datasources
 
+import org.apache.hadoop.fs.Path
+
 /**
  * [[IndexIdentifier]] describes index location in metastore by providing information about
  * metastore support identifier and dataspace for index, e.g. datasource or catalog table.
@@ -27,6 +29,9 @@ abstract class IndexLocationSpec private[datasources] {
 
   /** Raw value for dataspace, will be resolved on the first access */
   protected def unresolvedDataspace: String
+
+  /** Path to the source table that is backed by filesystem-based datasource */
+  def sourcePath: Path
 
   /** Support string identifier */
   lazy val identifier: String = {
@@ -50,13 +55,14 @@ abstract class IndexLocationSpec private[datasources] {
   }
 
   override def toString(): String = {
-    s"[$dataspace/$identifier]"
+    s"[$dataspace/$identifier, source=$sourcePath]"
   }
 }
 
 /** Location spec for datasource table */
 private[datasources] case class SourceLocationSpec(
-    unresolvedIndentifier: String)
+    unresolvedIndentifier: String,
+    sourcePath: Path)
   extends IndexLocationSpec {
 
   override protected def unresolvedDataspace: String = "source"
@@ -64,7 +70,8 @@ private[datasources] case class SourceLocationSpec(
 
 /** Location spec for catalog (persisten) table */
 private[datasources] case class CatalogLocationSpec(
-    unresolvedIndentifier: String)
+    unresolvedIndentifier: String,
+    sourcePath: Path)
   extends IndexLocationSpec {
 
   override protected def unresolvedDataspace: String = "catalog"
