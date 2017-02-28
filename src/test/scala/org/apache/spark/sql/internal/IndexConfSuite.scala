@@ -32,105 +32,67 @@ class IndexConfSuite extends UnitTestSuite with SparkLocal {
     stopSparkSession()
   }
 
-  test("fail when registering duplicate key") {
-    // fail to register the same entry
-    var err = intercept[IllegalArgumentException] {
-      IndexConf.register(IndexConf.METASTORE_LOCATION)
-    }
-    assert(err.getMessage.contains("Duplicate ConfigEntry"))
-
-    // fail to register new entry with the same key
-    err = intercept[IllegalArgumentException] {
-      IndexConf.register(
-        ConfigBuilder(IndexConf.METASTORE_LOCATION.key).stringConf.createWithDefault("test.value"))
-    }
-    assert(err.getMessage.contains("Duplicate ConfigEntry"))
-  }
-
-  test("create new conf") {
+  test("create index conf for session") {
     val conf = IndexConf.newConf(spark)
-    assert(conf.settings.size() >= 0)
+    assert(conf.sqlConf != null)
   }
 
-  test("create new conf with registered entries") {
-    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("")
+  test("use default values for index conf") {
     val conf = IndexConf.newConf(spark)
-    conf.setConf(entry, "test.value")
-    conf.getConf(entry) should be ("test.value")
+    // testing default values of selected properties
+    Option(conf.metastoreLocation) should be (
+      IndexConf.METASTORE_LOCATION.defaultValue)
+    Option(conf.parquetFilterEnabled) should be (
+      IndexConf.PARQUET_FILTER_STATISTICS_ENABLED.defaultValue)
+    Option(conf.parquetFilterType) should be (
+      IndexConf.PARQUET_FILTER_STATISTICS_TYPE.defaultValue)
+    Option(conf.parquetFilterEagerLoading) should be (
+      IndexConf.PARQUET_FILTER_STATISTICS_EAGER_LOADING.defaultValue)
+    Option(conf.createIfNotExists) should be (
+      IndexConf.CREATE_IF_NOT_EXISTS.defaultValue)
   }
 
-  test("set null key or value in conf") {
-    val conf = new IndexConf()
-    var err = intercept[IllegalArgumentException] {
-      conf.setConfString(null, "")
-    }
-    assert(err.getMessage.contains("key cannot be null"))
-
-    err = intercept[IllegalArgumentException] {
-      conf.setConfString("", null)
-    }
-    assert(err.getMessage.contains("value cannot be null"))
-  }
-
-  test("set null entry") {
-    val conf = new IndexConf()
-    var err = intercept[IllegalArgumentException] {
-      conf.setConf(null, "test")
-    }
-    assert(err.getMessage.contains("entry cannot be null"))
-
-    val entry = ConfigBuilder("test.key").stringConf.createOptional
-    err = intercept[IllegalArgumentException] {
-      conf.setConf(entry, null)
-    }
-    assert(err.getMessage.contains("value cannot be null"))
-  }
-
-  test("set key for existing entry") {
-    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("test.value")
-    val conf = new IndexConf()
-    conf.setConf(entry, "test.value1")
-    conf.setConfString("test.key", "test.value2")
-    conf.getAllConfs should be (Map("test.key" -> "test.value2"))
-  }
-
-  test("get existing key") {
-    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("")
-    val conf = new IndexConf()
-    conf.setConf(entry, "test.value")
-    conf.getConf(entry) should be ("test.value")
-  }
-
-  test("fail to get unregistered key") {
-    val entry = ConfigBuilder("test.key").stringConf.createOptional
-    val conf = new IndexConf()
-    intercept[NoSuchElementException] {
-      conf.getConf(entry)
+  test("set metastore location") {
+    withSQLConf(IndexConf.METASTORE_LOCATION.key -> "some-value") {
+      val conf = IndexConf.newConf(spark)
+      conf.metastoreLocation should be ("some-value")
     }
   }
 
-  test("unset key") {
-    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("test.value")
-    val conf = new IndexConf()
-    conf.setConf(entry, "test.value1")
-    conf.unsetConf(entry.key)
-    conf.getAllConfs should be (Map.empty)
+  test("set configuration multiple times within single session") {
+    withSQLConf(IndexConf.CREATE_IF_NOT_EXISTS.key -> "true") {
+      val conf = IndexConf.newConf(spark)
+      conf.createIfNotExists should be (true)
+
+      spark.conf.set(IndexConf.CREATE_IF_NOT_EXISTS.key, "false")
+      conf.createIfNotExists should be (false)
+    }
+
+    withSQLConf(IndexConf.PARQUET_FILTER_STATISTICS_TYPE.key -> "test1") {
+      val conf = IndexConf.newConf(spark)
+      conf.parquetFilterType should be ("test1")
+
+      spark.conf.set(IndexConf.PARQUET_FILTER_STATISTICS_TYPE.key, "test2")
+      conf.parquetFilterType should be ("test2")
+
+      spark.conf.set(IndexConf.PARQUET_FILTER_STATISTICS_TYPE.key, "test3")
+      conf.parquetFilterType should be ("test3")
+    }
   }
 
-  test("unset entry") {
-    val entry = ConfigBuilder("test.key").stringConf.createWithDefault("test.value")
-    val conf = new IndexConf()
-    conf.setConf(entry, "test.value1")
-    conf.unsetConf(entry)
-    conf.getAllConfs should be (Map.empty)
+  test("setConf/getConf/unsetConf method") {
+    val conf = IndexConf.newConf(spark)
+    conf.setConf(IndexConf.METASTORE_LOCATION, "test")
+    conf.getConf(IndexConf.METASTORE_LOCATION) should be ("test")
+
+    conf.unsetConf(IndexConf.METASTORE_LOCATION)
+    Option(conf.getConf(IndexConf.METASTORE_LOCATION)) should be (
+      IndexConf.METASTORE_LOCATION.defaultValue)
   }
 
-  test("clear settings") {
-    val conf = new IndexConf()
-    conf.setConfString("key1", "value1")
-    conf.setConfString("key2", "value2")
-    conf.getAllConfs.nonEmpty should be (true)
-    conf.clear()
-    conf.getAllConfs.nonEmpty should be (false)
+  test("setConfString method") {
+    val conf = IndexConf.newConf(spark)
+    conf.setConfString(IndexConf.METASTORE_LOCATION.key, "test")
+    conf.getConf(IndexConf.METASTORE_LOCATION) should be ("test")
   }
 }

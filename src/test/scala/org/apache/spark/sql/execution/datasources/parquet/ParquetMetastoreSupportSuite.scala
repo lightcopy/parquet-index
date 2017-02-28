@@ -28,8 +28,7 @@ import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
 import com.github.lightcopy.testutil.implicits._
 
 class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with TestMetastore {
-  // Reset SparkSession for every test, because Metastore caches instance per session, and we
-  // do not reset options per metastore configuration.
+  // Reset SparkSession for every test to reset spark-warehouse and metastore_db directories
   before {
     startSparkSession()
   }
