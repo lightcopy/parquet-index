@@ -16,6 +16,8 @@
 
 package com.github.lightcopy.util;
 
+import java.io.Serializable;
+
 /**
  * [[BinaryRangeTree]] is a modified simple binary search tree to contain partial statistics for
  * value of T. Collects information about inserted nulls, global min/max and also tree-like
@@ -26,7 +28,7 @@ package com.github.lightcopy.util;
  * Larger maxDepth provides less error on check if element in statistics, but gives more overhead
  * in terms of insert/lookup time as well as space.
  */
-public class BinaryRangeTree<T extends Comparable<T>> {
+public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
   // default number of levels to keep, for perfectly balanced BST is 2^10 - 1 elements
   public static final int DEFAULT_MAX_DEPTH = 10;
 
