@@ -50,6 +50,7 @@ unmanagedResourceDirectories in Compile += {
 }
 
 // Check deprecation without manual restart
+javacOptions in ThisBuild ++= Seq("-Xlint:unchecked")
 scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation", "-feature")
 
 // Display full-length stacktraces from ScalaTest
