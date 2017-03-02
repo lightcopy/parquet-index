@@ -40,7 +40,7 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
    * BST TreeNode is null-intolerant, maintains min/max statistics and pointers to children.
    * provides methods to insert or look up element with potential false positives.
    */
-  static class TreeNode<T extends Comparable<T>> {
+  static class TreeNode<T extends Comparable<T>> implements Serializable {
     private T min;
     private T max;
     private T value;
@@ -101,7 +101,7 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
     @Override
     public String toString() {
       return "TreeNode(value=" + this.value + ", min=" + this.min + ", max=" + this.max +
-        ", left=" + this.left + ", right=" + this.right + ")";
+        ", left=" + (this.left != null) + ", right=" + (this.right != null) + ")";
     }
   }
 
@@ -180,9 +180,17 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
     return this.root == null ? null : this.root.max;
   }
 
+  /**
+   * Whether or not tree is initialized (root is not null)
+   * @return true if statistics are initialized and at least one value is inserted
+   */
+  public boolean isSet() {
+    return this.root != null;
+  }
+
   @Override
   public String toString() {
     return "BinaryRangeTree(maxDepth=" + this.maxDepth + ", numNulls=" + this.numNulls +
-      ", root=" + this.root + ")";
+      ", root=" + this.isSet() + ")";
   }
 }

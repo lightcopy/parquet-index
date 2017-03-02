@@ -57,10 +57,19 @@ public class BinaryRangeTreeSuite {
   }
 
   @Test
-  public void testToString() {
+  public void testToString1() {
     BinaryRangeTree<Integer> tree = new BinaryRangeTree<Integer>();
     assertEquals(tree.toString(), "BinaryRangeTree(maxDepth=" +
-      BinaryRangeTree.DEFAULT_MAX_DEPTH + ", numNulls=0, root=null)");
+      BinaryRangeTree.DEFAULT_MAX_DEPTH + ", numNulls=0, root=false)");
+  }
+
+  @Test
+  public void testToString2() {
+    BinaryRangeTree<Integer> tree = new BinaryRangeTree<Integer>();
+    tree.insert(5);
+    tree.insert(null);
+    assertEquals(tree.toString(), "BinaryRangeTree(maxDepth=" +
+      BinaryRangeTree.DEFAULT_MAX_DEPTH + ", numNulls=1, root=true)");
   }
 
   @Test
@@ -140,7 +149,7 @@ public class BinaryRangeTreeSuite {
   }
 
   @Test
-  public void testMaxDepthTruncation() {
+  public void testMaxDepthTruncation1() {
     BinaryRangeTree<String> tree = new BinaryRangeTree<String>(2);
     tree.insert("a");
     tree.insert("b");

@@ -146,6 +146,10 @@ class ParquetStatisticsRDD(
     filterMetadata.setDirectory(filterDirectory)
     filterMetadata.setFilterType(filterType)
     logInfo(s"Filter statistics: $filterMetadata")
+    // check if we use tree statistics
+    val useTreeStatistics =
+      configuration.getBoolean(ParquetMetastoreSupport.USE_TREE_STATISTICS, false)
+    logInfo(s"Tree statistics enabled: $useTreeStatistics")
     // files iterator
     val iter = partition.iterator
 
@@ -175,7 +179,8 @@ class ParquetStatisticsRDD(
         // maintained per block
         val blocks = metadata.getBlocks.asScala.zipWithIndex.map { case (block, blockIndex) =>
           // prepare statistics map (including filter statistics resolution)
-          val statMap = ParquetStatisticsRDD.schemaBasedStatistics(schema, block, filterMetadata)
+          val statMap = ParquetStatisticsRDD.schemaBasedStatistics(schema, block, filterMetadata,
+            useTreeStatistics)
           val indexedStatMap = statMap.map { case (columnName, (statistics, filter)) =>
             val columnIndex = topLevelColumns.getOrElse(columnName,
               sys.error(s"Failed to look up $columnName, top-level columns = $topLevelColumns"))
@@ -318,11 +323,13 @@ private[parquet] object ParquetStatisticsRDD {
   def schemaBasedStatistics(
       schema: StructType,
       block: BlockMetaData,
-      metadata: FilterStatisticsMetadata):
+      metadata: FilterStatisticsMetadata,
+      useTreeStatistics: Boolean = false):
     Map[String, (ColumnStatistics, Option[ColumnFilterStatistics])] = {
 
     schema.fields.map { field =>
-      val columnStatistics = ColumnStatistics.getStatisticsForType(field.dataType)
+      val columnStatistics =
+        ColumnStatistics.getStatisticsForType(field.dataType, useTreeStatistics)
       val columnFilterOption = if (metadata.enabled) {
         Some(ColumnFilterStatistics.getColumnFilter(field.dataType, metadata.getFilterType,
           block.getRowCount))
