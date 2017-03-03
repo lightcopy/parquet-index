@@ -109,7 +109,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       val err = intercept[IllegalStateException] {
         new Metastore(spark, conf)
       }
-      assert(err.getMessage.contains("Expected directory with rwxrw-rw-"))
+      assert(err.getMessage.contains("Expected directory with rwxr--r--"))
       assert(err.getMessage.contains("r--r--r--"))
     }
   }

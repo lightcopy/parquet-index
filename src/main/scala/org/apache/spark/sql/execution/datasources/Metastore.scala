@@ -268,9 +268,9 @@ private[sql] class Metastore(
 object Metastore {
   // default metastore directory name
   val DEFAULT_METASTORE_DIR = "index_metastore"
-  // permission mode "rwxrw-rw-"
+  // permission mode "rwxr--r--"
   val METASTORE_PERMISSION =
-    new FsPermission(FsAction.ALL, FsAction.READ_WRITE, FsAction.READ_WRITE)
+    new FsPermission(FsAction.ALL, FsAction.READ, FsAction.READ)
   // default success mark for index directory
   val METASTORE_SUCCESS_FILE = "_SUCCESS"
 
