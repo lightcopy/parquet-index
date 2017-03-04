@@ -374,11 +374,20 @@ case class BitmapFilterStatistics() extends ColumnFilterStatistics {
 
   override protected def serializeData(out: OutputStream): Unit = {
     val dout = new DataOutputStream(out)
-    bitmap.serialize(dout)
+    try {
+      bitmap.runOptimize()
+      bitmap.serialize(dout)
+    } finally {
+      dout.close()
+    }
   }
 
   override protected def deserializeData(in: InputStream): Unit = {
     val din = new DataInputStream(in)
-    bitmap.deserialize(din)
+    try {
+      bitmap.deserialize(din)
+    } finally {
+      din.close()
+    }
   }
 }
