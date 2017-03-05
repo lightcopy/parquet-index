@@ -70,10 +70,6 @@ public class Tree<T extends Comparable<T>> {
     return right;
   }
 
-  private boolean assertTreeHeight() {
-    return this.root == null ||  this.root.height < this.maxHeight;
-  }
-
   private int height(TreeNode<T> node) {
     return (node == null) ? -1 : node.height;
   }
@@ -123,7 +119,7 @@ public class Tree<T extends Comparable<T>> {
 
   private TreeNode<T> insert(T value, TreeNode<T> node) {
     if (node == null) {
-      if (!assertTreeHeight()) return null;
+      if (hasMaxHeight()) return null;
       return new TreeNode<T>(value);
     }
     if (node.value.compareTo(value) == 0) return node;
@@ -207,6 +203,10 @@ public class Tree<T extends Comparable<T>> {
     return hasValidStatistics(this.root, null, null);
   }
 
+  public boolean hasMaxHeight() {
+    return this.root != null && this.root.height >= this.maxHeight;
+  }
+
   private String debug(String margin, TreeNode node) {
     if (node == null) {
       return margin + "null";
@@ -225,7 +225,7 @@ public class Tree<T extends Comparable<T>> {
   public String toString() {
     return "[init=" + (this.root != null) +
       ", maxHeight=" + this.maxHeight +
-      ", assertTreeHeight=" + assertTreeHeight() +
+      ", hasMaxHeight=" + hasMaxHeight() +
       ", balanced=" + isBalanced() +
       ", bst=" + isBST() +
       ", stats=" + hasValidStatistics() + "]";
