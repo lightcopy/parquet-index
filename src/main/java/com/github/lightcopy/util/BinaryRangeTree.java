@@ -18,179 +18,246 @@ package com.github.lightcopy.util;
 
 import java.io.Serializable;
 
-/**
- * [[BinaryRangeTree]] is a modified simple binary search tree to contain partial statistics for
- * value of T. Collects information about inserted nulls, global min/max and also tree-like
- * statistics. Currently only supports value lookup and insertion, does not support updates or
- * deletes, and is not self-balancing.
- * To maintain access and insertion performance tree can be bounded by maxDepth, which is maximum
- * number of levels to keep, while still maintaining min/max statistics for all inserted values.
- * Larger maxDepth provides less error on check if element in statistics, but gives more overhead
- * in terms of insert/lookup time as well as space.
- */
 public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
-  // default number of levels to keep, for perfectly balanced BST is 2^10 - 1 elements
-  public static final int DEFAULT_MAX_DEPTH = 10;
+  static class TreeNode<T> implements Serializable {
+    T value;
+    T min;
+    T max;
+    int height;
+    TreeNode<T> left;
+    TreeNode<T> right;
 
-  private TreeNode<T> root;
-  private int maxDepth;
-  private int numNulls;
-
-  /**
-   * BST TreeNode is null-intolerant, maintains min/max statistics and pointers to children.
-   * provides methods to insert or look up element with potential false positives.
-   */
-  static class TreeNode<T extends Comparable<T>> implements Serializable {
-    private T min;
-    private T max;
-    private T value;
-    private TreeNode<T> left;
-    private TreeNode<T> right;
-
-    TreeNode(T value) {
+    public TreeNode(T value) {
+      if (value == null) throw new NullPointerException();
       this.value = value;
       this.min = value;
       this.max = value;
-    }
-
-    /**
-     * Insert elem for provided maxDepth. Statistics are always updated regardless maxDepth value.
-     * Element to insert must not be null.
-     * @param elem element to insert
-     * @param maxDepth max depth to insert into noe
-     */
-    void insert(T elem, int maxDepth) {
-      if (this.value.compareTo(elem) == 0) return;
-      this.min = this.min.compareTo(elem) > 0 ? elem : this.min;
-      this.max = this.max.compareTo(elem) < 0 ? elem : this.max;
-      if (maxDepth <= 1) return;
-
-      if (this.value.compareTo(elem) > 0) {
-        if (this.left == null) {
-          this.left = new TreeNode<T>(elem);
-        } else {
-          this.left.insert(elem, maxDepth - 1);
-        }
-      } else {
-        if (this.right == null) {
-          this.right = new TreeNode<T>(elem);
-        } else {
-          this.right.insert(elem, maxDepth - 1);
-        }
-      }
-    }
-
-    /**
-     * Method to check if element is in statistics. Might return false positives, when level is
-     * truncated by max depth for this node. Element to check must not be null.
-     * @param elem element to check
-     * @return true if element in statistics, false otherwise
-     */
-    boolean mightContain(T elem) {
-      if (this.value.compareTo(elem) == 0) return true;
-      if (this.min.compareTo(elem) > 0 || this.max.compareTo(elem) < 0) return false;
-      if (this.value.compareTo(elem) > 0) {
-        if (this.left == null) return true;
-        return this.left.mightContain(elem);
-      } else {
-        if (this.right == null) return true;
-        return this.right.mightContain(elem);
-      }
+      this.height = 0;
+      this.left = null;
+      this.right = null;
     }
 
     @Override
     public String toString() {
-      return "TreeNode(value=" + this.value + ", min=" + this.min + ", max=" + this.max +
-        ", left=" + (this.left != null) + ", right=" + (this.right != null) + ")";
+      return "[value=" + this.value + ", height=" + this.height + ", min=" + this.min + ", max=" +
+        this.max + "]";
     }
   }
 
-  public BinaryRangeTree(int maxDepth) {
-    if (maxDepth < 1 || maxDepth > 20) {
-      throw new IllegalArgumentException("maxDepth is out of range, " + maxDepth);
+  public static final int MAX_HEIGHT = 20;
+  public static final int DEFAULT_HEIGHT = 10;
+
+  private TreeNode<T> root;
+  private final int maxHeight;
+  private int numNulls;
+
+  public BinaryRangeTree(int maxHeight) {
+    if (maxHeight < 1 || maxHeight > MAX_HEIGHT) {
+      throw new IllegalArgumentException("Invalid max height: " + maxHeight);
     }
-    this.maxDepth = maxDepth;
-    this.numNulls = 0;
     this.root = null;
+    this.maxHeight = maxHeight;
   }
 
-  /** Create tree with default depth */
   public BinaryRangeTree() {
-    this(DEFAULT_MAX_DEPTH);
+    this(DEFAULT_HEIGHT);
   }
 
-  /**
-   * Insert element into the tree, element can be null.
-   * Nulls are maintained separately, and not added to the tree nodes.
-   * @param elem element to insert, can be null
-   */
-  public void insert(T elem) {
-    if (elem == null) {
-      this.numNulls++;
-    } else if (this.root == null) {
-      this.root = new TreeNode<T>(elem);
+  private T updateMinValue(T left, T right) {
+    if (left.compareTo(right) < 0) return left;
+    return right;
+  }
+
+  private T updateMaxValue(T left, T right) {
+    if (left.compareTo(right) > 0) return left;
+    return right;
+  }
+
+  private int height(TreeNode<T> node) {
+    return (node == null) ? -1 : node.height;
+  }
+
+  private int balanceFactor(TreeNode<T> node) {
+    return height(node.left) - height(node.right);
+  }
+
+  private TreeNode<T> balance(TreeNode<T> node) {
+    if (balanceFactor(node) < -1) {
+      if (balanceFactor(node.right) > 0) {
+        node.right = rotateRight(node.right);
+      }
+      node = rotateLeft(node);
+    } else if (balanceFactor(node) > 1) {
+      if (balanceFactor(node.left) < 0) {
+        node.left = rotateLeft(node.left);
+      }
+      node = rotateRight(node);
+    }
+    return node;
+  }
+
+  private TreeNode<T> rotateRight(TreeNode<T> node) {
+    TreeNode<T> tmp = node.left;
+    node.left = tmp.right;
+    tmp.right = node;
+    node.height = 1 + Math.max(height(node.left), height(node.right));
+    tmp.height = 1 + Math.max(height(tmp.left), height(tmp.right));
+    // update statistics
+    node.min = (node.left == null) ? node.value : node.left.min;
+    tmp.max = tmp.right.max;
+    return tmp;
+  }
+
+  private TreeNode<T> rotateLeft(TreeNode<T> node) {
+    TreeNode<T> tmp = node.right;
+    node.right = tmp.left;
+    tmp.left = node;
+    node.height = 1 + Math.max(height(node.left), height(node.right));
+    tmp.height = 1 + Math.max(height(tmp.left), height(tmp.right));
+    // update statistics
+    node.max = (node.right == null) ? node.value : node.right.max;
+    tmp.min = tmp.left.min;
+    return tmp;
+  }
+
+  private TreeNode<T> insert(T value, TreeNode<T> node) {
+    if (node == null) {
+      if (hasMaxHeight()) return null;
+      return new TreeNode<T>(value);
+    }
+    if (node.value.compareTo(value) == 0) return node;
+    if (node.value.compareTo(value) > 0) {
+      node.left = insert(value, node.left);
     } else {
-      this.root.insert(elem, this.maxDepth);
+      node.right = insert(value, node.right);
+    }
+    node.height = 1 + Math.max(height(node.left), height(node.right));
+    node.min = updateMinValue(node.min, value);
+    node.max = updateMaxValue(node.max, value);
+    return balance(node);
+  }
+
+  public void insert(T value) {
+    if (value == null) {
+      this.numNulls++;
+    } else {
+      this.root = insert(value, this.root);
     }
   }
 
-  /**
-   * Check if element is in statistics. Might return false positive result depending on used
-   * max depth per tree node, meaning that 100% guarantee if element is not in statistics, but
-   * returns true if element is in statistics or falls in range. Element can be null, will check
-   * null storage to answer query. Returns false if tree has not yet been initialized.
-   * @param elem element to check
-   * @return true if element in statistics, false otherwise
-   */
-  public boolean mightContain(T elem) {
-    if (elem == null) return this.numNulls > 0;
-    if (this.root == null) return false;
-    return this.root.mightContain(elem);
+  private boolean mightContain(T value, TreeNode<T> node) {
+    if (node == null) return true;
+    if (node.value.compareTo(value) == 0) return true;
+    if (node.min.compareTo(value) > 0 || node.max.compareTo(value) < 0) return false;
+    if (node.value.compareTo(value) > 0) {
+      return mightContain(value, node.left);
+    } else {
+      return mightContain(value, node.right);
+    }
   }
 
-  /**
-   * Get number of nulls accumulated so far.
-   * @return number of nulls
-   */
-  public int getNumNulls() {
-    return this.numNulls;
+  public boolean mightContain(T value) {
+    if (value == null) return this.numNulls > 0;
+    if (!isSet()) return false;
+    return mightContain(value, this.root);
   }
 
-  /**
-   * Get max depth used by this tree.
-   * @return max depth
-   */
-  public int getMaxDepth() {
-    return this.maxDepth;
+  private boolean contains(T value, TreeNode<T> node) {
+    if (node == null) return false;
+    if (node.value.compareTo(value) == 0) return true;
+    if (node.value.compareTo(value) > 0) {
+      return contains(value, node.left);
+    } else {
+      return contains(value, node.right);
+    }
   }
 
-  /**
-   * Get global min value for the tree.
-   * @return min value of T
-   */
-  public T getMin() {
-    return this.root == null ? null : this.root.min;
+  public boolean contains(T value) {
+    if (value == null) return this.numNulls > 0;
+    if (!isSet()) return false;
+    return contains(value, this.root);
   }
 
-  /**
-   * Get global max value for the tree.
-   * @return max value of T
-   */
-  public T getMax() {
-    return this.root == null ? null : this.root.max;
+  private boolean isBalanced(TreeNode<T> node) {
+    if (node == null) return true;
+    int factor = balanceFactor(node);
+    if (factor > 1 || factor < -1) return false;
+    return isBalanced(node.left) && isBalanced(node.right);
   }
 
-  /**
-   * Whether or not tree is initialized (root is not null)
-   * @return true if statistics are initialized and at least one value is inserted
-   */
+  public boolean isBalanced() {
+    return isBalanced(this.root);
+  }
+
+  private boolean isBST(TreeNode<T> node, T min, T max) {
+    if (node == null) return true;
+    if (min != null && node.value.compareTo(min) < 0) return false;
+    if (max != null && node.value.compareTo(max) > 0) return false;
+    return isBST(node.left, min, node.value) && isBST(node.right, node.value, max);
+  }
+
+  public boolean isBST() {
+    return isBST(this.root, null, null);
+  }
+
+  private boolean hasValidStatistics(TreeNode<T> node, T min, T max) {
+    if (node == null) return true;
+    if (min != null && node.min.compareTo(min) < 0) return false;
+    if (max != null && node.max.compareTo(max) > 0) return false;
+    if (node.value.compareTo(node.min) < 0) return false;
+    if (node.value.compareTo(node.max) > 0) return false;
+    return hasValidStatistics(node.left, node.min, node.max) &&
+      hasValidStatistics(node.right, node.min, node.max);
+  }
+
+  public boolean hasValidStatistics() {
+    return hasValidStatistics(this.root, null, null);
+  }
+
   public boolean isSet() {
     return this.root != null;
   }
 
+  public boolean hasMaxHeight() {
+    return isSet() && this.root.height >= this.maxHeight;
+  }
+
+  public T getMin() {
+    return isSet() ? this.root.min : null;
+  }
+
+  public T getMax() {
+    return isSet() ? this.root.max : null;
+  }
+
+  public int getNumNulls() {
+    return this.numNulls;
+  }
+
+  private String debug(String margin, TreeNode node) {
+    if (node == null) {
+      return margin + "null";
+    } else {
+      return margin + node + ": " + "\n" +
+        debug(margin + "  ", node.left) + "\n" +
+        debug(margin + "  ", node.right);
+    }
+  }
+
+  public String debug() {
+    return debug("", this.root);
+  }
+
   @Override
   public String toString() {
-    return "BinaryRangeTree(maxDepth=" + this.maxDepth + ", numNulls=" + this.numNulls +
-      ", root=" + this.isSet() + ")";
+    return "[init=" + isSet() +
+      ", maxHeight=" + this.maxHeight +
+      ", hasMaxHeight=" + hasMaxHeight() +
+      ", balanced=" + isBalanced() +
+      ", bst=" + isBST() +
+      ", stats=" + hasValidStatistics() +
+      ", min=" + getMin() +
+      ", max=" + getMax() +
+      ", numNulls=" + getNumNulls() + "]";
   }
 }
