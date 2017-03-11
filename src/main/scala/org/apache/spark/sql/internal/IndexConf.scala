@@ -33,6 +33,13 @@ object IndexConf {
     booleanConf.
     createWithDefault(false)
 
+  val NUM_PARTITIONS = SQLConfigBuilder("spark.sql.index.partitions").
+    doc("When creating index uses this number of partitions. If value is non-positive or not " +
+      "provided then uses `sc.defaultParallelism * 3` or `spark.sql.shuffle.partitions` " +
+      "configuration value, whichever is smaller").
+    intConf.
+    createWithDefault(0)
+
   val PARQUET_FILTER_STATISTICS_ENABLED =
     SQLConfigBuilder("spark.sql.index.parquet.filter.enabled").
     doc("When set to true, writes filter statistics for indexed columns when creating table " +
@@ -75,6 +82,8 @@ class IndexConf private[sql](val sqlConf: SQLConf) {
   def parquetFilterEagerLoading: Boolean = getConf(PARQUET_FILTER_STATISTICS_EAGER_LOADING)
 
   def createIfNotExists: Boolean = getConf(CREATE_IF_NOT_EXISTS)
+
+  def numPartitions: Int = getConf(NUM_PARTITIONS)
 
   /** ********************** IndexConf functionality methods ************ */
 
