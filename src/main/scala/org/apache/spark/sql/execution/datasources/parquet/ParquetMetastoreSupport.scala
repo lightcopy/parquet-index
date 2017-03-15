@@ -136,8 +136,7 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
       hadoopConf.set(ParquetMetastoreSupport.FILTER_TYPE, metastore.conf.parquetFilterType)
     }
 
-    val numPartitions = Math.min(sc.defaultParallelism * 2,
-      metastore.session.conf.get("spark.sql.shuffle.partitions").toInt)
+    val numPartitions = ParquetMetastoreSupport.inferNumPartitions(metastore)
     val rdd = new ParquetStatisticsRDD(sc, hadoopConf, indexSchema, files, numPartitions)
     val statistics = rdd.collect
 
@@ -269,5 +268,20 @@ object ParquetMetastoreSupport extends Logging {
     schemas.reduceOption { (left, right) =>
       ParquetSchemaUtils.merge(left, right)
     }.getOrElse(StructType(Nil))
+  }
+
+  /**
+   * Infer number of partitions for `sc.parallelize`. When configuration is provided and it is a
+   * positive value, return it, otherwise compute default number of partitions to use. This is
+   * selected as min value between sc.defaultParallelism * 3 and shuffle partitions setting.
+   */
+  def inferNumPartitions(metastore: Metastore): Int = {
+    if (metastore.conf.numPartitions > 0) {
+      metastore.conf.numPartitions
+    } else {
+      val defaultParallelism = metastore.session.sparkContext.defaultParallelism * 3
+      val shufflePartitions = metastore.session.conf.get("spark.sql.shuffle.partitions").toInt
+      Math.min(defaultParallelism, shufflePartitions)
+    }
   }
 }

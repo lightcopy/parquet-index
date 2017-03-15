@@ -255,6 +255,56 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
           new MetadataBuilder().putString("key", "value2").putString("key2", "value22").build()))
   }
 
+  test("ParquetMetastoreSupport - inferNumPartitions, option is not provided") {
+    withTempDir { dir =>
+      val options = Map(METASTORE_LOCATION.key -> dir.toString / "test_metastore")
+      val metastore = testMetastore(spark, options)
+      val numPartitions = ParquetMetastoreSupport.inferNumPartitions(metastore)
+      // assuming that shuffle partitions is larger than sc.defaultParallelism
+      numPartitions should be (spark.sparkContext.defaultParallelism * 3)
+    }
+  }
+
+  test("ParquetMetastoreSupport - inferNumPartitions, shuffle partitions is set") {
+    withTempDir { dir =>
+      val options = Map(
+        METASTORE_LOCATION.key -> dir.toString / "test_metastore",
+        "spark.sql.shuffle.partitions" -> "1")
+      withSQLConf(options) {
+        val metastore = testMetastore(spark, options)
+        val numPartitions = ParquetMetastoreSupport.inferNumPartitions(metastore)
+        // should be less than or equal to sc.defaultParallelism
+        numPartitions should be (1)
+      }
+    }
+  }
+
+  test("ParquetMetastoreSupport - inferNumPartitions, option is smaller than shuffle partitions") {
+    withTempDir { dir =>
+      val options = Map(
+        METASTORE_LOCATION.key -> dir.toString / "test_metastore",
+        NUM_PARTITIONS.key -> "2")
+      withSQLConf(options) {
+        val metastore = testMetastore(spark, options)
+        val numPartitions = ParquetMetastoreSupport.inferNumPartitions(metastore)
+        numPartitions should be (2)
+      }
+    }
+  }
+
+  test("ParquetMetastoreSupport - inferNumPartitions, option is larger than shuffle partitions") {
+    withTempDir { dir =>
+      val options = Map(
+        METASTORE_LOCATION.key -> dir.toString / "test_metastore",
+        NUM_PARTITIONS.key -> "20000")
+      withSQLConf(options) {
+        val metastore = testMetastore(spark, options)
+        val numPartitions = ParquetMetastoreSupport.inferNumPartitions(metastore)
+        numPartitions should be (20000)
+      }
+    }
+  }
+
   test("invoke loadIndex without eager loading") {
     withTempDir { dir =>
       val options = Map(

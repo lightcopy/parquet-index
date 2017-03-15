@@ -83,6 +83,7 @@ other Spark configuration or add them to `spark-defaults.conf` file.
 | `spark.sql.index.parquet.filter.type` | When filter statistics enabled, select type of statistics to use when creating index (`bloom`, `dict`) | `bloom`
 | `spark.sql.index.parquet.filter.eagerLoading` | When set to `true`, read and load all filter statistics in memory the first time catalog is resolved, otherwise load them lazily as needed when evaluating predicate (`true`, `false`) | `false`
 | `spark.sql.index.createIfNotExists` | When set to true, create index if one does not exist in metastore for the table, and will use all available columns for indexing (`true`, `false`) | `false`
+| `spark.sql.index.partitions` | When creating index uses this number of partitions. If value is non-positive or not provided then uses `sc.defaultParallelism * 3` or `spark.sql.shuffle.partitions` configuration value, whichever is smaller | `min(sc.defaultParallelism * 3, shuffle partitions)`
 
 ## Example
 
