@@ -75,7 +75,7 @@ object ParquetSchemaUtils {
     schema.getFields.asScala.map { field =>
       if (uniqueColumns.contains(field.getName)) {
         throw new IllegalArgumentException(s"""
-          | Found field [$field] with duplicate column name ${field.getName}.
+          | Found field [$field] with duplicate column name '${field.getName}'.
           | Schema $schema
           | This situation is currently not supported, ensure that names of all top level columns
           | in schema are unique""".stripMargin)
