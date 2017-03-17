@@ -97,8 +97,8 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
         val err = intercept[IllegalArgumentException] {
           spark.index.create.indexBy("str", "id").parquet(dir.toString / "test")
         }
-        assert(err.getMessage.contains("Failed to select indexed columns. Column str does not " +
-          "exist in inferred schema struct<id:bigint>"))
+        assert(err.getMessage.contains("Failed to select indexed column 'str' in " +
+          "inferred/original schema struct<id:bigint>"))
       }
     }
   }

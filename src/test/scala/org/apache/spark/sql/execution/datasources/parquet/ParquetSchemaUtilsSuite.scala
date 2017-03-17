@@ -148,7 +148,7 @@ class ParquetSchemaUtilsSuite extends UnitTestSuite {
     val err = intercept[IllegalArgumentException] {
       ParquetSchemaUtils.topLevelUniqueColumns(schema)
     }
-    assert(err.getMessage.contains("[required int32 id] with duplicate column name id"))
+    assert(err.getMessage.contains("[required int32 id] with duplicate column name 'id'"))
   }
 
   test("merge - two identical schemas") {

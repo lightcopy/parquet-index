@@ -199,10 +199,9 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
       // fetch specified columns, inferred fields should be the same as requested columns
       val inferredSchema = StructType(fileStruct.filter { field => columns.contains(field.name) })
       columns.foreach { name =>
-        val containsField = inferredSchema.exists { _.name == name }
-        if (!containsField) {
-          throw new IllegalArgumentException("Failed to select indexed columns. " +
-            s"Column $name does not exist in inferred schema ${inferredSchema.simpleString}")
+        if (!inferredSchema.exists { _.name == name }) {
+          throw new IllegalArgumentException(s"Failed to select indexed column '$name' in " +
+            s"inferred/original schema ${fileStruct.simpleString}")
         }
       }
 
