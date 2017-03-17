@@ -19,9 +19,8 @@ package org.apache.spark.sql.execution.datasources.parquet
 import java.io.IOException
 import java.util.Arrays
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
-import scala.concurrent.ExecutionContext
 import scala.util.control.NonFatal
 
 import org.apache.hadoop.fs.{FileStatus, Path}

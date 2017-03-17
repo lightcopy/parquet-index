@@ -16,6 +16,9 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration.Duration
+
 import org.apache.hadoop.fs.{FileStatus, Path}
 
 import org.apache.spark.sql.catalyst.{expressions, InternalRow}
@@ -141,15 +144,21 @@ class ParquetIndexCatalog(
     require(indexFilters.nonEmpty, s"Expected non-empty index filters, got $indexFilters")
     // reduce filters to supported only
     val reducedFilter = indexFilters.reduceLeft(And)
+
+    // use futures to reduce IO cost when reading filter files
+    implicit val executorContext = ExecutionContext.global
     partitions.flatMap { partition =>
-      val filteredStatuses = partition.files.filter { file =>
-        resolveSupported(reducedFilter, file) match {
-          case Trivial(true) => true
-          case Trivial(false) => false
-          case other => sys.error(s"Failed to resolve filter, got $other, expected trivial")
-        }
+      val futures = partition.files.map { file =>
+        Future[Option[ParquetFileStatus]] {
+          resolveSupported(reducedFilter, file) match {
+            case Trivial(true) => Some(file)
+            case Trivial(false) => None
+            case other => sys.error(s"Failed to resolve filter, got $other, expected trivial")
+          }
+        }(executorContext)
       }
 
+      val filteredStatuses = Await.result(Future.sequence(futures), Duration.Inf).flatten
       if (filteredStatuses.isEmpty) {
         None
       } else {
