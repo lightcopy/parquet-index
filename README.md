@@ -52,8 +52,8 @@ Currently only these types are supported for indexed columns:
 - Certain Spark versions are supported (see table below)
 
 ## Requirements
-| Spark version | `parquet-index` latest version |
-|---------------|--------------------------------|
+| Spark version | parquet-index latest version |
+|---------------|------------------------------|
 | 1.6.x | Not supported |
 | 2.0.0 | [0.2.2](http://spark-packages.org/package/lightcopy/parquet-index) |
 | 2.0.1 | [0.2.2](http://spark-packages.org/package/lightcopy/parquet-index) |
@@ -197,14 +197,16 @@ context.index.delete.parquet('table.parquet')
 
 ### Persistent tables API
 Package also supports index for persistent tables that are saved using `saveAsTable()` in Parquet
-format and accessible using `spark.table(tableName)`. API is available in Scala, Java and Python.
+format and accessible using `spark.table(tableName)`. When using with persistent tables, just
+replace `.parquet(path_to_the_file)` with `.table(table_name)`. API is available in Scala, Java and
+Python.
 
 #### Scala
 ```scala
 import com.github.lightcopy.implicits._
 
 // Create index for table name that exists in Spark catalog
-spark.index.create.indexByAll("col1", "col2", "col3").table("table_name")
+spark.index.create.indexBy("col1", "col2", "col3").table("table_name")
 
 // Check if index exists for persistent table
 val exists: Boolean = spark.index.exists.table("table_name")
