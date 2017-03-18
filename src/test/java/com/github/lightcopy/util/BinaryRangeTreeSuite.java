@@ -26,7 +26,7 @@ public class BinaryRangeTreeSuite {
   @Test
   public void testInit() {
     BinaryRangeTree<Integer> tree = new BinaryRangeTree<Integer>();
-    assertEquals(tree.getMaxDepth(), BinaryRangeTree.DEFAULT_MAX_DEPTH);
+    assertEquals(tree.getMaxHeight(), BinaryRangeTree.DEFAULT_HEIGHT);
     assertEquals(tree.getNumNulls(), 0);
     assertNull(tree.getMin());
     assertNull(tree.getMax());
@@ -38,7 +38,7 @@ public class BinaryRangeTreeSuite {
     try {
       BinaryRangeTree<Integer> tree = new BinaryRangeTree<Integer>(0);
     } catch (IllegalArgumentException err) {
-      assertEquals(err.getMessage(), "maxDepth is out of range, 0");
+      assertEquals(err.getMessage(), "Invalid max height: 0");
       error = true;
     }
     assertTrue(error);
@@ -50,7 +50,7 @@ public class BinaryRangeTreeSuite {
     try {
       BinaryRangeTree<Integer> tree = new BinaryRangeTree<Integer>(21);
     } catch (IllegalArgumentException err) {
-      assertEquals(err.getMessage(), "maxDepth is out of range, 21");
+      assertEquals(err.getMessage(), "Invalid max height: 21");
       error = true;
     }
     assertTrue(error);
@@ -59,8 +59,8 @@ public class BinaryRangeTreeSuite {
   @Test
   public void testToString1() {
     BinaryRangeTree<Integer> tree = new BinaryRangeTree<Integer>();
-    assertEquals(tree.toString(), "BinaryRangeTree(maxDepth=" +
-      BinaryRangeTree.DEFAULT_MAX_DEPTH + ", numNulls=0, root=false)");
+    assertEquals(tree.toString(), "[init=false, maxHeight=" + BinaryRangeTree.DEFAULT_HEIGHT +
+      ", hasMaxHeight=false, balanced=true, bst=true, stats=true, min=null, max=null, numNulls=0]");
   }
 
   @Test
@@ -68,8 +68,9 @@ public class BinaryRangeTreeSuite {
     BinaryRangeTree<Integer> tree = new BinaryRangeTree<Integer>();
     tree.insert(5);
     tree.insert(null);
-    assertEquals(tree.toString(), "BinaryRangeTree(maxDepth=" +
-      BinaryRangeTree.DEFAULT_MAX_DEPTH + ", numNulls=1, root=true)");
+
+    assertEquals(tree.toString(), "[init=true, maxHeight=" + BinaryRangeTree.DEFAULT_HEIGHT +
+      ", hasMaxHeight=false, balanced=true, bst=true, stats=true, min=5, max=5, numNulls=1]");
   }
 
   @Test
@@ -154,27 +155,64 @@ public class BinaryRangeTreeSuite {
     tree.insert("a");
     tree.insert("b");
     tree.insert("d");
+    tree.insert("c");
+    tree.insert("f");
+    tree.insert("e");
+
+    // see tree balancing
+    // [value=b, height=2, min=a, max=f]:
+    //   [value=a, height=0, min=a, max=a]:
+    //     null
+    //     null
+    //   [value=d, height=1, min=c, max=f]:
+    //     [value=c, height=0, min=c, max=c]:
+    //       null
+    //       null
+    //     null
+    assertTrue(tree.mightContain("a"));
+    assertTrue(tree.mightContain("b"));
+    assertTrue(tree.mightContain("c"));
+    assertTrue(tree.mightContain("d"));
+    assertTrue(tree.mightContain("e"));
+    assertTrue(tree.mightContain("f"));
+
+    assertTrue(tree.contains("a"));
+    assertTrue(tree.contains("b"));
+    assertTrue(tree.contains("c"));
+    assertTrue(tree.contains("d"));
+    assertFalse(tree.contains("e"));
+    assertFalse(tree.contains("f"));
+  }
+
+  @Test
+  public void testMaxDepthTruncation2() {
+    // increase max depth and run checks again, now tree should have all inserted values, since
+    // tree is not truncated
+    BinaryRangeTree<String> tree = new BinaryRangeTree<String>(4);
+    tree.insert("a");
+    tree.insert("b");
+    tree.insert("d");
+    tree.insert("c");
+    tree.insert("f");
+    tree.insert("e");
 
     assertTrue(tree.mightContain("a"));
     assertTrue(tree.mightContain("b"));
     assertTrue(tree.mightContain("c"));
     assertTrue(tree.mightContain("d"));
+    assertTrue(tree.mightContain("e"));
+    assertTrue(tree.mightContain("f"));
 
-    // increase max depth and run checks again, now "c" should be false, since
-    // tree is not truncated and we can store all values
-    tree = new BinaryRangeTree<String>(4);
-    tree.insert("a");
-    tree.insert("b");
-    tree.insert("d");
-
-    assertTrue(tree.mightContain("a"));
-    assertTrue(tree.mightContain("b"));
-    assertFalse(tree.mightContain("c"));
-    assertTrue(tree.mightContain("d"));
+    assertTrue(tree.contains("a"));
+    assertTrue(tree.contains("b"));
+    assertTrue(tree.contains("c"));
+    assertTrue(tree.contains("d"));
+    assertTrue(tree.contains("e"));
+    assertTrue(tree.contains("f"));
   }
 
   @Test
-  public void testMaxDepthTruncation2() {
+  public void testMaxDepthTruncation3() {
     // insert values: 5, -2, 100; 10, 4; 30;
     BinaryRangeTree<Integer> tree = new BinaryRangeTree<Integer>(3);
     assertFalse(tree.mightContain(5));
@@ -205,8 +243,21 @@ public class BinaryRangeTreeSuite {
     // insert level 4 (truncated)
     tree.insert(30);
     assertTrue(tree.mightContain(30));
-    // would exist, though we did not insert it - because of the truncation
-    assertTrue(tree.mightContain(20));
-    assertTrue(tree.mightContain(11));
+    // since we balance tree, values below will not exist
+    assertFalse(tree.mightContain(20));
+    assertFalse(tree.mightContain(11));
+
+    // here we exceed max depth of the tree, some of the values will be truncated, it will yield
+    // true, even we did not insert values
+    tree.insert(200);
+    tree.insert(220);
+    tree.insert(240);
+    tree.insert(300);
+
+    assertTrue(tree.mightContain(280));
+    assertTrue(tree.mightContain(290));
+
+    assertFalse(tree.contains(280));
+    assertFalse(tree.contains(290));
   }
 }

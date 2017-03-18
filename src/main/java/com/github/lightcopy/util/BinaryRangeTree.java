@@ -17,9 +17,11 @@
 package com.github.lightcopy.util;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
-  static class TreeNode<T> implements Serializable {
+  static class TreeNode<T extends Comparable<T>> implements Serializable {
     T value;
     T min;
     T max;
@@ -35,6 +37,21 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
       this.height = 0;
       this.left = null;
       this.right = null;
+    }
+
+    protected T minValue(T left, T right) {
+      if (left.compareTo(right) < 0) return left;
+      return right;
+    }
+
+    protected T maxValue(T left, T right) {
+      if (left.compareTo(right) > 0) return left;
+      return right;
+    }
+
+    public void updateMinMaxValue(T other) {
+      this.min = minValue(this.min, other);
+      this.max = maxValue(this.max, other);
     }
 
     @Override
@@ -61,16 +78,6 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
 
   public BinaryRangeTree() {
     this(DEFAULT_HEIGHT);
-  }
-
-  private T updateMinValue(T left, T right) {
-    if (left.compareTo(right) < 0) return left;
-    return right;
-  }
-
-  private T updateMaxValue(T left, T right) {
-    if (left.compareTo(right) > 0) return left;
-    return right;
   }
 
   private int height(TreeNode<T> node) {
@@ -132,8 +139,7 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
       node.right = insert(value, node.right);
     }
     node.height = 1 + Math.max(height(node.left), height(node.right));
-    node.min = updateMinValue(node.min, value);
-    node.max = updateMaxValue(node.max, value);
+    node.updateMinMaxValue(value);
     return balance(node);
   }
 
@@ -222,6 +228,10 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
     return isSet() && this.root.height >= this.maxHeight;
   }
 
+  public int getMaxHeight() {
+    return this.maxHeight;
+  }
+
   public T getMin() {
     return isSet() ? this.root.min : null;
   }
@@ -251,7 +261,7 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
   @Override
   public String toString() {
     return "[init=" + isSet() +
-      ", maxHeight=" + this.maxHeight +
+      ", maxHeight=" + getMaxHeight() +
       ", hasMaxHeight=" + hasMaxHeight() +
       ", balanced=" + isBalanced() +
       ", bst=" + isBST() +
