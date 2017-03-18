@@ -58,6 +58,10 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
       return this.min.compareTo(other) <= 0 && this.max.compareTo(other) >= 0;
     }
 
+    public boolean hasIntervalSet() {
+      return false;
+    }
+
     @Override
     public String toString() {
       return "[value=" + this.value + ", height=" + this.height + ", min=" + this.min + ", max=" +
@@ -65,8 +69,42 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
     }
   }
 
+  static class IntervalTreeNode<T extends Comparable<T>> extends TreeNode<T> {
+    private IntervalSet<T> set;
+
+    public IntervalTreeNode(TreeNode<T> node) {
+      super(node.value);
+      if (node.value.compareTo(node.min) != 0 || node.value.compareTo(node.max) != 0) {
+        throw new IllegalArgumentException("Tree node " + node + " contains non-point range");
+      }
+      this.set = new IntervalSet<T>();
+      this.set.insert(value);
+    }
+
+    @Override
+    public void updateMinMaxValue(T other) {
+      super.updateMinMaxValue(other);
+      this.set.insert(other);
+    }
+
+    @Override
+    public boolean withinRange(T other) {
+      return super.withinRange(other) && this.set.contains(other);
+    }
+
+    @Override
+    public boolean hasIntervalSet() {
+      return true;
+    }
+
+    @Override
+    public String toString() {
+      return "*" + super.toString() + this.set;
+    }
+  }
+
   public static final int MAX_HEIGHT = 20;
-  public static final int DEFAULT_HEIGHT = 10;
+  public static final int DEFAULT_HEIGHT = 8;
 
   private TreeNode<T> root;
   private final int maxHeight;
@@ -138,8 +176,14 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
     }
     if (node.value.compareTo(value) == 0) return node;
     if (node.value.compareTo(value) > 0) {
+      if (canConvert(node.left)) {
+        node.left = new IntervalTreeNode<T>(node.left);
+      }
       node.left = insert(value, node.left);
     } else {
+      if (canConvert(node.right)) {
+        node.right = new IntervalTreeNode<T>(node.right);
+      }
       node.right = insert(value, node.right);
     }
     node.height = 1 + Math.max(height(node.left), height(node.right));
@@ -186,6 +230,11 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
     if (value == null) return this.numNulls > 0;
     if (!isSet()) return false;
     return contains(value, this.root);
+  }
+
+  private boolean canConvert(TreeNode<T> node) {
+    return hasMaxHeight() && node != null && node.left == null && node.right == null &&
+      !node.hasIntervalSet();
   }
 
   private boolean isBalanced(TreeNode<T> node) {
