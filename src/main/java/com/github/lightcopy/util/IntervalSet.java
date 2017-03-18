@@ -22,7 +22,7 @@ import java.util.Arrays;
 public class IntervalSet<T> implements Serializable {
   public static final int MIN_NUM_INTERVALS = 1;
   public static final int MAX_NUM_INTERVALS = 5;
-  public static final int DEFAULT_NUM_INTERVALS = 4;
+  public static final int DEFAULT_NUM_INTERVALS = 3;
 
   private int index;
   private Interval[] intervals;

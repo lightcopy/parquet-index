@@ -104,7 +104,7 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
   }
 
   public static final int MAX_HEIGHT = 20;
-  public static final int DEFAULT_HEIGHT = 8;
+  public static final int DEFAULT_HEIGHT = 10;
 
   private TreeNode<T> root;
   private final int maxHeight;
