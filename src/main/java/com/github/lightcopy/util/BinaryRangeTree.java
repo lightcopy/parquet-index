@@ -54,6 +54,10 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
       this.max = maxValue(this.max, other);
     }
 
+    public boolean withinRange(T other) {
+      return this.min.compareTo(other) <= 0 && this.max.compareTo(other) >= 0;
+    }
+
     @Override
     public String toString() {
       return "[value=" + this.value + ", height=" + this.height + ", min=" + this.min + ", max=" +
@@ -154,7 +158,7 @@ public class BinaryRangeTree<T extends Comparable<T>> implements Serializable {
   private boolean mightContain(T value, TreeNode<T> node) {
     if (node == null) return true;
     if (node.value.compareTo(value) == 0) return true;
-    if (node.min.compareTo(value) > 0 || node.max.compareTo(value) < 0) return false;
+    if (!node.withinRange(value)) return false;
     if (node.value.compareTo(value) > 0) {
       return mightContain(value, node.left);
     } else {
