@@ -78,6 +78,7 @@ class ParquetIndexCatalog(
       indexedPartitions
     }
 
+    logInfo(s"Selected ${filteredPartitions.map(_.files.length).sum} files to scan")
     logDebug("Selected files after index filtering:\n\t" + filteredPartitions.mkString("\n\t"))
 
     // convert it into sequence of Spark `Partition`s

@@ -62,6 +62,12 @@ object IndexConf {
     booleanConf.
     createWithDefault(false)
 
+  val PARQUET_TREE_STATISTICS_ENABLED = SQLConfigBuilder("spark.sql.index.parquet.tree.enabled").
+    doc("When set to true, uses tree statistics when creating index instead of column statistics " +
+      "to store min/max/nulls metadata").
+    booleanConf.
+    createWithDefault(false)
+
   /** Create new configuration from session SQLConf */
   def newConf(sparkSession: SparkSession): IndexConf = {
     new IndexConf(sparkSession.sessionState.conf)
@@ -75,13 +81,15 @@ class IndexConf private[sql](val sqlConf: SQLConf) {
 
   def metastoreLocation: String = getConf(METASTORE_LOCATION)
 
+  def createIfNotExists: Boolean = getConf(CREATE_IF_NOT_EXISTS)
+
   def parquetFilterEnabled: Boolean = getConf(PARQUET_FILTER_STATISTICS_ENABLED)
 
   def parquetFilterType: String = getConf(PARQUET_FILTER_STATISTICS_TYPE)
 
   def parquetFilterEagerLoading: Boolean = getConf(PARQUET_FILTER_STATISTICS_EAGER_LOADING)
 
-  def createIfNotExists: Boolean = getConf(CREATE_IF_NOT_EXISTS)
+  def parquetTreeEnabled: Boolean = getConf(PARQUET_TREE_STATISTICS_ENABLED)
 
   def numPartitions: Int = getConf(NUM_PARTITIONS)
 

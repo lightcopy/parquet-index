@@ -18,6 +18,8 @@ package org.apache.spark.sql.sources
 
 import org.apache.spark.sql.types._
 
+import com.github.lightcopy.util.BinaryRangeTree
+
 /**
  * [[ColumnStatistics]] class provides generic implementation for null-tolerant statistics, and
  * holds information about nulls already. Subclasses need to implement partial functions to handle
@@ -148,8 +150,8 @@ abstract class ColumnStatistics extends Serializable {
 
 object ColumnStatistics {
   /** Get statistics for Spark SQL data type */
-  def getStatisticsForType(tpe: DataType): ColumnStatistics = tpe match {
-    case IntegerType => IntColumnStatistics()
+  def getStatisticsForType(tpe: DataType, useTree: Boolean = false): ColumnStatistics = tpe match {
+    case IntegerType => if (useTree) IntTreeStatistics() else IntColumnStatistics()
     case LongType => LongColumnStatistics()
     case StringType => StringColumnStatistics()
     case DateType => DateColumnStatistics()
@@ -399,4 +401,41 @@ case class TimestampColumnStatistics() extends ColumnStatistics {
   override def getMin(): Any = if (isSet) min else null
 
   override def getMax(): Any = if (isSet) max else null
+}
+
+//////////////////////////////////////////////////////////////
+// == Tree statistics ==
+//////////////////////////////////////////////////////////////
+
+case class IntTreeStatistics() extends ColumnStatistics {
+  // create tree with default max depth
+  private val tree = new BinaryRangeTree[java.lang.Integer]()
+
+  override protected def updateMinMaxFunc: PartialFunction[Any, Unit] = {
+    case value: Int => tree.insert(value)
+  }
+
+  override protected def containsFunc: PartialFunction[Any, Boolean] = {
+    case value: Int => tree.mightContain(value)
+  }
+
+  override protected def isLessThanMinFunc: PartialFunction[Any, Boolean] = {
+    case value: Int if tree.isSet => value < tree.getMin()
+  }
+
+  override protected def isGreaterThanMaxFunc: PartialFunction[Any, Boolean] = {
+    case value: Int if tree.isSet => value > tree.getMax()
+  }
+
+  override protected def isEqualToMinFunc: PartialFunction[Any, Boolean] = {
+    case value: Int if tree.isSet => value == tree.getMin()
+  }
+
+  override protected def isEqualToMaxFunc: PartialFunction[Any, Boolean] = {
+    case value: Int if tree.isSet => value == tree.getMax()
+  }
+
+  override def getMin(): Any = tree.getMin()
+
+  override def getMax(): Any = tree.getMax()
 }

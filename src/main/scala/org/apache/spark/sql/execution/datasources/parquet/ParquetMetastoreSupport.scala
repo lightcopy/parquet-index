@@ -134,6 +134,10 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
       hadoopConf.set(ParquetMetastoreSupport.FILTER_DIR, indexDirectory.getPath.toString)
       hadoopConf.set(ParquetMetastoreSupport.FILTER_TYPE, metastore.conf.parquetFilterType)
     }
+    // set experimental tree statistics
+    if (metastore.conf.parquetTreeEnabled) {
+      hadoopConf.set(ParquetMetastoreSupport.USE_TREE_STATISTICS, "true")
+    }
 
     val numPartitions = ParquetMetastoreSupport.inferNumPartitions(metastore)
     val rdd = new ParquetStatisticsRDD(sc, hadoopConf, indexSchema, files, numPartitions)
@@ -220,6 +224,8 @@ object ParquetMetastoreSupport extends Logging {
   private[sql] val FILTER_DIR = "spark.sql.hadoop.index.parquet.filter.dir"
   // internal Hadoop configuration option to specify filter name/type
   private[sql] val FILTER_TYPE = "spark.sql.hadoop.index.parquet.filter.type"
+  // internal Hadoop configuration key to use tree statistics
+  private[sql] val USE_TREE_STATISTICS = "spark.sql.hadoop.index.parquet.tree.enabled"
   // internal footer metadata key for Spark SQL schema
   private[sql] val SPARK_METADATA_KEY = "org.apache.spark.sql.parquet.row.metadata"
   // metadata name
