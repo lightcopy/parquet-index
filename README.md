@@ -59,6 +59,7 @@ Currently only these types are supported for indexed columns:
 | 2.0.1 | [0.2.3](http://spark-packages.org/package/lightcopy/parquet-index) |
 | 2.0.2 | [0.2.3](http://spark-packages.org/package/lightcopy/parquet-index) |
 | 2.1.x | [0.3.0](http://spark-packages.org/package/lightcopy/parquet-index) |
+| 2.2.x | [0.4.0](http://spark-packages.org/package/lightcopy/parquet-index) |
 
 - Scala 2.11.x
 - JDK 8+
@@ -70,11 +71,11 @@ Currently only these types are supported for indexed columns:
 The `parquet-index` package can be added to Spark by using the `--packages` command line option.
 For example, run this to include it when starting `spark-shell` (Scala 2.11.x):
 ```shell
- $SPARK_HOME/bin/spark-shell --packages lightcopy:parquet-index:0.3.0-s_2.11
+ $SPARK_HOME/bin/spark-shell --packages lightcopy:parquet-index:0.4.0-s_2.11
 ```
 Or for `pyspark` to use Python API (see section below):
 ```shell
-$SPARK_HOME/bin/pyspark --packages lightcopy:parquet-index:0.3.0-s_2.11
+$SPARK_HOME/bin/pyspark --packages lightcopy:parquet-index:0.4.0-s_2.11
 ```
 
 ## Options
