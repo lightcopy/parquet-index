@@ -321,7 +321,7 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
         val location = metastore.location(spec)
 
         val catalog = support.loadIndex(metastore, fs.getFileStatus(location)).
-          asInstanceOf[ParquetIndexCatalog]
+          asInstanceOf[ParquetIndex]
         catalog.indexMetadata.partitions.nonEmpty should be (true)
         catalog.indexMetadata.partitions.foreach { partition =>
           partition.files.nonEmpty should be (true)
@@ -356,7 +356,7 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
         val location = metastore.location(spec)
 
         val catalog = support.loadIndex(metastore, fs.getFileStatus(location)).
-          asInstanceOf[ParquetIndexCatalog]
+          asInstanceOf[ParquetIndex]
         catalog.indexMetadata.partitions.nonEmpty should be (true)
         catalog.indexMetadata.partitions.foreach { partition =>
           partition.files.nonEmpty should be (true)
@@ -392,7 +392,7 @@ class ParquetMetastoreSupportSuite extends UnitTestSuite with SparkLocal with Te
         val location = metastore.location(spec)
 
         val catalog = support.loadIndex(metastore, fs.getFileStatus(location)).
-          asInstanceOf[ParquetIndexCatalog]
+          asInstanceOf[ParquetIndex]
         catalog.indexMetadata.partitions.nonEmpty should be (true)
         catalog.indexMetadata.partitions.foreach { partition =>
           partition.files.nonEmpty should be (true)

@@ -30,16 +30,16 @@ import org.apache.spark.sql.types.StructType
 abstract class MetastoreIndex extends FileIndex with Logging {
 
   /** Fully qualified table path */
-  def tablePath(): Path
+  def tablePath: Path
 
   /** Schema of the partitioning columns, or the empty schema if the table is not partitioned. */
   def partitionSchema: StructType
 
   /** Index schema, used to prune files based on filters for indexed columns */
-  def indexSchema(): StructType
+  def indexSchema: StructType
 
   /** Return schema for listed files */
-  def dataSchema(): StructType
+  def dataSchema: StructType
 
   /** Set index filters for this catalog */
   def setIndexFilters(filters: Seq[Filter])

@@ -37,7 +37,9 @@ private[parquet] case class TestInFilter(values: Seq[Any]) extends ColumnFilterS
   override def isLoaded: Boolean = true
 }
 
-private[parquet] case class TestUnsupportedFilter() extends Filter
+private[parquet] case class TestUnsupportedFilter() extends Filter {
+  override def references: Array[String] = Array.empty
+}
 
 class ParquetIndexFiltersSuite extends UnitTestSuite with SparkLocal {
   override def beforeAll {

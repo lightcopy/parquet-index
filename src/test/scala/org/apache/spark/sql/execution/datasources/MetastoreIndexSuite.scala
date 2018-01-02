@@ -16,7 +16,7 @@
 
 package org.apache.spark.sql.execution.datasources
 
-import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.hadoop.fs.Path
 
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.sources.Filter
@@ -26,44 +26,51 @@ import com.github.lightcopy.testutil.UnitTestSuite
 import com.github.lightcopy.testutil.implicits._
 
 // Test catalog to check internal methods
-private[datasources] class TestIndexCatalog extends MetastoreIndexCatalog {
+private[datasources] class TestIndex extends MetastoreIndex {
   override def tablePath(): Path = ???
-  override def partitionSpec(): PartitionSpec = ???
-  override def indexSchema(): StructType = ???
-  override def dataSchema(): StructType = ???
+  override def partitionSchema: StructType = ???
+  override def indexSchema: StructType = ???
+  override def dataSchema: StructType = ???
+  override def setIndexFilters(filters: Seq[Filter]) = { }
+  override def indexFilters: Seq[Filter] = ???
   override def listFilesWithIndexSupport(
-      filters: Seq[Expression], indexFilters: Seq[Filter]): Seq[Partition] = ???
-  override def allFiles(): Seq[FileStatus] = ???
+      partitionFilters: Seq[Expression],
+      dataFilters: Seq[Expression],
+      indexFilters: Seq[Filter]): Seq[PartitionDirectory] = ???
+  override def inputFiles: Array[String] = ???
+  override def sizeInBytes: Long = ???
 }
 
-class MetastoreIndexCatalogSuite extends UnitTestSuite {
+class MetastoreIndexSuite extends UnitTestSuite {
   test("provide sequence of path based on table path") {
-    val catalog = new TestIndexCatalog() {
+    val catalog = new TestIndex() {
       override def tablePath(): Path = new Path("test")
     }
 
-    catalog.paths should be (Seq(new Path("test")))
+    catalog.rootPaths should be (Seq(new Path("test")))
   }
 
   test("when using listFiles directly supply empty index filter") {
     var indexSeq: Seq[Filter] = null
     var filterSeq: Seq[Expression] = null
-    val catalog = new TestIndexCatalog() {
+    val catalog = new TestIndex() {
       override def listFilesWithIndexSupport(
-          filters: Seq[Expression], indexFilters: Seq[Filter]): Seq[Partition] = {
+          partitionFilters: Seq[Expression],
+          dataFilters: Seq[Expression],
+          indexFilters: Seq[Filter]): Seq[PartitionDirectory] = {
         indexSeq = indexFilters
-        filterSeq = filters
+        filterSeq = partitionFilters
         Seq.empty
       }
     }
 
-    catalog.listFiles(Seq.empty)
+    catalog.listFiles(Seq.empty, Seq.empty)
     indexSeq should be (Nil)
     filterSeq should be (Nil)
   }
 
   test("refresh should be no-op by default") {
-    val catalog = new TestIndexCatalog()
+    val catalog = new TestIndex()
     catalog.refresh()
   }
 }

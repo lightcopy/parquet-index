@@ -366,7 +366,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       val metastore = testMetastore(spark, dir)
       val spec = SourceLocationSpec("identifier", new Path("/tmp/table"))
       val path = metastore.location(spec)
-      metastore.cache.put(path, new TestIndexCatalog())
+      metastore.cache.put(path, new TestIndex())
       metastore.cache.asMap.size should be (1)
 
       metastore.create(spec, SaveMode.ErrorIfExists) {
@@ -413,7 +413,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       val metastore = testMetastore(spark, dir)
       val spec = SourceLocationSpec("identifier", new Path("/tmp/table"))
       val path = metastore.location(spec)
-      metastore.cache.put(path, new TestIndexCatalog())
+      metastore.cache.put(path, new TestIndex())
       metastore.cache.asMap.size should be (1)
 
       mkdirs(path)
@@ -432,7 +432,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       val metastore = testMetastore(spark, dir)
       val spec = SourceLocationSpec("identifier", new Path("/tmp/table"))
       val path = metastore.location(spec)
-      metastore.cache.put(path, new TestIndexCatalog())
+      metastore.cache.put(path, new TestIndex())
       metastore.delete(spec) {
         case status => // no-op
       }
@@ -451,7 +451,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       val metastore = testMetastore(spark, dir)
       val err = intercept[IOException] {
         metastore.load(SourceLocationSpec("identifier", new Path("/tmp/table"))) {
-          case status => new TestIndexCatalog()
+          case status => new TestIndex()
         }
       }
       assert(err.getMessage.contains("Index does not exist"))
@@ -466,7 +466,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       mkdirs(location)
       val err = intercept[IOException] {
         metastore.load(spec) { case status =>
-          new TestIndexCatalog()
+          new TestIndex()
         }
       }
       assert(err.getMessage.contains("Possibly corrupt index, could not find success mark"))
@@ -483,7 +483,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       var triggered = false
       metastore.load(spec) { case status =>
         triggered = true
-        new TestIndexCatalog()
+        new TestIndex()
       }
       triggered should be (true)
       // check that cache also contains entry
@@ -500,7 +500,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       Metastore.markSuccess(fs, location)
 
       val catalog1 = metastore.load(spec) {
-        case status => new TestIndexCatalog()
+        case status => new TestIndex()
       }
       val catalog2 = metastore.load(spec) {
         case status =>
