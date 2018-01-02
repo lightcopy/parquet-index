@@ -1,11 +1,16 @@
 #!/bin/bash
 
-# Test only hadoop2.7 distributions, should be in sync with build.sbt
-SPARK_RELEASE=$1
-CACHE_DIR=$2
+SPARK_VERSION=$1
+SPARK_RELEASE=$2
+CACHE_DIR=$3
+
+if [[ -z "$SPARK_VERSION" ]]; then
+  echo "Spark version is required, e.g. 2.2.0"
+  exit 1
+fi
 
 if [[ -z "$SPARK_RELEASE" ]]; then
-  echo "Spark version is invalid: $SPARK_RELEASE, must follow pattern spark-x.y.z"
+  echo "Spark version is invalid: $SPARK_RELEASE, must follow pattern spark-x.y.z-bin-hadoopX.Y"
   exit 1
 elif [[ "$SPARK_RELEASE" == "NA" ]]; then
   # If Spark release is set to NA, then release is not available, and we ignore setup
@@ -29,16 +34,15 @@ else
   mkdir -p $CACHE_DIR
 fi
 
-SPARK_VERSION="$SPARK_RELEASE-bin-hadoop2.7.tgz"
-SPARK_VERSION_DIR="$CACHE_DIR/$SPARK_VERSION"
-SPARK_VERSION_URL="http://www-us.apache.org/dist/spark/$SPARK_RELEASE/$SPARK_VERSION"
+SPARK_VERSION_DIR="$CACHE_DIR/$SPARK_RELEASE"
+SPARK_VERSION_URL="http://www-us.apache.org/dist/spark/spark-$SPARK_VERSION/$SPARK_RELEASE.tgz"
 
 # Check if cached version is already available
 if [[ -d "$SPARK_VERSION_DIR" ]]; then
   echo "Using existing Spark cache $SPARK_VERSION_DIR"
 else
   echo "Cache is not found for $SPARK_VERSION_DIR"
-  echo "Downloading Spark version $SPARK_VERSION from $SPARK_VERSION_URL"
+  echo "Downloading Spark version $SPARK_RELEASE from $SPARK_VERSION_URL"
   # Remove tar archive that might have been left after unsuccessful download
   rm -f $SPARK_VERSION_DIR.tgz
   curl -L "$SPARK_VERSION_URL" > "$SPARK_VERSION_DIR.tgz"

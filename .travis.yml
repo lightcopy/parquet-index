@@ -9,16 +9,16 @@ matrix:
   include:
     - jdk: oraclejdk8
       scala: 2.11.7
-      env: TEST_SPARK_VERSION="2.2.0" TEST_SPARK_RELEASE="spark-2.2.0"
+      env: TEST_SPARK_VERSION="2.2.0" TEST_SPARK_RELEASE="spark-2.2.0-bin-hadoop2.7"
     - jdk: oraclejdk8
       scala: 2.11.7
-      env: TEST_SPARK_VERSION="2.2.1" TEST_SPARK_RELEASE="spark-2.2.1"
+      env: TEST_SPARK_VERSION="2.2.1" TEST_SPARK_RELEASE="spark-2.2.1-bin-hadoop2.7"
 script:
   - sbt ++$TRAVIS_SCALA_VERSION scalastyle
   - sbt ++$TRAVIS_SCALA_VERSION "test:scalastyle"
   - sbt -Dspark.testVersion=$TEST_SPARK_VERSION ++$TRAVIS_SCALA_VERSION coverage test
   - sbt ++$TRAVIS_SCALA_VERSION package
-  - ./bin/setup-spark $TEST_SPARK_RELEASE $HOME/.cache/spark-versions
+  - ./bin/setup-spark $TEST_SPARK_VERSION $TEST_SPARK_RELEASE $HOME/.cache/spark-versions
   - SPARK_HOME=$HOME/.cache/spark-versions/$TEST_SPARK_RELEASE ./bin/run-python-tests
 after_success:
   - sbt coverageReport coveralls
