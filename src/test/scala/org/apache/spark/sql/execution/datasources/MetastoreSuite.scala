@@ -61,12 +61,20 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
     stopSparkSession()
   }
 
+  /** Partially check permissions, actual should match exactly or include expected */
+  def implyPermission(actual: FsPermission, expected: FsPermission): Boolean = {
+    actual.getUserAction.implies(expected.getUserAction) &&
+    actual.getGroupAction.implies(expected.getGroupAction) &&
+    actual.getOtherAction.implies(expected.getOtherAction)
+  }
+
   test("create non-existent directory for metastore") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test_metastore")
       metastore.metastoreLocation.endsWith("test_metastore") should be (true)
       val status = fs.getFileStatus(new Path(metastore.metastoreLocation))
       status.isDirectory should be (true)
+      // should match exactly
       status.getPermission should be (Metastore.METASTORE_PERMISSION)
     }
   }
@@ -85,6 +93,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       metastore.metastoreLocation should be ("file:" + dir.toString)
       val status = fs.getFileStatus(new Path(metastore.metastoreLocation))
       status.isDirectory should be (true)
+      // should amtch exactly
       status.getPermission should be (Metastore.METASTORE_PERMISSION)
     }
   }
@@ -190,7 +199,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       metastore.create(spec, SaveMode.Append) { case (status, isAppend) =>
         triggered = true
         status.isDirectory should be (true)
-        status.getPermission should be (Metastore.METASTORE_PERMISSION)
+        assert(implyPermission(status.getPermission, Metastore.METASTORE_PERMISSION))
         isAppend should be (false)
       }
       triggered should be (true)
@@ -207,7 +216,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       metastore.create(spec, SaveMode.Overwrite) { case (status, isAppend) =>
         triggered = true
         status.isDirectory should be (true)
-        status.getPermission should be (Metastore.METASTORE_PERMISSION)
+        assert(implyPermission(status.getPermission, Metastore.METASTORE_PERMISSION))
         isAppend should be (false)
       }
       triggered should be (true)
@@ -224,7 +233,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       metastore.create(spec, SaveMode.ErrorIfExists) { case (status, isAppend) =>
         triggered = true
         status.isDirectory should be (true)
-        status.getPermission should be (Metastore.METASTORE_PERMISSION)
+        assert(implyPermission(status.getPermission, Metastore.METASTORE_PERMISSION))
         isAppend should be (false)
       }
       triggered should be (true)
@@ -241,7 +250,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       metastore.create(spec, SaveMode.Ignore) { case (status, isAppend) =>
         triggered = true
         status.isDirectory should be (true)
-        status.getPermission should be (Metastore.METASTORE_PERMISSION)
+        assert(implyPermission(status.getPermission, Metastore.METASTORE_PERMISSION))
         isAppend should be (false)
       }
       triggered should be (true)
@@ -260,7 +269,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       metastore.create(spec, SaveMode.Append) { case (status, isAppend) =>
         triggered = true
         status.isDirectory should be (true)
-        status.getPermission should be (Metastore.METASTORE_PERMISSION)
+        assert(implyPermission(status.getPermission, Metastore.METASTORE_PERMISSION))
         isAppend should be (true)
         // original file should still exist in the folder
         metastore.fs.exists(path / "metadata") should be (true)
@@ -281,7 +290,7 @@ class MetastoreSuite extends UnitTestSuite with SparkLocal with TestMetastore {
       metastore.create(spec, SaveMode.Overwrite) { case (status, isAppend) =>
         triggered = true
         status.isDirectory should be (true)
-        status.getPermission should be (Metastore.METASTORE_PERMISSION)
+        assert(implyPermission(status.getPermission, Metastore.METASTORE_PERMISSION))
         isAppend should be (false)
         // original file should be deleted
         metastore.fs.exists(path / "metadata") should be (false)

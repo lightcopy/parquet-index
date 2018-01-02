@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Test only hadoop2.7 distributions
+# Test only hadoop2.7 distributions, should be in sync with build.sbt
 SPARK_RELEASE=$1
 CACHE_DIR=$2
 
