@@ -16,7 +16,7 @@
 
 package org.apache.spark.sql.execution.datasources
 
-import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.hadoop.fs.Path
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.expressions.Expression
@@ -27,13 +27,13 @@ import org.apache.spark.sql.types.StructType
  * [[MetastoreIndexCatalog]] is a wrapper on index metadata stored in [[Metastore]]. Currently
  * designed to provide catalog with single table path.
  */
-abstract class MetastoreIndexCatalog extends FileCatalog with Logging {
+abstract class MetastoreIndex extends FileIndex with Logging {
 
   /** Fully qualified table path */
   def tablePath(): Path
 
-  /** Returns the specification of the partitions inferred from the data. */
-  def partitionSpec(): PartitionSpec
+  /** Schema of the partitioning columns, or the empty schema if the table is not partitioned. */
+  def partitionSchema: StructType
 
   /** Index schema, used to prune files based on filters for indexed columns */
   def indexSchema(): StructType
@@ -41,30 +41,45 @@ abstract class MetastoreIndexCatalog extends FileCatalog with Logging {
   /** Return schema for listed files */
   def dataSchema(): StructType
 
+  /** Set index filters for this catalog */
+  def setIndexFilters(filters: Seq[Filter])
+
+  /** Return index filters that were set in `setIndexFilters` method */
+  def indexFilters: Seq[Filter]
+
   /**
    * Return all valid files grouped into partitions that confirm to partition filters and index
    * filters when available.
-   * @param filters filters used to prune which partitions are returned
+   * @param partitionFilters filters used to prune which partitions are returned
+   * @param dataFilters filters that can be applied on non-partitioned columns.
    * @param indexFilters filters used to select files based on provided index
    */
   def listFilesWithIndexSupport(
-      filters: Seq[Expression], indexFilters: Seq[Filter]): Seq[Partition]
+      partitionFilters: Seq[Expression],
+      dataFilters: Seq[Expression],
+      indexFilters: Seq[Filter]): Seq[PartitionDirectory]
 
-  /** Returns all the valid files. */
-  def allFiles(): Seq[FileStatus]
+  /** Returns the list of files that will be read when scanning this relation */
+  def inputFiles: Array[String]
+
+  /** Sum of table file sizes, in bytes */
+  def sizeInBytes: Long
 
   /** Refresh the file listing */
   def refresh(): Unit = { }
 
-  /** Returns the list of input paths from which the catalog will get files. */
-  final def paths: Seq[Path] = Seq(tablePath)
+  /** Returns the list of input paths from which the catalog will get files */
+  final def rootPaths: Seq[Path] = Seq(tablePath)
 
   /**
    * Returns all valid files grouped into partitions when the data is partitioned. If the data is
    * unpartitioned, this will return a single partition with no partition values.
-   * @param filters filters used to prune which partitions are returned.
+   * @param partitionFilters filters used to prune which partitions are returned.
+   * @param dataFilters filters that can be applied on non-partitioned columns.
    */
-  final def listFiles(filters: Seq[Expression]): Seq[Partition] = {
-    listFilesWithIndexSupport(filters, Nil)
+  final def listFiles(
+      partitionFilters: Seq[Expression],
+      dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    listFilesWithIndexSupport(partitionFilters, dataFilters, indexFilters)
   }
 }

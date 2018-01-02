@@ -54,16 +54,16 @@ trait MetastoreSupport {
       tablePath: FileStatus,
       isAppend: Boolean,
       partitionSpec: PartitionSpec,
-      partitions: Seq[Partition],
+      partitions: Seq[PartitionDirectory],
       columns: Seq[Column]): Unit
 
   /**
-   * Load index into `MetastoreIndexCatalog`, which provides methods to return all files, apply
+   * Load index into `MetastoreIndex`, which provides methods to return all files, apply
    * filtering on discovered files and infer schema.
    * @param metastore current index metastore
    * @param indexDirectory index directory of metastore to load relevant data
    */
-  def loadIndex(metastore: Metastore, indexDirectory: FileStatus): MetastoreIndexCatalog
+  def loadIndex(metastore: Metastore, indexDirectory: FileStatus): MetastoreIndex
 
   /**
    * Delete index, this method should be overwritten when special handling of data inside index

@@ -23,6 +23,8 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{Column, SaveMode, SparkSession}
+import org.apache.spark.sql.catalyst.catalog.BucketSpec
+import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.execution.datasources.parquet.ParquetMetastoreSupport
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.StructType
@@ -58,9 +60,9 @@ case class IndexedDataSource(
   }
 
   def resolveRelation(): BaseRelation = {
-    val caseInsensitiveOptions = new CaseInsensitiveMap(options)
+    val caseInsensitiveOptions = CaseInsensitiveMap(options)
     providingClass.newInstance() match {
-      case s: MetastoreSupport =>
+      case support: MetastoreSupport =>
         // if index does not exist in metastore and option is selected, we will create it before
         // loading index catalog. Note that empty list of columns indicates all available columns
         // will be inferred
@@ -68,21 +70,20 @@ case class IndexedDataSource(
           logInfo("Index does not exist in metastore, will create for all available columns")
           createIndex(Nil)
         }
-        logInfo(s"Loading index for $s, table=${tablePath.getPath}")
+        logInfo(s"Loading index for $support, table=${tablePath.getPath}")
 
-        val spec = locationSpec(s.identifier, tablePath.getPath, catalogTable)
+        val spec = locationSpec(support.identifier, tablePath.getPath, catalogTable)
         val indexCatalog = metastore.load(spec) { status =>
-          s.loadIndex(metastore, status)
+          support.loadIndex(metastore, status)
         }
 
-        IndexedDataSource.newHadoopRelation(
-          metastore.session,
-          location = indexCatalog,
-          partitionSchema = indexCatalog.partitionSpec().partitionColumns,
-          dataSchema = indexCatalog.dataSchema().asNullable,
+        HadoopFsRelation(
+          indexCatalog,
+          partitionSchema = indexCatalog.partitionSchema,
+          dataSchema = indexCatalog.dataSchema.asNullable,
           bucketSpec = bucketSpec,
-          fileFormat = s.fileFormat,
-          options = caseInsensitiveOptions)
+          support.fileFormat,
+          caseInsensitiveOptions)(metastore.session)
       case other =>
         throw new UnsupportedOperationException(s"Index is not supported by $other")
     }
@@ -98,11 +99,10 @@ case class IndexedDataSource(
       // infer partitions from file path
       val paths = Seq(tablePath.getPath)
       val partitionSchema: Option[StructType] = None
-      val catalog = new ListingFileCatalog(metastore.session, paths, options, partitionSchema,
-        ignoreFileNotFound = false)
+      val catalog = new InMemoryFileIndex(metastore.session, paths, options, partitionSchema)
       val partitionSpec = catalog.partitionSpec
       // ignore filtering expression for partitions, fetch all available files
-      val allFiles = catalog.listFiles(Nil)
+      val allFiles = catalog.listFiles(Nil, Nil)
       val spec = locationSpec(s.identifier, tablePath.getPath, catalogTable)
       metastore.create(spec, mode) { (status, isAppend) =>
         s.createIndex(metastore, status, tablePath, isAppend, partitionSpec, allFiles, columns)
@@ -143,7 +143,6 @@ case class IndexedDataSource(
 
 object IndexedDataSource {
   val parquet = classOf[ParquetMetastoreSupport].getCanonicalName
-  val hadoopFsRelation = classOf[HadoopFsRelation].getCanonicalName
 
   /**
    * Resolve class name into fully-qualified class path if available. If no match found, return
@@ -174,56 +173,5 @@ object IndexedDataSource {
   def resolveTablePath(path: Path, conf: Configuration): FileStatus = {
     val fs = path.getFileSystem(conf)
     fs.getFileStatus(path)
-  }
-
-  /**
-   * Load `HadoopFsRelation` depending on Spark version.
-   * Class in Spark 2.0.0 does not have second list of parameters and SparkSession is passed along
-   * with other parameters for HadoopFsRelation. In contrast Spark 2.0.1 and onwards Spark session
-   * is passed in second parameter list as part of currying. Here we make it loadable so consumers
-   * do not need to worry about compatibility.
-   * This is very different from Spark 1.x where HadoopFsRelation resides in `sources` interfaces.
-   */
-  def newHadoopRelation(
-      sparkSession: SparkSession,
-      location: FileCatalog,
-      partitionSchema: StructType,
-      dataSchema: StructType,
-      bucketSpec: Option[BucketSpec],
-      fileFormat: FileFormat,
-      options: Map[String, String]): HadoopFsRelation = {
-    // choose constructor depending on Spark version
-    val loader = Utils.getContextOrSparkClassLoader
-    val clazz = Try(loader.loadClass(hadoopFsRelation)) match {
-      case Success(relation) =>
-        relation
-      case Failure(error) =>
-        throw new ClassNotFoundException(s"Failed to find $hadoopFsRelation", error)
-    }
-
-    if (sparkSession.version == "2.0.0") {
-      val constructor = clazz.getConstructor(
-        classOf[SparkSession],
-        classOf[FileCatalog],
-        classOf[StructType],
-        classOf[StructType],
-        classOf[Option[BucketSpec]],
-        classOf[FileFormat],
-        classOf[Map[String, String]])
-      constructor.newInstance(sparkSession, location, partitionSchema, dataSchema, bucketSpec,
-        fileFormat, options).asInstanceOf[HadoopFsRelation]
-    } else {
-      // loading constructor for 2.0.1 and onwards including 2.1.x
-      val constructor = clazz.getConstructor(
-        classOf[FileCatalog],
-        classOf[StructType],
-        classOf[StructType],
-        classOf[Option[BucketSpec]],
-        classOf[FileFormat],
-        classOf[Map[String, String]],
-        classOf[SparkSession])
-      constructor.newInstance(location, partitionSchema, dataSchema, bucketSpec, fileFormat,
-        options, sparkSession).asInstanceOf[HadoopFsRelation]
-    }
   }
 }

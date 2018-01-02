@@ -51,13 +51,13 @@ private[sql] class Metastore(
   logInfo(s"Registered file system $fs")
 
   // cache of index catalogs per metastore
-  val onRemovalAction = new RemovalListener[Path, MetastoreIndexCatalog] {
-    override def onRemoval(rm: RemovalNotification[Path, MetastoreIndexCatalog]): Unit = {
+  val onRemovalAction = new RemovalListener[Path, MetastoreIndex] {
+    override def onRemoval(rm: RemovalNotification[Path, MetastoreIndex]): Unit = {
       logInfo(s"Evicting index ${rm.getKey}")
     }
   }
 
-  val cache: Cache[Path, MetastoreIndexCatalog] =
+  val cache: Cache[Path, MetastoreIndex] =
     CacheBuilder.newBuilder().
       maximumSize(16).
       expireAfterWrite(12, TimeUnit.HOURS).
@@ -187,7 +187,7 @@ private[sql] class Metastore(
    * Note that is this behaviour changes, cache should be updated accordingly.
    */
   def load(spec: IndexLocationSpec)
-      (func: FileStatus => MetastoreIndexCatalog): MetastoreIndexCatalog = {
+      (func: FileStatus => MetastoreIndex): MetastoreIndex = {
     val resolvedPath = location(spec)
     Option(cache.getIfPresent(resolvedPath)) match {
       case Some(cachedValue) =>

@@ -8,7 +8,7 @@ crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 spName := "lightcopy/parquet-index"
 
-val defaultSparkVersion = "2.0.1"
+val defaultSparkVersion = "2.2.0"
 
 sparkVersion := sys.props.getOrElse("spark.testVersion", defaultSparkVersion)
 

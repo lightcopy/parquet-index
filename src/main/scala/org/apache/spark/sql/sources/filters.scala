@@ -19,4 +19,6 @@ package org.apache.spark.sql.sources
 /**
  * Trivial filter to resolve directly, provides empty list of references.
  */
-case class Trivial(value: Boolean) extends Filter
+case class Trivial(value: Boolean) extends Filter {
+  override def references: Array[String] = findReferences(value)
+}
