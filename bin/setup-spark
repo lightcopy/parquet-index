@@ -35,7 +35,7 @@ else
 fi
 
 SPARK_VERSION_DIR="$CACHE_DIR/$SPARK_RELEASE"
-SPARK_VERSION_URL="http://www-us.apache.org/dist/spark/spark-$SPARK_VERSION/$SPARK_RELEASE.tgz"
+SPARK_VERSION_URL="https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/$SPARK_RELEASE.tgz"
 
 # Check if cached version is already available
 if [[ -d "$SPARK_VERSION_DIR" ]]; then
