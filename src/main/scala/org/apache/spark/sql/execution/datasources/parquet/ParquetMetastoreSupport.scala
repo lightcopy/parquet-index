@@ -43,7 +43,7 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
 
   override def loadIndex(
       metastore: Metastore,
-      indexDirectory: FileStatus): MetastoreIndexCatalog = {
+      indexDirectory: FileStatus): MetastoreIndex = {
     val readDir = tableMetadataLocation(indexDirectory.getPath)
     if (!metastore.fs.exists(readDir)) {
       throw new IOException(s"Path $readDir for table metadata does not exist")
@@ -89,7 +89,7 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
       logInfo(s"Loaded all filter statistics for catalog in $timeMs ms")
     }
 
-    new ParquetIndexCatalog(metastore, indexMetadata)
+    new ParquetIndex(metastore, indexMetadata)
   }
 
   override def createIndex(
@@ -98,7 +98,7 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
       tablePath: FileStatus,
       isAppend: Boolean,
       partitionSpec: PartitionSpec,
-      partitions: Seq[Partition],
+      partitions: Seq[PartitionDirectory],
       columns: Seq[Column]): Unit = {
     require(partitions.nonEmpty, "Empty partitions provided")
     if (isAppend) {
@@ -180,7 +180,9 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
    * If list of column names is empty, infer all available columns in schema.
    */
   private[parquet] def inferIndexSchema(
-      metastore: Metastore, partitions: Seq[Partition], columns: Seq[String]): StructType = {
+      metastore: Metastore,
+      partitions: Seq[PartitionDirectory],
+      columns: Seq[String]): StructType = {
     val conf = metastore.session.sessionState.newHadoopConf()
     val status = partitions.head.files.head
 

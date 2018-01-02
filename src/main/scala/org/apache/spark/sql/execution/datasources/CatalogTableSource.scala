@@ -17,9 +17,10 @@
 package org.apache.spark.sql.execution.datasources
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.catalyst.catalog.CatalogTable
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.execution.BatchedDataSourceScanExec
+import org.apache.spark.sql.execution.FileSourceScanExec
 
 /** Catalog table info that is used to reconstruct data source */
 sealed case class CatalogTableInfo(
@@ -46,13 +47,14 @@ case class CatalogTableSource(
     val qe = metastore.session.sessionState.executePlan(plan)
     qe.assertAnalyzed
     qe.sparkPlan match {
-      case scanExec: BatchedDataSourceScanExec =>
-        assert(scanExec.metadata.contains(FORMAT), s"$FORMAT for $scanExec")
-        assert(scanExec.metadata.contains(INPUT_PATHS), s"$INPUT_PATHS for $scanExec")
+      case scanExec: FileSourceScanExec if scanExec.metastoreTableIdentifier.isDefined =>
         // format describes subclass of FileFormat, and reference is slightly different from
         // datasource API, also we expect only single path/directory
+        require(scanExec.metadata.contains(FORMAT), s"$FORMAT for $scanExec")
+        require(scanExec.relation.location.rootPaths.length == 1, s"Input paths for $scanExec")
+
         val format = scanExec.metadata(FORMAT)
-        val inputPath = scanExec.metadata(INPUT_PATHS)
+        val inputPath = scanExec.relation.location.rootPaths.head.toString
         val extendedOptions = options + ("path" -> inputPath)
         CatalogTableInfo(format, inputPath, extendedOptions)
       case other =>

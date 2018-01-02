@@ -19,9 +19,9 @@ package org.apache.spark.sql.execution.datasources.parquet
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
 
-import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.hadoop.fs.Path
 
-import org.apache.spark.sql.catalyst.{expressions, InternalRow}
+import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, BoundReference, Expression, InterpretedPredicate}
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.sources._
@@ -33,34 +33,47 @@ import com.github.lightcopy.util.SerializableFileStatus
  * Index catalog for Parquet tables.
  * Metastore is used mainly to provide Hadoop file system and/or configuration.
  */
-class ParquetIndexCatalog(
+class ParquetIndex(
     @transient val metastore: Metastore,
     @transient val indexMetadata: ParquetIndexMetadata)
-  extends MetastoreIndexCatalog {
+  extends MetastoreIndex {
+
+  // internal set of index filters that we reset every time when loading relation
+  private var internalIndexFilters: Seq[Filter] = Nil
 
   require(indexMetadata != null, "Parquet index metadata is null, serialized data is incorrect")
 
   override val tablePath: Path = new Path(indexMetadata.tablePath)
 
-  override val partitionSpec: PartitionSpec = indexMetadata.partitionSpec
+  override lazy val partitionSchema: StructType = indexMetadata.partitionSpec.partitionColumns
 
   override lazy val dataSchema = indexMetadata.dataSchema
 
   override lazy val indexSchema = indexMetadata.indexSchema
 
+  override def setIndexFilters(filters: Seq[Filter]) = {
+    internalIndexFilters = filters
+  }
+
+  override def indexFilters: Seq[Filter] = internalIndexFilters
+
   override def listFilesWithIndexSupport(
-      filters: Seq[Expression], indexFilters: Seq[Filter]): Seq[Partition] = {
+      partitionFilters: Seq[Expression],
+      dataFilters: Seq[Expression],
+      indexFilters: Seq[Filter]): Seq[PartitionDirectory] = {
     // select all parquet file statuses if partition schema is empty
+    val partitionSpec = indexMetadata.partitionSpec
     val allPartitions = indexMetadata.partitions
     val selectedPartitions: Seq[ParquetPartition] = if (partitionSpec.partitionColumns.isEmpty) {
       allPartitions
     } else {
       // here we need to check path for each partition leaf that it is contains partition directory
       // currently check is based on partitions having the same parsed values as directory
-      prunePartitions(filters, partitionSpec).flatMap { case PartitionDirectory(values, path) =>
-        allPartitions.filter { partition =>
-          partition.values == values
-        }
+      prunePartitions(partitionFilters, partitionSpec).flatMap {
+        case PartitionPath(values, path) =>
+          allPartitions.filter { partition =>
+            partition.values == values
+          }
       }
     }
 
@@ -80,21 +93,25 @@ class ParquetIndexCatalog(
 
     logDebug("Selected files after index filtering:\n\t" + filteredPartitions.mkString("\n\t"))
 
-    // convert it into sequence of Spark `Partition`s
+    // convert it into sequence of Spark `PartitionDirectory`s
     filteredPartitions.map { partition =>
-      Partition(partition.values, partition.files.map { file =>
+      PartitionDirectory(partition.values, partition.files.map { file =>
         SerializableFileStatus.toFileStatus(file.status)
       })
     }
   }
 
-  override def allFiles(): Seq[FileStatus] = indexMetadata.partitions.flatMap { partition =>
-    partition.files.map { parquetFile => SerializableFileStatus.toFileStatus(parquetFile.status) }
-  }
+  override lazy val inputFiles: Array[String] = indexMetadata.partitions.flatMap { partition =>
+    partition.files.map { parquetFile => parquetFile.status.path }
+  }.toArray
+
+  override lazy val sizeInBytes: Long = indexMetadata.partitions.flatMap { partition =>
+    partition.files.map { parquetFile => parquetFile.status.length }
+  }.sum
 
   private[parquet] def prunePartitions(
       predicates: Seq[Expression],
-      partitionSpec: PartitionSpec): Seq[PartitionDirectory] = {
+      partitionSpec: PartitionSpec): Seq[PartitionPath] = {
     val PartitionSpec(partitionColumns, partitions) = partitionSpec
     val partitionColumnNames = partitionColumns.map(_.name).toSet
     val partitionPruningPredicates = predicates.filter {
@@ -111,14 +128,14 @@ class ParquetIndexCatalog(
       })
 
       val selected = partitions.filter {
-        case PartitionDirectory(values, _) => boundPredicate(values)
+        case PartitionPath(values, _) => boundPredicate.eval(values)
       }
-
       logInfo {
         val total = partitions.length
         val selectedSize = selected.length
         val percentPruned = (1 - selectedSize.toDouble / total.toDouble) * 100
-        s"Selected $selectedSize partitions out of $total, pruned $percentPruned% partitions."
+        s"Selected $selectedSize partitions out of $total, " +
+          s"pruned ${if (total == 0) "0" else s"$percentPruned%"} partitions."
       }
 
       selected

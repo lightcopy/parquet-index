@@ -46,7 +46,7 @@ private[datasources] class TestMetastoreSupport extends MetastoreSupport {
       tablePath: FileStatus,
       isAppend: Boolean,
       partitionSpec: PartitionSpec,
-      partitions: Seq[Partition],
+      partitions: Seq[PartitionDirectory],
       columns: Seq[Column]): Unit = {
     throw new RuntimeException(
       s"Test for tablePath=${tablePath.getPath}, isAppend=$isAppend, columns=$columns")
@@ -54,15 +54,20 @@ private[datasources] class TestMetastoreSupport extends MetastoreSupport {
 
   override def loadIndex(
       metastore: Metastore,
-      indexDirectory: FileStatus): MetastoreIndexCatalog = {
-    new MetastoreIndexCatalog() {
-      override def tablePath(): Path = new Path(".")
-      override def partitionSpec(): PartitionSpec = PartitionSpec(StructType(Seq.empty), Seq.empty)
-      override def indexSchema(): StructType = StructType(Seq.empty)
-      override def dataSchema(): StructType = StructType(Seq.empty)
+      indexDirectory: FileStatus): MetastoreIndex = {
+    new MetastoreIndex() {
+      override def tablePath: Path = new Path(".")
+      override def partitionSchema: StructType = StructType(Seq.empty)
+      override def indexSchema: StructType = StructType(Seq.empty)
+      override def dataSchema: StructType = StructType(Seq.empty)
+      override def setIndexFilters(filters: Seq[Filter]) = { }
+      override def indexFilters: Seq[Filter] = ???
       override def listFilesWithIndexSupport(
-        filters: Seq[Expression], indexFilters: Seq[Filter]): Seq[Partition] = Seq.empty
-      override def allFiles(): Seq[FileStatus] = Seq.empty
+          partitionFilters: Seq[Expression],
+          dataFilters: Seq[Expression],
+          indexFilters: Seq[Filter]): Seq[PartitionDirectory] = Seq.empty
+      override def inputFiles: Array[String] = Array.empty
+      override def sizeInBytes: Long = 0L
     }
   }
 
@@ -157,7 +162,7 @@ class IndexedDataSourceSuite extends UnitTestSuite with SparkLocal with TestMeta
         options = Map("path" -> dir.toString))
       // relation should be HadoopFsRelation
       val relation = source.resolveRelation().asInstanceOf[HadoopFsRelation]
-      relation.location.isInstanceOf[MetastoreIndexCatalog] should be (true)
+      relation.location.isInstanceOf[MetastoreIndex] should be (true)
       relation.options should be (Map("path" -> dir.toString))
       relation.bucketSpec should be (None)
       relation.fileFormat should be (null)

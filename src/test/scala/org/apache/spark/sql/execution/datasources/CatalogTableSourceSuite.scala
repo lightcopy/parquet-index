@@ -40,7 +40,7 @@ class CatalogTableSourceSuite extends UnitTestSuite with SparkLocal with TestMet
     }
   }
 
-  test("fail if source is temporary view and not BatchedDataSourceScanExec") {
+  test("fail if source is temporary view and not FileSourceScanExec") {
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test")
       val view = "range_view"
@@ -65,7 +65,7 @@ class CatalogTableSourceSuite extends UnitTestSuite with SparkLocal with TestMet
         try {
           val source = CatalogTableSource(metastore, tableName, options = Map("key" -> "value"))
           val indexedSource = source.asDataSource
-          indexedSource.className should be ("ParquetFormat")
+          indexedSource.className should be ("Parquet")
           indexedSource.mode should be (source.mode)
           for ((key, value) <- source.options) {
             indexedSource.options.get(key) should be (Some(value))
@@ -79,18 +79,23 @@ class CatalogTableSourceSuite extends UnitTestSuite with SparkLocal with TestMet
     }
   }
 
-  test("fail to convert JSON catalog table into indexed source") {
-    // JSON source is org.apache.spark.sql.execution.RowDataSourceScanExec
+  test("Convert JSON catalog table into indexed source") {
+    // JSON format is supported as CatalogTableInfo, but does not have metastore support
     withTempDir { dir =>
       withSQLConf("spark.sql.sources.default" -> "json") {
         val metastore = testMetastore(spark, dir / "test")
         val tableName = "test_json_table"
         spark.range(0, 10).write.saveAsTable(tableName)
         try {
-          val err = intercept[UnsupportedOperationException] {
-            CatalogTableSource(metastore, tableName, options = Map("key" -> "value"))
+          val source = CatalogTableSource(metastore, tableName, options = Map("key" -> "value"))
+          val indexedSource = source.asDataSource
+          indexedSource.className should be ("JSON")
+          indexedSource.mode should be (source.mode)
+          for ((key, value) <- source.options) {
+            indexedSource.options.get(key) should be (Some(value))
           }
-          err.getMessage.contains(s"Scan json ${spark.catalog.currentDatabase}.$tableName")
+          indexedSource.options.get("path").isDefined should be (true)
+          indexedSource.catalogTable.isDefined should be (true)
         } finally {
           spark.sql(s"drop table $tableName")
         }

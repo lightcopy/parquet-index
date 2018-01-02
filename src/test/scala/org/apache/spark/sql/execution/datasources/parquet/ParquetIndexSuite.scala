@@ -29,7 +29,7 @@ import com.github.lightcopy.util.SerializableFileStatus
 import com.github.lightcopy.testutil.{SparkLocal, UnitTestSuite}
 import com.github.lightcopy.testutil.implicits._
 
-class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMetastore {
+class ParquetIndexSuite extends UnitTestSuite with SparkLocal with TestMetastore {
   override def beforeAll {
     startSparkSession()
   }
@@ -54,7 +54,7 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test_metastore")
       val err = intercept[IllegalArgumentException] {
-        new ParquetIndexCatalog(metastore, null)
+        new ParquetIndex(metastore, null)
       }
       assert(err.getMessage.contains("Parquet index metadata is null"))
     }
@@ -78,14 +78,14 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
             )
           ))
         ))
-      val catalog = new ParquetIndexCatalog(metastore, metadata)
+      val catalog = new ParquetIndex(metastore, metadata)
 
       // check all metadata
-      catalog.paths should be (Seq(new Path("tablePath")))
-      catalog.allFiles should be (Seq(SerializableFileStatus.toFileStatus(testSerDeStatus)))
+      catalog.rootPaths should be (Seq(new Path("tablePath")))
+      catalog.inputFiles should be (Array(testSerDeStatus.path))
       catalog.dataSchema should be (StructType(StructField("a", LongType) :: Nil))
       catalog.indexSchema should be (StructType(StructField("a", LongType) :: Nil))
-      catalog.partitionSpec should be (PartitionSpec(StructType(Nil), Seq.empty))
+      catalog.partitionSchema should be (StructType(Nil))
     }
   }
 
@@ -93,8 +93,8 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test_metastore")
       val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
-      val catalog = new ParquetIndexCatalog(metastore, metadata)
-      val spec = PartitionSpec(StructType(Nil), Seq(PartitionDirectory(InternalRow.empty, "path")))
+      val catalog = new ParquetIndex(metastore, metadata)
+      val spec = PartitionSpec(StructType(Nil), Seq(PartitionPath(InternalRow.empty, "path")))
       catalog.prunePartitions(Seq.empty, spec) should be (spec.partitions)
     }
   }
@@ -103,12 +103,12 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test_metastore")
       val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
-      val catalog = new ParquetIndexCatalog(metastore, metadata)
+      val catalog = new ParquetIndex(metastore, metadata)
 
       val spec = PartitionSpec(StructType(StructField("a", IntegerType) :: Nil), Seq(
-        PartitionDirectory(InternalRow(1), new Path("path1")),
-        PartitionDirectory(InternalRow(2), new Path("path2")),
-        PartitionDirectory(InternalRow(3), new Path("path3"))
+        PartitionPath(InternalRow(1), new Path("path1")),
+        PartitionPath(InternalRow(2), new Path("path2")),
+        PartitionPath(InternalRow(3), new Path("path3"))
       ))
 
       val filter = expressions.Or(
@@ -119,8 +119,8 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
       )
       // remove "a=2" partition
       catalog.prunePartitions(filter :: Nil, spec) should be (
-        PartitionDirectory(InternalRow(1), new Path("path1")) ::
-        PartitionDirectory(InternalRow(3), new Path("path3")) :: Nil)
+        PartitionPath(InternalRow(1), new Path("path1")) ::
+        PartitionPath(InternalRow(3), new Path("path3")) :: Nil)
     }
   }
 
@@ -128,7 +128,7 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test_metastore")
       val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
-      val catalog = new ParquetIndexCatalog(metastore, metadata)
+      val catalog = new ParquetIndex(metastore, metadata)
       val err = intercept[IllegalArgumentException] {
         catalog.pruneIndexedPartitions(Nil, Nil)
       }
@@ -140,7 +140,7 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test_metastore")
       val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
-      val catalog = new ParquetIndexCatalog(metastore, metadata) {
+      val catalog = new ParquetIndex(metastore, metadata) {
         override def resolveSupported(filter: Filter, status: ParquetFileStatus): Filter =
           TestUnsupportedFilter()
       }
@@ -160,7 +160,7 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test_metastore")
       val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
-      val catalog = new ParquetIndexCatalog(metastore, metadata) {
+      val catalog = new ParquetIndex(metastore, metadata) {
         override def resolveSupported(filter: Filter, status: ParquetFileStatus): Filter =
           Trivial(true)
       }
@@ -178,7 +178,7 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test_metastore")
       val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
-      val catalog = new ParquetIndexCatalog(metastore, metadata) {
+      val catalog = new ParquetIndex(metastore, metadata) {
         override def resolveSupported(filter: Filter, status: ParquetFileStatus): Filter =
           Trivial(false)
       }
@@ -197,7 +197,7 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
       val metastore = testMetastore(spark, dir / "test_metastore")
       val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
       val status = ParquetFileStatus(null, null, Array(null))
-      val catalog = new ParquetIndexCatalog(metastore, metadata)
+      val catalog = new ParquetIndex(metastore, metadata)
       catalog.resolveSupported(Trivial(false), status) should be (Trivial(false))
       catalog.resolveSupported(Trivial(true), status) should be (Trivial(true))
     }
@@ -208,7 +208,7 @@ class ParquetIndexCatalogSuite extends UnitTestSuite with SparkLocal with TestMe
       val metastore = testMetastore(spark, dir / "test_metastore")
       val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
       val status = ParquetFileStatus(null, null, Array.empty)
-      val catalog = new ParquetIndexCatalog(metastore, metadata)
+      val catalog = new ParquetIndex(metastore, metadata)
       catalog.resolveSupported(EqualTo("a", 1), status) should be (Trivial(false))
     }
   }

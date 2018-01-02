@@ -74,7 +74,7 @@ class ParquetIndexReadSupportSuite extends UnitTestSuite {
     val container = new BufferRecordContainer()
     container.init(numFields = 1)
     container.setParquetBinary(0, new PrimitiveType(REQUIRED, INT96, "a"),
-      Binary.fromByteArray(new Array[Byte](12), 0, 12))
+      Binary.fromConstantByteArray(new Array[Byte](12), 0, 12))
     container.getByIndex(0).isInstanceOf[java.sql.Timestamp] should be (true)
   }
 
@@ -122,14 +122,14 @@ class ParquetIndexReadSupportSuite extends UnitTestSuite {
     val container = new BufferRecordContainer()
     container.init(numFields = 1)
     var err = intercept[AssertionError] {
-      val bin = Binary.fromByteArray(arr, 0, 11)
+      val bin = Binary.fromConstantByteArray(arr, 0, 11)
       container.setParquetBinary(0, new PrimitiveType(REQUIRED, INT96, "a"), bin)
     }
     assert(err.getMessage.contains(
       "Timestamps (with nanoseconds) are expected to be stored in 12-byte long binaries"))
 
     err = intercept[AssertionError] {
-      val bin = Binary.fromByteArray(arr, 0, 13)
+      val bin = Binary.fromConstantByteArray(arr, 0, 13)
       container.setParquetBinary(0, new PrimitiveType(REQUIRED, INT96, "a"), bin)
     }
   }
@@ -139,7 +139,7 @@ class ParquetIndexReadSupportSuite extends UnitTestSuite {
     container.init(numFields = 1)
     // same as 110000000000L or 1970-01-02 18:33:20.0
     val arr = Array[Byte](0, -32, -99, -51, 118, 21, 0, 0, -115, 61, 37, 0)
-    val bin = Binary.fromByteArray(arr, 0, arr.length)
+    val bin = Binary.fromConstantByteArray(arr, 0, arr.length)
     container.setParquetBinary(0, new PrimitiveType(REQUIRED, INT96, "a"), bin)
     container.getByIndex(0) should be (DateTimeUtils.toJavaTimestamp(110000000000L))
   }
