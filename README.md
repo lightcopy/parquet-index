@@ -64,6 +64,8 @@ Currently only these types are supported for indexed columns:
 - JDK 8+
 
 > Previous versions have support for Scala 2.10.x and JDK 7, see README for corresponding tag or branch
+>
+> Note that you could still build it manually for different Java/Scala versions
 
 ## Linking
 The `parquet-index` package can be added to Spark by using the `--packages` command line option.
