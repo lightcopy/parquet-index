@@ -20,20 +20,20 @@ import org.apache.spark.internal.config.ConfigEntry
 import org.apache.spark.sql.SparkSession
 
 object IndexConf {
-  import SQLConf.SQLConfigBuilder
+  import SQLConf.buildConf
 
-  val METASTORE_LOCATION = SQLConfigBuilder("spark.sql.index.metastore").
+  val METASTORE_LOCATION = buildConf("spark.sql.index.metastore").
     doc("Metastore location or root directory to store index information, will be created " +
       "if path does not exist").
     stringConf.
     createWithDefault("")
 
-  val CREATE_IF_NOT_EXISTS = SQLConfigBuilder("spark.sql.index.createIfNotExists").
+  val CREATE_IF_NOT_EXISTS = buildConf("spark.sql.index.createIfNotExists").
     doc("When set to true, creates index if one does not exist in metastore for the table").
     booleanConf.
     createWithDefault(false)
 
-  val NUM_PARTITIONS = SQLConfigBuilder("spark.sql.index.partitions").
+  val NUM_PARTITIONS = buildConf("spark.sql.index.partitions").
     doc("When creating index uses this number of partitions. If value is non-positive or not " +
       "provided then uses `sc.defaultParallelism * 3` or `spark.sql.shuffle.partitions` " +
       "configuration value, whichever is smaller").
@@ -41,21 +41,21 @@ object IndexConf {
     createWithDefault(0)
 
   val PARQUET_FILTER_STATISTICS_ENABLED =
-    SQLConfigBuilder("spark.sql.index.parquet.filter.enabled").
+    buildConf("spark.sql.index.parquet.filter.enabled").
     doc("When set to true, writes filter statistics for indexed columns when creating table " +
       "index, otherwise only min/max statistics are used. Filter statistics are always used " +
       "during filtering stage, if applicable").
     booleanConf.
     createWithDefault(true)
 
-  val PARQUET_FILTER_STATISTICS_TYPE = SQLConfigBuilder("spark.sql.index.parquet.filter.type").
+  val PARQUET_FILTER_STATISTICS_TYPE = buildConf("spark.sql.index.parquet.filter.type").
     doc("When filter statistics enabled, selects type of statistics to use when creating index. " +
       "Available options are `bloom`, `dict`").
     stringConf.
     createWithDefault("bloom")
 
   val PARQUET_FILTER_STATISTICS_EAGER_LOADING =
-    SQLConfigBuilder("spark.sql.index.parquet.filter.eagerLoading").
+    buildConf("spark.sql.index.parquet.filter.eagerLoading").
     doc("When set to true, read and load all filter statistics in memory the first time catalog " +
       "is resolved, otherwise load them lazily as needed when evaluating predicate. " +
       "Eager loading removes IO of reading filter data from disk, but requires extra memory").

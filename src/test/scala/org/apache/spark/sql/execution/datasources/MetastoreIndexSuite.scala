@@ -67,7 +67,7 @@ class MetastoreIndexSuite extends UnitTestSuite {
       }
     }
 
-    catalog.listFiles(Seq.empty)
+    catalog.listFiles(Seq.empty, Seq.empty)
     indexSeq should be (Nil)
     filterSeq should be (Nil)
   }

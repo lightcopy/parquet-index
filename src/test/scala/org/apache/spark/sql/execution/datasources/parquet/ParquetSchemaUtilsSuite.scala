@@ -128,6 +128,14 @@ class ParquetSchemaUtilsSuite extends UnitTestSuite {
       ("id", 0) :: ("str", 1) :: ("b", 2) :: ("c", 3) :: Nil)
   }
 
+  test("topLevelUniqueColumns - empty schema") {
+    val schema = MessageTypeParser.parseMessageType(
+      """
+      | message spark_schema { }
+      """.stripMargin)
+    ParquetSchemaUtils.topLevelUniqueColumns(schema) should be (Nil)
+  }
+
   test("topLevelUniqueColumns - duplicate column names") {
     val schema = MessageTypeParser.parseMessageType(
       """

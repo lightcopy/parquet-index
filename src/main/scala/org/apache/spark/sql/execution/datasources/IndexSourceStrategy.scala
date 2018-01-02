@@ -95,15 +95,13 @@ object IndexSourceStrategy extends Strategy with Logging {
 
       val outputAttributes = readDataColumns ++ partitionColumns
 
-      val pushedDownFilters = dataFilters.flatMap(DataSourceStrategy.translateFilter)
-
       val scan =
         FileSourceScanExec(
           fsRelation,
           outputAttributes,
           outputSchema,
           partitionKeyFilters.toSeq,
-          pushedDownFilters,
+          dataFilters,
           table.map(_.identifier))
 
       val afterScanFilter = afterScanFilters.toSeq.reduceOption(expressions.And)

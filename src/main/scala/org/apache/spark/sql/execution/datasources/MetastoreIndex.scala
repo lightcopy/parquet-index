@@ -77,7 +77,9 @@ abstract class MetastoreIndex extends FileIndex with Logging {
    * @param partitionFilters filters used to prune which partitions are returned.
    * @param dataFilters filters that can be applied on non-partitioned columns.
    */
-  final def listFiles(partitionFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+  final def listFiles(
+      partitionFilters: Seq[Expression],
+      dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     listFilesWithIndexSupport(partitionFilters, Nil, indexFilters)
   }
 }

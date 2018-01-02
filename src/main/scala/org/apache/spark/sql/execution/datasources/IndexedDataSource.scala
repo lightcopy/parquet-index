@@ -60,7 +60,7 @@ case class IndexedDataSource(
   }
 
   def resolveRelation(): BaseRelation = {
-    val caseInsensitiveOptions = new CaseInsensitiveMap(options)
+    val caseInsensitiveOptions = CaseInsensitiveMap(options)
     providingClass.newInstance() match {
       case support: MetastoreSupport =>
         // if index does not exist in metastore and option is selected, we will create it before
@@ -102,7 +102,7 @@ case class IndexedDataSource(
       val catalog = new InMemoryFileIndex(metastore.session, paths, options, partitionSchema)
       val partitionSpec = catalog.partitionSpec
       // ignore filtering expression for partitions, fetch all available files
-      val allFiles = catalog.listFiles(Nil)
+      val allFiles = catalog.listFiles(Nil, Nil)
       val spec = locationSpec(s.identifier, tablePath.getPath, catalogTable)
       metastore.create(spec, mode) { (status, isAppend) =>
         s.createIndex(metastore, status, tablePath, isAppend, partitionSpec, allFiles, columns)
