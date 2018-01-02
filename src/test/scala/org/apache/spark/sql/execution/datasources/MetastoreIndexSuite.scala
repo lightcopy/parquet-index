@@ -27,12 +27,15 @@ import com.github.lightcopy.testutil.implicits._
 
 // Test catalog to check internal methods
 private[datasources] class TestIndex extends MetastoreIndex {
+  private var internalIndexFilters: Seq[Filter] = Nil
   override def tablePath(): Path = ???
   override def partitionSchema: StructType = ???
   override def indexSchema: StructType = ???
   override def dataSchema: StructType = ???
-  override def setIndexFilters(filters: Seq[Filter]) = { }
-  override def indexFilters: Seq[Filter] = ???
+  override def setIndexFilters(filters: Seq[Filter]) = {
+    internalIndexFilters = filters
+  }
+  override def indexFilters: Seq[Filter] = internalIndexFilters
   override def listFilesWithIndexSupport(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression],

@@ -151,6 +151,7 @@ object IndexedDataSource {
   def resolveClassName(provider: String): String = provider match {
     case "parquet" => parquet
     case "org.apache.spark.sql.execution.datasources.parquet" => parquet
+    case "Parquet" => parquet
     case "ParquetFormat" => parquet
     case other => other
   }

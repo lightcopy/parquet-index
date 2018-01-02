@@ -45,7 +45,7 @@ class ParquetIndex(
 
   override val tablePath: Path = new Path(indexMetadata.tablePath)
 
-  override val partitionSchema: StructType = indexMetadata.partitionSpec.partitionColumns
+  override lazy val partitionSchema: StructType = indexMetadata.partitionSpec.partitionColumns
 
   override lazy val dataSchema = indexMetadata.dataSchema
 

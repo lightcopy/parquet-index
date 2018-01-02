@@ -914,6 +914,33 @@ class IndexSuite extends UnitTestSuite with SparkLocal {
     }
   }
 
+  test("no support for index catalog table in JSON format") {
+    withTempDir { dir =>
+      withSQLConf(
+          "spark.sql.sources.default" -> "json",
+          METASTORE_LOCATION.key -> dir.toString / "metastore") {
+        val sqlContext = spark.sqlContext
+        import sqlContext.implicits._
+        val df = Seq(
+          ("a", 1, true),
+          ("b", 2, false),
+          ("c", 3, true)
+        ).toDF("col1", "col2", "col3")
+
+        val tableName = "test_json_table"
+        df.write.saveAsTable(tableName)
+        try {
+          val err = intercept[ClassNotFoundException] {
+            spark.index.create.indexByAll.table(tableName)
+          }
+          assert(err.getMessage.contains("Failed to find data source: JSON"))
+        } finally {
+          spark.sql(s"drop table $tableName")
+        }
+      }
+    }
+  }
+
   test("create different index for catalog table and datasource with same path") {
     withTempDir { dir =>
       withSQLConf(
