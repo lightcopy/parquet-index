@@ -9,13 +9,16 @@ matrix:
   include:
     - jdk: openjdk7
       scala: 2.11.7
-      env: TEST_SPARK_VERSION="2.1.0" TEST_SPARK_RELEASE="spark-2.1.0-bin-hadoop2.6"
+      env: TEST_SPARK_VERSION="2.2.0" TEST_SPARK_RELEASE="spark-2.2.0-bin-hadoop2.6"
     - jdk: openjdk7
+      scala: 2.11.7
+      env: TEST_SPARK_VERSION="2.2.1" TEST_SPARK_RELEASE="spark-2.2.1-bin-hadoop2.6"
+    - jdk: oraclejdk8
       scala: 2.11.7
       env: TEST_SPARK_VERSION="2.2.0" TEST_SPARK_RELEASE="spark-2.2.0-bin-hadoop2.6"
     - jdk: oraclejdk8
       scala: 2.11.7
-      env: TEST_SPARK_VERSION="2.2.0" TEST_SPARK_RELEASE="spark-2.2.0-bin-hadoop2.6"
+      env: TEST_SPARK_VERSION="2.2.1" TEST_SPARK_RELEASE="spark-2.2.1-bin-hadoop2.6"
 script:
   - sbt ++$TRAVIS_SCALA_VERSION scalastyle
   - sbt ++$TRAVIS_SCALA_VERSION "test:scalastyle"
