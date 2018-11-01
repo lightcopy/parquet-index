@@ -124,9 +124,8 @@ spark.index.exists.parquet("temp/codes.parquet")
 // example uses filters on both columns, though any filters can be used,
 // e.g. only on id or code
 // Metastore will cache index catalog to reduce time for subsequent calls
-val df = spark.index.parquet("temp/codes.parquet").
-  filter($"id" === 123 && $"code" === "123")
-df.collect
+spark.index.parquet("temp/codes.parquet").
+  filter($"id" === 123 && $"code" === "123").collect
 
 // Delete index in metastore, also invalidates cache
 // no-op if there is such index does not exist
@@ -134,9 +133,8 @@ df.collect
 spark.index.delete.parquet("temp/codes.parquet")
 
 // You can compare performance with this
-val df = spark.read.parquet("temp/codes.parquet").
-  filter($"id" === 123 && $"code" === "123")
-df.collect
+spark.read.parquet("temp/codes.parquet").
+  filter($"id" === 123 && $"code" === "123").collect
 ```
 
 ### Java API
