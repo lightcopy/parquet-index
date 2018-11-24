@@ -16,6 +16,7 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import java.net.URI
 import java.util.UUID
 
 import scala.collection.JavaConverters._
@@ -119,7 +120,7 @@ class ParquetStatisticsRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[ParquetFileStatus] = {
     val configuration = hadoopConfiguration
-    val fs = FileSystem.get(configuration)
+    val fs = ParquetStatisticsRDD.getFS(configuration) 
     val partition = split.asInstanceOf[ParquetStatisticsPartition]
     // convert schema of struct type into Parquet schema
     val indexSchema: MessageType = new ParquetSchemaConverter().convert(schema)
@@ -299,6 +300,17 @@ private[parquet] object ParquetStatisticsRDD {
       if (t == '/' || t == '\\' || Character.isWhitespace(t)) '_' else t
     }
     s"filter_${UUID.randomUUID}_block${blockSuffix}_col_${colSuffix}"
+  }
+
+  /**
+   * Get FileSystem based on URI
+   */
+  def getFS(configuration: Configuration): FileSystem = {
+    val filterURI = configuration.get(ParquetMetastoreSupport.FILTER_DIR)
+    filterURI match {
+      case uri:Any =>  FileSystem.get(new URI(uri), configuration)
+      case _   =>  FileSystem.get(configuration)
+    }
   }
 
   /**

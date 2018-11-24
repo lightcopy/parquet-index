@@ -16,6 +16,7 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import org.apache.hadoop.fs.FileSystem
 import org.apache.parquet.hadoop.metadata.BlockMetaData
 
 import org.apache.spark.SparkException
@@ -483,5 +484,14 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
 
     val hosts = rdd.getPreferredLocations(partition)
     hosts should be (Nil)
+  }
+
+  test("ParquetStatisticsRDD - getFS, check file://") {
+    val hadoopConf = spark.sessionState.newHadoopConf()
+    // ideally should have tested s3a here but that needs credentials 
+    // and also AWS SDK classes in classpath
+    hadoopConf.set(ParquetMetastoreSupport.FILTER_DIR, "file://issue-86-test/index_metastore")
+    val fs = ParquetStatisticsRDD.getFS(hadoopConf)
+    fs shouldBe a [FileSystem]
   }
 }
