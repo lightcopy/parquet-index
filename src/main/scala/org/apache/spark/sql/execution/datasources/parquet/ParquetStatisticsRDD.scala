@@ -303,8 +303,8 @@ private[parquet] object ParquetStatisticsRDD {
   }
 
   /**
-   * Returns file system for FILTER_DIR path, if provided, otherwise, the default file system based on 
-   * Hadoop configuration
+   * Returns file system for FILTER_DIR path, if provided, otherwise,
+   * the default file system based on Hadoop configuration
    */
   def getFileSystem(configuration: Configuration): FileSystem = {
     // Returns null if option is not set in configuration
