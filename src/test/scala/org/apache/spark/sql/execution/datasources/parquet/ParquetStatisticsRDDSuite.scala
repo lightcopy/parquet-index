@@ -486,12 +486,12 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
     hosts should be (Nil)
   }
 
-  test("ParquetStatisticsRDD - getFS, check file://") {
+  test("ParquetStatisticsRDD - getFileSystem, check file://") {
     val hadoopConf = spark.sessionState.newHadoopConf()
     // ideally should have tested s3a here but that needs credentials 
     // and also AWS SDK classes in classpath
     hadoopConf.set(ParquetMetastoreSupport.FILTER_DIR, "file://issue-86-test/index_metastore")
-    val fs = ParquetStatisticsRDD.getFS(hadoopConf)
-    fs shouldBe a [FileSystem]
+    val fs = ParquetStatisticsRDD.getFileSystem(hadoopConf)
+    assert(fs.getScheme().equals("file"))
   }
 }

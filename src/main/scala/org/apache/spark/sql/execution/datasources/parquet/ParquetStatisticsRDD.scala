@@ -120,7 +120,7 @@ class ParquetStatisticsRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[ParquetFileStatus] = {
     val configuration = hadoopConfiguration
-    val fs = ParquetStatisticsRDD.getFS(configuration) 
+    val fs = ParquetStatisticsRDD.getFileSystem(configuration) 
     val partition = split.asInstanceOf[ParquetStatisticsPartition]
     // convert schema of struct type into Parquet schema
     val indexSchema: MessageType = new ParquetSchemaConverter().convert(schema)
@@ -303,13 +303,14 @@ private[parquet] object ParquetStatisticsRDD {
   }
 
   /**
-   * Get FileSystem based on URI
+   * Returns file system for FILTER_DIR path, if provided, otherwise, the default file system based on 
+   * Hadoop configuration
    */
-  def getFS(configuration: Configuration): FileSystem = {
-    val filterURI = configuration.get(ParquetMetastoreSupport.FILTER_DIR)
-    filterURI match {
-      case uri:Any =>  FileSystem.get(new URI(uri), configuration)
-      case _   =>  FileSystem.get(configuration)
+  def getFileSystem(configuration: Configuration): FileSystem = {
+    // Returns null if option is not set in configuration
+    Option(configuration.get(ParquetMetastoreSupport.FILTER_DIR)) match {
+      case Some(uri) => FileSystem.get(new URI(uri), configuration)
+      case None => FileSystem.get(configuration)
     }
   }
 
