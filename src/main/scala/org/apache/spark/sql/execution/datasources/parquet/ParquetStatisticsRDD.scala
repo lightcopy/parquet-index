@@ -120,7 +120,7 @@ class ParquetStatisticsRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[ParquetFileStatus] = {
     val configuration = hadoopConfiguration
-    val fs = ParquetStatisticsRDD.getFileSystem(configuration) 
+    val fs = ParquetStatisticsRDD.getFileSystem(configuration)
     val partition = split.asInstanceOf[ParquetStatisticsPartition]
     // convert schema of struct type into Parquet schema
     val indexSchema: MessageType = new ParquetSchemaConverter().convert(schema)
