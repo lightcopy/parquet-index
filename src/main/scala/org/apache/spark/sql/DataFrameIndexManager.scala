@@ -77,6 +77,14 @@ class DataFrameIndexManager(sparkSession: SparkSession) {
   }
 
   /**
+    * @param column column that be partitioned by (Dataset#repartition).
+    */
+  def repartition(column: String): DataFrameIndexManager = {
+    option("repartitionedColumn", column)
+    option("support", "repartition")
+  }
+
+  /**
    * Load indexed DataFrame from persistent table.
    * @param tableName table name in catalog
    */

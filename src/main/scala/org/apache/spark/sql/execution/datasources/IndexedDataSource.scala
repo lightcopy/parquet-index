@@ -16,19 +16,19 @@
 
 package org.apache.spark.sql.execution.datasources
 
-import scala.util.{Try, Success, Failure}
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
-
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{Column, SaveMode, SparkSession}
 import org.apache.spark.sql.catalyst.catalog.BucketSpec
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
+import org.apache.spark.sql.execution.datasources.lightweight.PartitionMetastoreSupport
 import org.apache.spark.sql.execution.datasources.parquet.ParquetMetastoreSupport
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{Column, SaveMode}
 import org.apache.spark.util.Utils
+
+import scala.util.{Failure, Success, Try}
 
 /** DataSource to resolve relations that support indexing */
 case class IndexedDataSource(
@@ -40,7 +40,9 @@ case class IndexedDataSource(
     catalogTable: Option[CatalogTableInfo] = None)
   extends Logging {
 
-  lazy val providingClass: Class[_] = IndexedDataSource.lookupDataSource(className)
+  lazy val providingClass: Class[_] =
+    IndexedDataSource.lookupDataSource(options.getOrElse("support", className))
+
   lazy val tablePath: FileStatus = {
     val path = options.getOrElse("path", sys.error("path option is required"))
     IndexedDataSource.resolveTablePath(new Path(path),
@@ -62,6 +64,16 @@ case class IndexedDataSource(
   def resolveRelation(): BaseRelation = {
     val caseInsensitiveOptions = CaseInsensitiveMap(options)
     providingClass.newInstance() match {
+      case support: PartitionMetastoreSupport =>
+        val indexCatalog = support.loadIndex(metastore, tablePath)
+        HadoopFsRelation(
+          indexCatalog,
+          partitionSchema = indexCatalog.partitionSchema,
+          dataSchema = indexCatalog.dataSchema.asNullable,
+          bucketSpec = bucketSpec,
+          support.fileFormat,
+          caseInsensitiveOptions)(metastore.session)
+
       case support: MetastoreSupport =>
         // if index does not exist in metastore and option is selected, we will create it before
         // loading index catalog. Note that empty list of columns indicates all available columns
@@ -143,12 +155,14 @@ case class IndexedDataSource(
 
 object IndexedDataSource {
   val parquet = classOf[ParquetMetastoreSupport].getCanonicalName
+  val partition = classOf[PartitionMetastoreSupport].getCanonicalName
 
   /**
    * Resolve class name into fully-qualified class path if available. If no match found, return
    * itself. [[IndexedDataSource]] checks whether or not class is a valid indexed source.
    */
   def resolveClassName(provider: String): String = provider match {
+    case "repartition" => partition
     case "parquet" => parquet
     case "org.apache.spark.sql.execution.datasources.parquet" => parquet
     case "Parquet" => parquet

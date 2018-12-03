@@ -24,7 +24,7 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 
 /**
- * [[MetastoreIndexCatalog]] is a wrapper on index metadata stored in [[Metastore]]. Currently
+ * [[MetastoreIndex]] is a wrapper on index metadata stored in [[Metastore]]. Currently
  * designed to provide catalog with single table path.
  */
 abstract class MetastoreIndex extends FileIndex with Logging {
