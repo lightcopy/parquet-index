@@ -60,8 +60,8 @@ Currently only these types are supported for indexed columns:
 | 2.0.2 | [0.2.3](http://spark-packages.org/package/lightcopy/parquet-index) |
 | 2.1.x | [0.3.0](http://spark-packages.org/package/lightcopy/parquet-index) |
 | 2.2.x | [0.4.0](http://spark-packages.org/package/lightcopy/parquet-index) |
-| 2.3.x | d0aa32ffe82e794d0a4f82d548c755d6eaa7986f (master branch, not released yet) |
-| 2.4.x | d0aa32ffe82e794d0a4f82d548c755d6eaa7986f (master branch, not released yet) |
+| 2.3.x | [fd442d](https://github.com/lightcopy/parquet-index/commit/fd442d2b555d89802d3c404d26ad0444f1016b3e) (not released yet) |
+| 2.4.x | [5051f9](https://github.com/lightcopy/parquet-index/commit/5051f9682b385b636795b67c264cb83b83c23004) (not released yet) |
 
 - Scala 2.11.x
 - JDK 8+
