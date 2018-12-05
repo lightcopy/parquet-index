@@ -27,7 +27,7 @@ import org.apache.spark.sql.execution.{FileSourceScanExec, SparkPlan}
 object IndexSourceStrategy extends Strategy with Logging {
   def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case PhysicalOperation(projects, filters,
-      l @ LogicalRelation(fsRelation: HadoopFsRelation, _, table))
+      l @ LogicalRelation(fsRelation: HadoopFsRelation, _, table, _))
       if fsRelation.location.isInstanceOf[MetastoreIndex] =>
 
       val catalog = fsRelation.location.asInstanceOf[MetastoreIndex]

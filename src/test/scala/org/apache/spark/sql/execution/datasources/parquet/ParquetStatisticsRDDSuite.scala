@@ -98,6 +98,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
         spark.sparkContext,
         spark.sessionState.newHadoopConf(),
         schema = StructType(Seq.empty),
+        spark.sessionState.conf.writeLegacyParquetFormat,
         data = Seq.empty,
         numPartitions = 8)
     }
@@ -112,6 +113,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
         schema = StructType(
           StructField("str", StringType) ::
           StructField("a", StructType(Seq.empty)) :: Nil),
+        spark.sessionState.conf.writeLegacyParquetFormat,
         data = Seq.empty,
         numPartitions = 8)
     }
@@ -129,6 +131,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
         spark.sessionState.newHadoopConf(),
         // schema will result in optional fields, but table contains required
         schema = StructType(StructField("id", LongType, true) :: Nil),
+        spark.sessionState.conf.writeLegacyParquetFormat,
         data = status.map(SerializableFileStatus.fromFileStatus).toSeq,
         numPartitions = 8)
 
@@ -149,6 +152,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
         schema = StructType(
           StructField("str", StringType) ::
           StructField("id", IntegerType) :: Nil),
+        spark.sessionState.conf.writeLegacyParquetFormat,
         data = Seq(SerializableFileStatus.fromFileStatus(status)),
         numPartitions = 8)
 
@@ -294,6 +298,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
         schema = StructType(
           StructField("id", LongType, false) ::
           StructField("str", StringType, false) :: Nil),
+        spark.sessionState.conf.writeLegacyParquetFormat,
         data = status.map(SerializableFileStatus.fromFileStatus).toSeq,
         numPartitions = 4)
 
@@ -322,6 +327,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
           StructField("col1", IntegerType, false) ::
           StructField("col2", StringType, true) ::
           StructField("col3", StringType, true) :: Nil),
+        spark.sessionState.conf.writeLegacyParquetFormat,
         data = status.map(SerializableFileStatus.fromFileStatus).toSeq,
         numPartitions = 4)
 
@@ -363,6 +369,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
         schema = StructType(
           StructField("str", StringType, false) ::
           StructField("id", LongType, false) :: Nil),
+        spark.sessionState.conf.writeLegacyParquetFormat,
         data = status.map(SerializableFileStatus.fromFileStatus).toSeq,
         numPartitions = 4)
 
@@ -403,6 +410,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       spark.sparkContext,
       spark.sessionState.newHadoopConf(),
       schema = StructType(StructField("a", StringType) :: Nil),
+      spark.sessionState.conf.writeLegacyParquetFormat,
       data = Seq.empty,
       numPartitions = 8)
 
@@ -419,6 +427,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       spark.sparkContext,
       spark.sessionState.newHadoopConf(),
       schema = StructType(StructField("a", StringType) :: Nil),
+      spark.sessionState.conf.writeLegacyParquetFormat,
       data = Seq.empty,
       numPartitions = 8)
 
@@ -435,6 +444,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       spark.sparkContext,
       spark.sessionState.newHadoopConf(),
       schema = StructType(StructField("a", StringType) :: Nil),
+      spark.sessionState.conf.writeLegacyParquetFormat,
       data = Seq.empty,
       numPartitions = 8)
 
@@ -452,6 +462,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       spark.sparkContext,
       spark.sessionState.newHadoopConf(),
       schema = StructType(StructField("a", StringType) :: Nil),
+      spark.sessionState.conf.writeLegacyParquetFormat,
       data = Seq.empty,
       numPartitions = 8)
 
@@ -466,6 +477,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       spark.sparkContext,
       spark.sessionState.newHadoopConf(),
       schema = StructType(StructField("a", StringType) :: Nil),
+      spark.sessionState.conf.writeLegacyParquetFormat,
       data = Seq.empty,
       numPartitions = 8)
 
@@ -479,6 +491,7 @@ class ParquetStatisticsRDDSuite extends UnitTestSuite with SparkLocal {
       spark.sparkContext,
       spark.sessionState.newHadoopConf(),
       schema = StructType(StructField("a", StringType) :: Nil),
+      spark.sessionState.conf.writeLegacyParquetFormat,
       data = Seq.empty,
       numPartitions = 8)
 

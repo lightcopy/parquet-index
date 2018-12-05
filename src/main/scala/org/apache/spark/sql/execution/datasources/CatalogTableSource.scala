@@ -47,7 +47,7 @@ case class CatalogTableSource(
     val qe = metastore.session.sessionState.executePlan(plan)
     qe.assertAnalyzed
     qe.sparkPlan match {
-      case scanExec: FileSourceScanExec if scanExec.metastoreTableIdentifier.isDefined =>
+      case scanExec: FileSourceScanExec if scanExec.tableIdentifier.isDefined =>
         // format describes subclass of FileFormat, and reference is slightly different from
         // datasource API, also we expect only single path/directory
         require(scanExec.metadata.contains(FORMAT), s"$FORMAT for $scanExec")

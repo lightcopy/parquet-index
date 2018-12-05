@@ -68,6 +68,7 @@ private[parquet] class ParquetStatisticsPartition(
  * @param sc Spark context
  * @param hadoopConf Hadoop configuration, normally 'sc.hadoopConfiguration'
  * @param schema columns to compute index for
+ * @param writeLegacyParquetFormat whether or not convert schema into legacy parquet format
  * @param data list of Parquet file statuses
  * @param numPartitions number of partitions to use
  */
@@ -75,6 +76,7 @@ class ParquetStatisticsRDD(
     @transient private val sc: SparkContext,
     @transient private val hadoopConf: Configuration,
     schema: StructType,
+    writeLegacyParquetFormat: Boolean,
     data: Seq[SerializableFileStatus],
     numPartitions: Int)
   extends RDD[ParquetFileStatus](sc, Nil) {
@@ -123,7 +125,9 @@ class ParquetStatisticsRDD(
     val fs = ParquetStatisticsRDD.getFileSystem(configuration)
     val partition = split.asInstanceOf[ParquetStatisticsPartition]
     // convert schema of struct type into Parquet schema
-    val indexSchema: MessageType = new ParquetSchemaConverter().convert(schema)
+    // TODO: pass writeLegacyParquetFormat
+    val indexSchema: MessageType = new SparkToParquetSchemaConverter(
+      writeLegacyParquetFormat = writeLegacyParquetFormat).convert(schema)
     logDebug(s"""
       |== Indexed schema ==
       |${schema.simpleString}

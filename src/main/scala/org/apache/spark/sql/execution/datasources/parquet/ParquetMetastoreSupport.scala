@@ -134,9 +134,12 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
       hadoopConf.set(ParquetMetastoreSupport.FILTER_DIR, indexDirectory.getPath.toString)
       hadoopConf.set(ParquetMetastoreSupport.FILTER_TYPE, metastore.conf.parquetFilterType)
     }
+    // Whether or not treat schema as legacy parquet format.
+    val writeLegacyParquetFormat = metastore.session.sessionState.conf.writeLegacyParquetFormat
 
     val numPartitions = ParquetMetastoreSupport.inferNumPartitions(metastore)
-    val rdd = new ParquetStatisticsRDD(sc, hadoopConf, indexSchema, files, numPartitions)
+    val rdd = new ParquetStatisticsRDD(sc, hadoopConf, indexSchema, writeLegacyParquetFormat,
+      files, numPartitions)
     val statistics = rdd.collect
 
     val extendedPartitions = partitions.map { partition =>
@@ -190,7 +193,7 @@ case class ParquetMetastoreSupport() extends MetastoreSupport with Logging {
     val footer = ParquetFileReader.readAllFootersInParallelUsingSummaryFiles(conf,
       Arrays.asList(status), false).get(0)
     val schema = footer.getParquetMetadata.getFileMetaData.getSchema
-    val fileStruct = new ParquetSchemaConverter().convert(schema)
+    val fileStruct = new ParquetToSparkSchemaConverter().convert(schema)
 
     // if no columns provided prune struct type and return only valid columns, otherwise do
     // normal column check
@@ -235,11 +238,9 @@ object ParquetMetastoreSupport extends Logging {
     // create converter to fall back to Parquet schema parsing
     val assumeBinaryIsString = sparkSession.sessionState.conf.isParquetBinaryAsString
     val assumeInt96IsTimestamp = sparkSession.sessionState.conf.isParquetINT96AsTimestamp
-    val writeLegacyParquetFormat = sparkSession.sessionState.conf.writeLegacyParquetFormat
-    val converter = new ParquetSchemaConverter(
+    val converter = new ParquetToSparkSchemaConverter(
       assumeBinaryIsString = assumeBinaryIsString,
-      assumeInt96IsTimestamp = assumeInt96IsTimestamp,
-      writeLegacyParquetFormat = writeLegacyParquetFormat)
+      assumeInt96IsTimestamp = assumeInt96IsTimestamp)
 
     // util to convert Parquet schema into Spark SQL schema using global converter
     def parquetToStructType(parquetSchema: String): StructType = {
