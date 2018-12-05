@@ -101,6 +101,7 @@ object IndexSourceStrategy extends Strategy with Logging {
           outputAttributes,
           outputSchema,
           partitionKeyFilters.toSeq,
+          None, // we don't support bucketing
           dataFilters,
           table.map(_.identifier))
 

@@ -6,7 +6,7 @@ scalaVersion := "2.11.7"
 
 spName := "lightcopy/parquet-index"
 
-val defaultSparkVersion = "2.3.0"
+val defaultSparkVersion = "2.4.0"
 
 sparkVersion := sys.props.getOrElse("spark.testVersion", defaultSparkVersion)
 
