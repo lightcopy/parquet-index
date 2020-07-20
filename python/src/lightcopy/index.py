@@ -17,7 +17,6 @@
 # limitations under the License.
 #
 
-from types import DictType
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.session import SparkSession
 
@@ -261,7 +260,7 @@ class DataFrameIndexManager(object):
         :param: opts dictionary
         :return: self
         """
-        if not isinstance(opts, DictType):
+        if not isinstance(opts, dict):
             msg = 'Expected <dict>, found %s' % (opts)
             raise AttributeError(msg)
         for (key, value) in opts.items():

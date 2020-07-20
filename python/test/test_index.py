@@ -205,7 +205,7 @@ class IndexSuite(unittest.TestCase):
             context.index.create.indexByAll().table(tableName)
             res1 = context.index.table(tableName).filter('id = 3').collect()
             res2 = self.spark.table(tableName).filter('id = 3').collect()
-            self.assertEquals(res1, res2)
+            self.assertEqual(res1, res2)
         finally:
             self.spark.sql("drop table " + tableName)
 
