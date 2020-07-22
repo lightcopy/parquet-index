@@ -72,7 +72,7 @@ Currently only these types are supported for indexed columns:
 
 And, if using the Python API, Python 3.x with a working version of `pyspark`.
 
-> The current version parts ways with Python 2 definitely. Python 2.7 is officially unsupported,
+> The current version parts ways with Python 2 definitely. Python 2.7 is officially deprecated,
 > which is the reason why we opted not to write a retrocompatible wrapper around the Scala API.
 
 ## Linking
