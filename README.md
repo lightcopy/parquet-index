@@ -66,8 +66,14 @@ Currently only these types are supported for indexed columns:
 - Scala 2.11.x
 - JDK 8+
 
+
 > Previous versions have support for Scala 2.10.x and JDK 7, see README for corresponding tag or
 > branch. See build section to compile for desired Java/Scala versions.
+
+And, if using the Python API, Python 3.x with a working version of `pyspark`.
+
+> The current version parts ways with Python 2 definitely. Python 2.7 is officially unsupported,
+> which is the reason why we opted not to write a retrocompatible wrapper around the Scala API.
 
 ## Linking
 The `parquet-index` package can be added to Spark by using the `--packages` command line option.
@@ -75,7 +81,7 @@ For example, run this to include it when starting `spark-shell` (Scala 2.11.x):
 ```shell
  $SPARK_HOME/bin/spark-shell --packages lightcopy:parquet-index:0.4.0-s_2.11
 ```
-Or for `pyspark` to use Python API (see section below):
+Or for `pyspark` to use Python 3 API (see section below):
 ```shell
 $SPARK_HOME/bin/pyspark --packages lightcopy:parquet-index:0.4.0-s_2.11
 ```
@@ -176,8 +182,8 @@ Dataset<Row> df = context.index().parquet("table.parquet").filter("col2 = 'c'");
 context.index().delete().parquet("table.parquet");
 ```
 
-### Python API
-Following example shows usage of Python API (runnable in `pyspark`)
+### Python 3.x API
+Following example shows usage of Python 3 API (runnable in `pyspark`)
 ```python
 from lightcopy.index import QueryContext
 
@@ -205,7 +211,7 @@ context.index.delete.parquet('table.parquet')
 Package also supports index for persistent tables that are saved using `saveAsTable()` in Parquet
 format and accessible using `spark.table(tableName)`. When using with persistent tables, just
 replace `.parquet(path_to_the_file)` with `.table(table_name)`. API is available in Scala, Java and
-Python.
+Python 3.
 
 #### Scala
 ```scala
@@ -246,7 +252,7 @@ Dataset<Row> df = context.index().table("table_name").filter("col2 = 'c'");
 context.index().delete().table("table_name");
 ```
 
-#### Python
+#### Python 3
 ```python
 from lightcopy.index import QueryContext
 
