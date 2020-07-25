@@ -77,19 +77,19 @@ def check_headers(filepath, skip_empty=True):
     exit_code = 0
     with open(filepath, 'r') as stream:
         if stream.readline().strip() != "#!/usr/bin/env python":
-            print "ERROR: Missing '#!/usr/bin/env python' as first line in '%s'" % filepath
+            print("ERROR: Missing '#!/usr/bin/env python' as first line in '%s'" % filepath)
             exit_code = 1
         if stream.readline().strip() != "# -*- coding: UTF-8 -*-":
-            print "ERROR: Missing '# -*- coding: UTF-8 -*-' as second line in '%s'" % filepath
+            print("ERROR: Missing '# -*- coding: UTF-8 -*-' as second line in '%s'" % filepath)
             exit_code = 1
         # next line must be empty
         if stream.readline().strip():
-            print "ERROR: No new line after shebang headers in '%s'" % filepath
+            print("ERROR: No new line after shebang headers in '%s'" % filepath)
             exit_code = 1
         # read next 15 lines and check license header
         header = [stream.readline().strip() for x in range(0, 15)]
         if '\n'.join(header) != license_header:
-            print "ERROR: Wrong license header in '%s'" % filepath
+            print("ERROR: Wrong license header in '%s'" % filepath)
             exit_code = 1
     return exit_code
 
