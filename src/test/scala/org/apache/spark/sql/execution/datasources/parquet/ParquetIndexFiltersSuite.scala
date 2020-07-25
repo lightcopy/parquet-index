@@ -103,8 +103,8 @@ class ParquetIndexFiltersSuite extends UnitTestSuite with SparkLocal {
 
   test("foldFilter - return true for unsupported filter") {
     val blocks = Array.empty[ParquetBlockMetadata]
-    // String filter is one of the unsupported filters
-    val filter = StringStartsWith("col", "value")
+    // StringContains is one of the unsupported filters
+    val filter = StringContains("col", "value")
     ParquetIndexFilters(fs, blocks).foldFilter(filter) should be (Trivial(true))
   }
 
