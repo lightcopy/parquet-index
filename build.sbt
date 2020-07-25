@@ -10,7 +10,7 @@ val defaultSparkVersion = "3.0.0"
 
 sparkVersion := sys.props.getOrElse("spark.testVersion", defaultSparkVersion)
 
-val defaultHadoopVersion = "2.8.0"
+val defaultHadoopVersion = "2.7.0"
 
 val hadoopVersion = settingKey[String]("The version of Hadoop to test against.")
 
