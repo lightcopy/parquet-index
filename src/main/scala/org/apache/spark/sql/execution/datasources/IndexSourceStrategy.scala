@@ -33,6 +33,9 @@ object IndexSourceStrategy extends Strategy with Logging {
       val catalog = fsRelation.location.asInstanceOf[MetastoreIndex]
       val resolver = fsRelation.sparkSession.sessionState.analyzer.resolver
 
+      val supportNestedPredicatePushdown =
+        DataSourceUtils.supportNestedPredicatePushdown(fsRelation)
+
       val filterSet = ExpressionSet(filters)
       // The attribute name of predicate could be different than the one in schema in case of
       // case insensitive, we should change them to match the one in schema, so we do not need to
@@ -60,7 +63,7 @@ object IndexSourceStrategy extends Strategy with Logging {
       val indexColumns = l.resolve(catalog.indexSchema, resolver)
       val indexSet = AttributeSet(indexColumns)
       val indexFilters = normalizedFilters.filter(_.references.subsetOf(indexSet)).
-        flatMap(DataSourceStrategy.translateFilter)
+        flatMap(DataSourceStrategy.translateFilter(_, supportNestedPredicatePushdown))
       // Hack to propagate filters into FileSourceScanExec instead of copying a lot of code to
       // add index filters, catalog will reset filters every time this method is called
       catalog.setIndexFilters(indexFilters)

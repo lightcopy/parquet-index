@@ -140,13 +140,14 @@ class ParquetIndexSuite extends UnitTestSuite with SparkLocal with TestMetastore
     withTempDir { dir =>
       val metastore = testMetastore(spark, dir / "test_metastore")
       val metadata = ParquetIndexMetadata("tablePath", StructType(Nil), StructType(Nil), null, Nil)
+      val unsupportedFilter = StringContains("col", "unsupported")
       val catalog = new ParquetIndex(metastore, metadata) {
         override def resolveSupported(filter: Filter, status: ParquetFileStatus): Filter =
-          TestUnsupportedFilter()
+          unsupportedFilter
       }
 
       val err = intercept[RuntimeException] {
-        catalog.pruneIndexedPartitions(Seq(TestUnsupportedFilter()), Seq(
+        catalog.pruneIndexedPartitions(Seq(unsupportedFilter), Seq(
           ParquetPartition(InternalRow.empty, Seq(
             ParquetFileStatus(null, null, Array.empty)
           ))
