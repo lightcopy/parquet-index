@@ -7,7 +7,7 @@ cache:
     - $HOME/.cache/spark-versions
 matrix:
   include:
-    - jdk: oraclejdk8
+    - jdk: openjdk8
       scala: 2.12.12
       env: TEST_SPARK_VERSION="3.0.0" TEST_SPARK_RELEASE="spark-3.0.0-bin-hadoop2.7"
 script:
