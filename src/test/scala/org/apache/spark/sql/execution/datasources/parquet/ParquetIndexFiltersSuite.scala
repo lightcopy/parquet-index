@@ -37,10 +37,6 @@ private[parquet] case class TestInFilter(values: Seq[Any]) extends ColumnFilterS
   override def isLoaded: Boolean = true
 }
 
-private[parquet] case class TestUnsupportedFilter() extends Filter {
-  override def references: Array[String] = Array.empty
-}
-
 class ParquetIndexFiltersSuite extends UnitTestSuite with SparkLocal {
   override def beforeAll {
     startSparkSession()
@@ -107,7 +103,8 @@ class ParquetIndexFiltersSuite extends UnitTestSuite with SparkLocal {
 
   test("foldFilter - return true for unsupported filter") {
     val blocks = Array.empty[ParquetBlockMetadata]
-    val filter = TestUnsupportedFilter()
+    // StringContains is one of the unsupported filters
+    val filter = StringContains("col", "value")
     ParquetIndexFilters(fs, blocks).foldFilter(filter) should be (Trivial(true))
   }
 

@@ -2,11 +2,11 @@ name := "parquet-index"
 
 organization := "com.github.lightcopy"
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.12.12"
 
 spName := "lightcopy/parquet-index"
 
-val defaultSparkVersion = "2.4.0"
+val defaultSparkVersion = "3.0.0"
 
 sparkVersion := sys.props.getOrElse("spark.testVersion", defaultSparkVersion)
 
@@ -30,15 +30,9 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-sql" % sparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client")
 )
 
-// Project dependencies provided by Spark but not included in artefacts
-libraryDependencies ++= Seq(
-  "io.netty" % "netty" % "3.6.2.Final" % "provided",
-  "com.google.guava" % "guava" % "14.0.1" % "provided"
-)
-
 // Test dependencies
 libraryDependencies ++= Seq(
-  "org.scalatest" %% "scalatest" % "2.2.4" % "test",
+  "org.scalatest" %% "scalatest" % "3.2.0" % "test",
   "com.novocode" % "junit-interface" % "0.11" % "test"
 )
 

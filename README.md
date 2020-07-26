@@ -13,7 +13,7 @@ does not change frequently, but is used for queries often, e.g. using Thrift JDB
 indexed, schema and list of files (including partitioning) will be automatically resolved from index
 metastore instead of inferring schema every time datasource is created.
 
-> Project is **experimental and is in active development**. Any feedback, issues or PRs are welcome.
+> Project is **experimental**. Any feedback, issues, or PRs are welcome.
 
 > Documentation reflects changes in `master` branch, for documentation on a specific version,
 > please select corresponding version tag or branch.
@@ -62,13 +62,14 @@ Currently only these types are supported for indexed columns:
 | 2.2.x | [0.4.0](http://spark-packages.org/package/lightcopy/parquet-index) |
 | 2.3.x | [fd442d](https://github.com/lightcopy/parquet-index/commit/fd442d2b555d89802d3c404d26ad0444f1016b3e) (not released yet) |
 | 2.4.x | [5051f9](https://github.com/lightcopy/parquet-index/commit/5051f9682b385b636795b67c264cb83b83c23004) (not released yet) |
+| 3.0.0 | master (not released yet) |
 
-- Scala 2.11.x
+- Scala 2.12.x
 - JDK 8+
 
-
-> Previous versions have support for Scala 2.10.x and JDK 7, see README for corresponding tag or
-> branch. See build section to compile for desired Java/Scala versions.
+> Previous versions have support for Scala 2.11.x, Scala 2.10.x, and JDK 7,
+> see README and `build.sbt` for corresponding tag or branch.
+> See build section to compile for desired Java/Scala versions.
 
 And, if using the Python API, Python 3.x with a working version of `pyspark`.
 

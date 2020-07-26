@@ -17,8 +17,17 @@
 package org.apache.spark.sql.sources
 
 /**
- * Trivial filter to resolve directly, provides empty list of references.
+ * Trivial filter to resolve directly.
+ * It is either AlwaysTrue or AlwaysFalse depending on the value.
  */
-case class Trivial(value: Boolean) extends Filter {
-  override def references: Array[String] = findReferences(value)
+object Trivial {
+  def apply(value: Boolean): Filter = {
+    if (value) AlwaysTrue else AlwaysFalse
+  }
+
+  def unapply(filter: Filter): Option[Boolean] = filter match {
+    case AlwaysTrue => Some(true)
+    case AlwaysFalse => Some(false)
+    case _ => None
+  }
 }

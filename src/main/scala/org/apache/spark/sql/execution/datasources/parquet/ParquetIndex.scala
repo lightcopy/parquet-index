@@ -22,7 +22,7 @@ import scala.concurrent.duration.Duration
 import org.apache.hadoop.fs.Path
 
 import org.apache.spark.sql.catalyst.expressions
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference, BoundReference, Expression, InterpretedPredicate}
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference, BoundReference, Expression, Predicate}
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
@@ -121,7 +121,7 @@ class ParquetIndex(
     if (partitionPruningPredicates.nonEmpty) {
       val predicate = partitionPruningPredicates.reduce(expressions.And)
 
-      val boundPredicate = InterpretedPredicate.create(predicate.transform {
+      val boundPredicate = Predicate.createInterpreted(predicate.transform {
         case a: AttributeReference =>
           val index = partitionColumns.indexWhere(a.name == _.name)
           BoundReference(index, partitionColumns(index).dataType, nullable = true)

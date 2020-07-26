@@ -121,8 +121,10 @@ private[parquet] case class ParquetIndexFilters(
           case Not(Trivial(true)) => Trivial(false)
           case other => other
         }
-      case trivial: Trivial =>
-        trivial
+      case trueValue @ AlwaysTrue =>
+        trueValue
+      case falseValue @ AlwaysFalse =>
+        falseValue
       case unsupportedFilter =>
         // return 'true' to scan all partitions
         // currently unsupported filters are:
